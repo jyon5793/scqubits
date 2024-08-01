@@ -16,6 +16,7 @@ from qutip import Qobj
 from scipy.sparse import csc_matrix
 from scqubits.io_utils.fileio_qutip import QutipEigenstates
 from scqubits.utils.spectrum_utils import order_eigensystem, has_degeneracy
+from scqubits import backend_change
 
 import copy
 import numpy as np
@@ -23,6 +24,7 @@ import qutip as q
 import scipy as sp
 import scqubits.settings as settings
 import warnings
+import jax.numpy as jnp
 
 
 def _dict_merge(
@@ -130,7 +132,7 @@ def _cast_matrix(
     return m
 
 
-def _convert_evecs_to_qobjs(evecs: ndarray, matrix_qobj, wrap: bool = False) -> ndarray:
+def _convert_evecs_to_qobjs(evecs: backend_change.backend.ndarray, matrix_qobj, wrap: bool = False) -> Union[backend_change.backend.ndarray, list]:
     """
     Converts an `ndarray` containing eigenvectors (that would be typically
     returned from a diagonalization routine, such as `eighs` or `eigh`),
@@ -153,17 +155,20 @@ def _convert_evecs_to_qobjs(evecs: ndarray, matrix_qobj, wrap: bool = False) -> 
     """
     evecs_count = evecs.shape[1]
     evec_dims = [matrix_qobj.dims[0], [1] * len(matrix_qobj.dims[0])]
-    evecs_qobj = np.empty((evecs_count,), dtype=object)
+    
+    # 使用列表存储Qobjs
+    evecs_qobj_list = []
 
     for i in range(evecs_count):
         v = Qobj(evecs[:, i], dims=evec_dims)
-        evecs_qobj[i] = v / v.norm()
+        evecs_qobj_list.append(v / v.norm())
 
     # Optionally, we wrap the resulting array in QutipEigenstates as is done in HilbertSpace.
     if wrap:
-        evecs_qobj = evecs_qobj.view(QutipEigenstates)
+        evecs_qobj_list = evecs_qobj_list.view(QutipEigenstates)
 
-    return evecs_qobj
+    # 调用backend的convert_to_array方法
+    return backend_change.backend.convert_to_array(evecs_qobj_list)
 
 
 ### scipy based routines ####
@@ -604,12 +609,12 @@ def esys_cupy_sparse(
 
 def evals_jax_dense(
     matrix, evals_count, **kwargs
-) -> Union[Tuple[ndarray, ndarray], Tuple[ndarray, QutipEigenstates]]:
+) -> Union[Tuple[backend_change.backend.ndarray, backend_change.backend.ndarray], Tuple[backend_change.backend.ndarray, Qobj]]:
     """
     Diagonalization based on jax's (dense) jax.scipy.linalg.eigh function.
     Only eigenvalues are returned.
 
-    If available, different backends/devics (e.g., particular GPUs) can be set
+    If available, different backends/devices (e.g., particular GPUs) can be set
     though jax's interface, see https://jax.readthedocs.io/en/latest/user_guides.html
 
     Note, that jax's documentation is inconsistent, and `eigvals` and/or
@@ -632,25 +637,38 @@ def evals_jax_dense(
     """
     try:
         import jax
-    except:
+    except ImportError:
         raise ImportError("Package jax is not installed.")
 
     m = _cast_matrix(matrix, "dense")
 
-    # We explicitly cast to a numpy array
-    evals = np.asarray(jax.scipy.linalg.eigh(m, eigvals_only=True, **kwargs))
+    # 使用动态后端的array方法将矩阵转换为适当的数组类型
+    m_array = backend_change.backend.array(m)
+
+    evals = jax.scipy.linalg.eigh(m_array, eigvals_only=True, **kwargs)
 
     return evals[:evals_count]
+
+def _cast_matrix(matrix, matrix_type):
+    if isinstance(matrix, Qobj):
+        if matrix_type == "dense":
+            return matrix.full()
+        else:
+            raise ValueError(f"Unsupported matrix type: {matrix_type}")
+    elif isinstance(matrix, (np.ndarray, jnp.ndarray)):
+        return matrix
+    else:
+        raise TypeError(f"Unsupported matrix type: {type(matrix)}")
 
 
 def esys_jax_dense(
     matrix, evals_count, **kwargs
-) -> Union[Tuple[ndarray, ndarray], Tuple[ndarray, QutipEigenstates]]:
+) -> Union[Tuple[backend_change.backend.ndarray, backend_change.backend.ndarray], Tuple[backend_change.backend.ndarray, list]]:
     """
     Diagonalization based on jax's (dense) jax.scipy.linalg.eigh function.
     Both evals and evecs are returned.
 
-    If available, different backends/devics (e.g., particular GPUs) can be set
+    If available, different backends/devices (e.g., particular GPUs) can be set
     though jax's interface, see https://jax.readthedocs.io/en/latest/user_guides.html
 
     Note, that jax's documentation is inconsistent, and `eigvals` and/or
@@ -673,20 +691,21 @@ def esys_jax_dense(
     """
     try:
         import jax
-    except:
+    except ImportError:
         raise ImportError("Package jax is not installed.")
 
     m = _cast_matrix(matrix, "dense")
 
     evals, evecs = jax.scipy.linalg.eigh(m, eigvals_only=False, **kwargs)
 
-    # We explicitly cast to numpy arrays
-    evals, evecs = np.asarray(evals), np.asarray(evecs)
+    # We explicitly cast to appropriate backend arrays
+    evals, evecs = backend_change.backend.array(evals), backend_change.backend.array(evecs)
 
-    evecs = (
-        _convert_evecs_to_qobjs(evecs, matrix) if isinstance(matrix, Qobj) else evecs
-    )
+    if isinstance(matrix, Qobj):
+        evecs = _convert_evecs_to_qobjs(evecs, matrix)
+
     return evals[:evals_count], evecs[:, :evals_count]
+
 
 
 # Default values of various noise constants and parameters.

@@ -35,6 +35,7 @@ import scqubits.core.units as units
 import scqubits.io_utils.fileio_serializers as serializers
 import scqubits.utils.plotting as plot
 import scqubits.utils.spectrum_utils as utils
+from scqubits import backend_change
 
 from scqubits.core.noise import NOISE_PARAMS, NoisySystem, calc_therm_ratio
 from scqubits.core.storage import WaveFunctionOnGrid
@@ -121,17 +122,17 @@ class NoisyCos2PhiQubit(NoisySystem, ABC):
             def q_ind_fun(omega):
                 therm_ratio = abs(calc_therm_ratio(omega, T))
                 therm_ratio_500MHz = calc_therm_ratio(
-                    2 * np.pi * 500e6, T, omega_in_standard_units=True
+                    2 * backend_change.backend.pi * 500e6, T, omega_in_standard_units=True
                 )
                 return (
                     500e6
                     * (
                         sp.special.kv(0, 1 / 2 * therm_ratio_500MHz)
-                        * np.sinh(1 / 2 * therm_ratio_500MHz)
+                        * backend_change.backend.sinh(1 / 2 * therm_ratio_500MHz)
                     )
                     / (
                         sp.special.kv(0, 1 / 2 * therm_ratio)
-                        * np.sinh(1 / 2 * therm_ratio)
+                        * backend_change.backend.sinh(1 / 2 * therm_ratio)
                     )
                 )
 
@@ -165,11 +166,11 @@ class NoisyCos2PhiQubit(NoisySystem, ABC):
                 * self.EL
                 / (1 - self.dL)
                 / q_ind_fun(omega)
-                * (1 / np.tanh(0.5 * np.abs(therm_ratio)))
-                / (1 + np.exp(-therm_ratio))
+                * (1 / backend_change.backend.tanh(0.5 * backend_change.backend.abs(therm_ratio)))
+                / (1 + backend_change.backend.exp(-therm_ratio))
             )
             s *= (
-                2 * np.pi
+                2 * backend_change.backend.pi
             )  # We assume that system energies are given in units of frequency
             return s
 
@@ -198,11 +199,11 @@ class NoisyCos2PhiQubit(NoisySystem, ABC):
                 * self.EL
                 / (1 + self.dL)
                 / q_ind_fun(omega)
-                * (1 / np.tanh(0.5 * np.abs(therm_ratio)))
-                / (1 + np.exp(-therm_ratio))
+                * (1 / backend_change.backend.tanh(0.5 * backend_change.backend.abs(therm_ratio)))
+                / (1 + backend_change.backend.exp(-therm_ratio))
             )
             s *= (
-                2 * np.pi
+                2 * backend_change.backend.pi
             )  # We assume that system energies are given in units of frequency
             return s
 
@@ -283,7 +284,7 @@ class NoisyCos2PhiQubit(NoisySystem, ABC):
             def q_cap_fun(omega):
                 return (
                     1e6
-                    * (2 * np.pi * 6e9 / np.abs(units.to_standard_units(omega))) ** 0.7
+                    * (2 * backend_change.backend.pi * 6e9 / backend_change.backend.abs(units.to_standard_units(omega))) ** 0.7
                 )
 
         elif callable(Q_cap):  # Q_cap is a function of omega
@@ -317,11 +318,11 @@ class NoisyCos2PhiQubit(NoisySystem, ABC):
                 * self.ECJ
                 / (1 - self.dCJ)
                 / q_cap_fun(omega)
-                * (1 / np.tanh(0.5 * np.abs(therm_ratio)))
-                / (1 + np.exp(-therm_ratio))
+                * (1 / backend_change.backend.tanh(0.5 * backend_change.backend.abs(therm_ratio)))
+                / (1 + backend_change.backend.exp(-therm_ratio))
             )
             s1 *= (
-                2 * np.pi
+                2 * backend_change.backend.pi
             )  # We assume that system energies are given in units of frequency
             return s1
 
@@ -349,11 +350,11 @@ class NoisyCos2PhiQubit(NoisySystem, ABC):
                 * self.ECJ
                 / (1 + self.dCJ)
                 / q_cap_fun(omega)
-                * (1 / np.tanh(0.5 * np.abs(therm_ratio)))
-                / (1 + np.exp(-therm_ratio))
+                * (1 / backend_change.backend.tanh(0.5 * backend_change.backend.abs(therm_ratio)))
+                / (1 + backend_change.backend.exp(-therm_ratio))
             )
             s2 *= (
-                2 * np.pi
+                2 * backend_change.backend.pi
             )  # We assume that system energies are given in units of frequency
             return s2
 
@@ -434,7 +435,7 @@ class NoisyCos2PhiQubit(NoisySystem, ABC):
             def q_cap_fun(omega):
                 return (
                     1e6
-                    * (2 * np.pi * 6e9 / np.abs(units.to_standard_units(omega))) ** 0.7
+                    * (2 * backend_change.backend.pi * 6e9 / backend_change.backend.abs(units.to_standard_units(omega))) ** 0.7
                 )
 
         elif callable(Q_cap):  # Q_cap is a function of omega
@@ -467,11 +468,11 @@ class NoisyCos2PhiQubit(NoisySystem, ABC):
                 * 8
                 * self.EC
                 / q_cap_fun(omega)
-                * (1 / np.tanh(0.5 * np.abs(therm_ratio)))
-                / (1 + np.exp(-therm_ratio))
+                * (1 / backend_change.backend.tanh(0.5 * backend_change.backend.abs(therm_ratio)))
+                / (1 + backend_change.backend.exp(-therm_ratio))
             )
             s *= (
-                2 * np.pi
+                2 * backend_change.backend.pi
             )  # We assume that system energies are given in units of frequency
             return s
 
@@ -602,9 +603,9 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
         self.zeta_cut = zeta_cut
         self.phi_cut = phi_cut
         self.truncated_dim = truncated_dim
-        self._default_phi_grid = discretization.Grid1d(-4 * np.pi, 4 * np.pi, 100)
-        self._default_zeta_grid = discretization.Grid1d(-4 * np.pi, 4 * np.pi, 100)
-        self._default_theta_grid = discretization.Grid1d(-0.5 * np.pi, 1.5 * np.pi, 100)
+        self._default_phi_grid = discretization.Grid1d(-4 * backend_change.backend.pi, 4 * backend_change.backend.pi, 100)
+        self._default_zeta_grid = discretization.Grid1d(-4 * backend_change.backend.pi, 4 * backend_change.backend.pi, 100)
+        self._default_theta_grid = discretization.Grid1d(-0.5 * backend_change.backend.pi, 1.5 * backend_change.backend.pi, 100)
 
     @staticmethod
     def default_params() -> Dict[str, Any]:
@@ -1139,7 +1140,7 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
         Compressed Sparse Column Matrix
 
         """
-        diag_elements = np.arange(-self.ncut, self.ncut + 1)
+        diag_elements = backend_change.backend.arange(-self.ncut, self.ncut + 1)
         return dia_matrix(
             (diag_elements, [0]), shape=(self._dim_theta(), self._dim_theta())
         ).tocsc()
@@ -1192,14 +1193,14 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
         cos_op = (
             0.5
             * sparse.dia_matrix(
-                (np.ones(self._dim_theta()), [1]),
+                (backend_change.backend.ones(self._dim_theta()), [1]),
                 shape=(self._dim_theta(), self._dim_theta()),
             ).tocsc()
         )
         cos_op += (
             0.5
             * sparse.dia_matrix(
-                (np.ones(self._dim_theta()), [-1]),
+                (backend_change.backend.ones(self._dim_theta()), [-1]),
                 shape=(self._dim_theta(), self._dim_theta()),
             ).tocsc()
         )
@@ -1222,14 +1223,14 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
         sin_op = (
             0.5
             * sparse.dia_matrix(
-                (np.ones(self._dim_theta()), [-1]),
+                (backend_change.backend.ones(self._dim_theta()), [-1]),
                 shape=(self._dim_theta(), self._dim_theta()),
             ).tocsc()
         )
         sin_op -= (
             0.5
             * sparse.dia_matrix(
-                (np.ones(self._dim_theta()), [1]),
+                (backend_change.backend.ones(self._dim_theta()), [1]),
                 shape=(self._dim_theta(), self._dim_theta()),
             ).tocsc()
         )
@@ -1371,9 +1372,9 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
             ** 2
         )
 
-        phi_flux_term = self._cos_phi_operator() * np.cos(
-            self.flux * np.pi
-        ) - self._sin_phi_operator() * np.sin(self.flux * np.pi)
+        phi_flux_term = self._cos_phi_operator() * backend_change.backend.cos(
+            self.flux * backend_change.backend.pi
+        ) - self._sin_phi_operator() * backend_change.backend.sin(self.flux * backend_change.backend.pi)
         junction_mat = (
             -2
             * self.EJ
@@ -1392,9 +1393,9 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
             )
         )
 
-        dis_phi_flux_term = self._sin_phi_operator() * np.cos(
-            self.flux * np.pi
-        ) + self._cos_phi_operator() * np.sin(self.flux * np.pi)
+        dis_phi_flux_term = self._sin_phi_operator() * backend_change.backend.cos(
+            self.flux * backend_change.backend.pi
+        ) + self._cos_phi_operator() * backend_change.backend.sin(self.flux * backend_change.backend.pi)
         disorder_j = (
             2
             * self.EJ
@@ -1453,7 +1454,7 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
             sigma=0.0,
             which="LM",
         )
-        return np.sort(evals)
+        return backend_change.backend.sort(evals)
 
     def _esys_calc(self, evals_count) -> Tuple[ndarray, ndarray]:
         r"""
@@ -1504,8 +1505,8 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
         return (
             self._disordered_el() * (phi * phi)
             + self._disordered_el() * (zeta * zeta)
-            - 2 * self.EJ * np.cos(theta) * np.cos(phi + np.pi * self.flux)
-            + 2 * self.dEJ * self.EJ * np.sin(phi + np.pi * self.flux) * np.sin(theta)
+            - 2 * self.EJ * backend_change.backend.cos(theta) * backend_change.backend.cos(phi + backend_change.backend.pi * self.flux)
+            + 2 * self.dEJ * self.EJ * backend_change.backend.sin(phi + backend_change.backend.pi * self.flux) * backend_change.backend.sin(theta)
         )
 
     def reduced_potential(self, phi, theta) -> float:
@@ -1609,9 +1610,9 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
         wavefunc_basis_amplitudes = evecs[:, which].reshape(
             self._dim_phi(), self._dim_zeta(), self._dim_theta()
         )
-        wavefunc_amplitudes = np.zeros(
+        wavefunc_amplitudes = backend_change.backend.zeros(
             (phi_grid.pt_count, zeta_grid.pt_count, theta_grid.pt_count),
-            dtype=np.complex_,
+            dtype=backend_change.backend.complex_,
         )
         for i in range(self._dim_phi()):
             for j in range(self._dim_zeta()):
@@ -1624,12 +1625,12 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
                         n_zeta, zeta_basis_labels, self.zeta_osc()
                     )
                     theta_wavefunc_amplitudes = (
-                        np.exp(-1j * n_theta * theta_basis_labels) / (2 * np.pi) ** 0.5
+                        backend_change.backend.exp(-1j * n_theta * theta_basis_labels) / (2 * backend_change.backend.pi) ** 0.5
                     )
                     wavefunc_amplitudes += wavefunc_basis_amplitudes[
                         i, j, k
-                    ] * np.tensordot(
-                        np.tensordot(
+                    ] * backend_change.backend.tensordot(
+                        backend_change.backend.tensordot(
                             phi_wavefunc_amplitudes, zeta_wavefunc_amplitudes, 0
                         ),
                         theta_wavefunc_amplitudes,
@@ -1637,7 +1638,7 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
                     )
 
         grid3d = discretization.GridSpec(
-            np.asarray(
+            backend_change.backend.asarray(
                 [
                     [phi_grid.min_val, phi_grid.max_val, phi_grid.pt_count],
                     [zeta_grid.min_val, zeta_grid.max_val, zeta_grid.pt_count],
@@ -1698,14 +1699,14 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
         )
 
         wavefunc.gridspec = discretization.GridSpec(
-            np.asarray(
+            backend_change.backend.asarray(
                 [
                     [phi_grid.min_val, phi_grid.max_val, phi_grid.pt_count],
                     [theta_grid.min_val, theta_grid.max_val, theta_grid.pt_count],
                 ]
             )
         )
-        wavefunc.amplitudes = np.transpose(
+        wavefunc.amplitudes = backend_change.backend.transpose(
             amplitude_modifier(
                 utils.standardize_phases(
                     wavefunc.amplitudes.reshape(phi_grid.pt_count, theta_grid.pt_count)
@@ -1871,21 +1872,21 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
             and is returned as an ndarray.
 
         """
-        phi_flux_term = self._sin_phi_operator() * np.cos(
-            self.flux * np.pi
-        ) + self._cos_phi_operator() * np.sin(self.flux * np.pi)
+        phi_flux_term = self._sin_phi_operator() * backend_change.backend.cos(
+            self.flux * backend_change.backend.pi
+        ) + self._cos_phi_operator() * backend_change.backend.sin(self.flux * backend_change.backend.pi)
         junction_mat = (
             2
             * self.EJ
             * self._kron3(
                 phi_flux_term, self._identity_zeta(), self._cos_theta_operator()
             )
-            * np.pi
+            * backend_change.backend.pi
         )
 
-        dis_phi_flux_term = self._cos_phi_operator() * np.cos(
-            self.flux * np.pi
-        ) - self._sin_phi_operator() * np.sin(self.flux * np.pi)
+        dis_phi_flux_term = self._cos_phi_operator() * backend_change.backend.cos(
+            self.flux * backend_change.backend.pi
+        ) - self._sin_phi_operator() * backend_change.backend.sin(self.flux * backend_change.backend.pi)
         dis_junction_mat = (
             2
             * self.dEJ
@@ -1893,7 +1894,7 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
             * self._kron3(
                 dis_phi_flux_term, self._identity_zeta(), self._sin_theta_operator()
             )
-            * np.pi
+            * backend_change.backend.pi
         )
         native = junction_mat + dis_junction_mat
         return self.process_op(native_op=native, energy_esys=energy_esys)
@@ -1925,16 +1926,16 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
             and is returned as an ndarray.
 
         """
-        phi_flux_term = self._cos_phi_operator() * np.cos(
-            self.flux * np.pi
-        ) - self._sin_phi_operator() * np.sin(self.flux * np.pi)
+        phi_flux_term = self._cos_phi_operator() * backend_change.backend.cos(
+            self.flux * backend_change.backend.pi
+        ) - self._sin_phi_operator() * backend_change.backend.sin(self.flux * backend_change.backend.pi)
         junction_mat = -2 * self._kron3(
             phi_flux_term, self._identity_zeta(), self._cos_theta_operator()
         )
 
-        dis_phi_flux_term = self._sin_phi_operator() * np.cos(
-            self.flux * np.pi
-        ) + self._cos_phi_operator() * np.sin(self.flux * np.pi)
+        dis_phi_flux_term = self._sin_phi_operator() * backend_change.backend.cos(
+            self.flux * backend_change.backend.pi
+        ) + self._cos_phi_operator() * backend_change.backend.sin(self.flux * backend_change.backend.pi)
         dis_junction_mat = (
             2
             * self.dEJ

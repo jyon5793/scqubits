@@ -62,6 +62,7 @@ from scqubits.utils.spectrum_utils import (
     recast_esys_mapdata,
     standardize_sign,
 )
+from scqubits import backend_change
 
 if IN_IPYTHON:
     from tqdm.notebook import tqdm
@@ -312,7 +313,7 @@ class QubitBaseClass(QuantumSystem, ABC):
             subset_by_index=(0, evals_count - 1),
             check_finite=False,
         )
-        return np.sort(evals)
+        return backend_change.backend.sort(evals)
 
     def _esys_calc(self, evals_count: int) -> Tuple[ndarray, ndarray]:
         hamiltonian_mat = self.hamiltonian()
@@ -519,7 +520,7 @@ class QubitBaseClass(QuantumSystem, ABC):
             esys = energy_esys
         evals = esys[0][: self.truncated_dim]
         if isinstance(native_hamiltonian, ndarray):
-            return np.diag(evals)
+            return backend_change.backend.diag(evals)
         return dia_matrix(evals).tocsc()
 
     def anharmonicity(self) -> float:
@@ -659,7 +660,7 @@ class QubitBaseClass(QuantumSystem, ABC):
                 "Parallel computation of eigensystems [num_cpus={}]".format(num_cpus),
                 num_cpus,
             ):
-                eigenvalue_table = np.asarray(
+                eigenvalue_table = backend_change.backend.asarray(
                     list(
                         target_map(
                             func_evals,
@@ -730,7 +731,7 @@ class QubitBaseClass(QuantumSystem, ABC):
         hilbertspace = HilbertSpace(subsystem_list=[self])
 
         paramvals_by_name = {
-            dispersion_name: np.linspace(0.0, 1.0, point_count),
+            dispersion_name: backend_change.backend.linspace(0.0, 1.0, point_count),
             param_name: param_vals,
         }
 
@@ -741,7 +742,7 @@ class QubitBaseClass(QuantumSystem, ABC):
         previous_dispval = getattr(self, dispersion_name)
         previous_paramval = getattr(self, param_name)
         max_level = (
-            np.max(transitions_tuple) if not levels_tuple else np.max(levels_tuple)
+            backend_change.backend.max(transitions_tuple) if not levels_tuple else backend_change.backend.max(levels_tuple)
         )
         sweep = ParameterSweep(
             hilbertspace,
@@ -754,17 +755,17 @@ class QubitBaseClass(QuantumSystem, ABC):
         eigenenergies = sweep["bare_evals"]["subsys":0].toarray()  # type:ignore
 
         if levels_tuple is None:
-            dispersions = np.empty((len(transitions_tuple), len(param_vals)))
+            dispersions = backend_change.backend.empty((len(transitions_tuple), len(param_vals)))
             for index, (i, j) in enumerate(transitions_tuple):
                 energy_ij = eigenenergies[:, :, i] - eigenenergies[:, :, j]
-                dispersions[index] = np.max(energy_ij, axis=0) - np.min(
+                dispersions[index] = backend_change.backend.max(energy_ij, axis=0) - backend_change.backend.min(
                     energy_ij, axis=0
                 )
         else:
-            dispersions = np.empty((len(levels_tuple), len(param_vals)))
+            dispersions = backend_change.backend.empty((len(levels_tuple), len(param_vals)))
             for index, j in enumerate(levels_tuple):
                 energy_j = eigenenergies[:, :, j]
-                dispersions[index] = np.max(energy_j, axis=0) - np.min(energy_j, axis=0)
+                dispersions[index] = backend_change.backend.max(energy_j, axis=0) - backend_change.backend.min(energy_j, axis=0)
 
         setattr(self, param_name, previous_paramval)
         setattr(self, dispersion_name, previous_dispval)
@@ -903,8 +904,8 @@ class QubitBaseClass(QuantumSystem, ABC):
             num_cpus=num_cpus,
         )
         paramvals_count = len(param_vals)
-        matelem_table = np.empty(
-            shape=(paramvals_count, evals_count, evals_count), dtype=np.complex_
+        matelem_table = backend_change.backend.empty(
+            shape=(paramvals_count, evals_count, evals_count), dtype=backend_change.backend.complex_
         )
 
         paramval_before = getattr(self, param_name)
@@ -912,14 +913,19 @@ class QubitBaseClass(QuantumSystem, ABC):
         for index, paramval in enumerate(param_vals):
             evecs = spectrumdata.state_table[index]
             setattr(self, param_name, paramval)
-            matelem_table[index] = self.matrixelement_table(
-                operator, evecs=evecs, evals_count=evals_count
-            )
+            if backend_change.backend.__name__ == "jax":
+                matelem_table = matelem_table.at[index].set(self.matrixelement_table(
+                    operator, evecs=evecs, evals_count=evals_count
+                ))
+            else:
+                matelem_table[index] = self.matrixelement_table(
+                    operator, evecs=evecs, evals_count=evals_count
+                )
         setattr(self, param_name, paramval_before)
 
         spectrumdata.matrixelem_table = matelem_table
         return spectrumdata
-
+    
     @mpl.rc_context(matplotlib_settings)
     def plot_evals_vs_paramvals(
         self,
@@ -1077,7 +1083,7 @@ class QubitBaseClass(QuantumSystem, ABC):
             standard plotting option (see separate documentation)
         """
         matrixelem_array = self.matrixelement_table(operator, evecs, evals_count)
-        assert isinstance(matrixelem_array, np.ndarray)
+        assert isinstance(matrixelem_array, backend_change.backend.ndarray)
         if not show3d:
             return plot.matrix2d(
                 matrixelem_array,

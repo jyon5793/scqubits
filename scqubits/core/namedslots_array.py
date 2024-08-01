@@ -27,6 +27,7 @@ from numpy import ndarray
 import scqubits.settings as settings
 import scqubits.utils.misc as utils
 import scqubits.utils.plotting as plot
+import scqubits.backend_change as backend_change
 
 from scqubits.io_utils.fileio import IOData
 from scqubits.io_utils.fileio_serializers import Serializable
@@ -38,12 +39,12 @@ EllipsisType = Any  # unfortunate workaround (see ongoing discussion)
 # value-based indexing
 NpIndexNoEllipsis = Union[
     int,
-    np.integer,
+    backend_change.backend.integer,
     slice,
     Tuple[int],
     List[int],
-    Tuple[int, np.integer],
-    List[np.integer],
+    Tuple[int, backend_change.backend.integer],
+    List[backend_change.backend.integer],
 ]
 NpIndex = Union[NpIndexNoEllipsis, EllipsisType]
 ExtIndex = Union[NpIndex, float, complex]
@@ -60,12 +61,12 @@ NpIndices = Union[NpIndex, NpIndexTuple]
 ExtIndices = Union[ExtIndex, ExtIndexTuple]
 
 # Numpy: valid slice(a, b, c) entry types
-NpSliceEntry = Union[int, np.integer, None]
+NpSliceEntry = Union[int, backend_change.backend.integer, None]
 ExtSliceEntry = Union[NpSliceEntry, float, complex, str]
 
 
 def idx_for_value(value: Union[int, float, complex], param_vals: ndarray) -> int:
-    location = int(np.abs(param_vals - value).argmin())
+    location = int(backend_change.backend.abs(param_vals - value).argmin())
     selected_value = param_vals[location]
 
     if cmath.isclose(param_vals[location], value):
@@ -114,7 +115,7 @@ def convert_to_std_npindex(
 
 
 def process_ellipsis(
-    array: Union["Parameters", np.ndarray], multi_idx: NpIndexTuple
+    array: Union["Parameters", backend_change.backend.ndarray], multi_idx: NpIndexTuple
 ) -> NpIndexTupleNoEllipsis:
     """
     Removes `...` from the multi-index by explicit slicing.
@@ -164,7 +165,7 @@ class ExtIndexObject:
     def convert_to_np_slice_entry(self, slice_entry: ExtSliceEntry) -> NpSliceEntry:
         """Handles value-based slices, converting a float or complex value based
         entry into the corresponding position-based entry"""
-        if isinstance(slice_entry, (int, np.integer)):
+        if isinstance(slice_entry, (int, backend_change.backend.integer)):
             return slice_entry
         if slice_entry is None:
             return None
@@ -179,7 +180,7 @@ class ExtIndexObject:
     def convert_to_np_idx_entry(self, idx_entry: ExtIndex) -> Tuple[str, NpIndex]:
         """Convert a generalized multi-index entry into a valid numpy multi-index entry,
         and returns that along with a str recording the idx_entry type"""
-        if isinstance(idx_entry, (int, np.integer)):
+        if isinstance(idx_entry, (int, backend_change.backend.integer)):
             return "int", idx_entry
 
         if idx_entry is Ellipsis:
@@ -203,7 +204,7 @@ class ExtIndexObject:
             if isinstance(stop, (complex, float)):
                 stop = idx_for_value(stop, self._parameters[self.slot])
 
-            if isinstance(start, (int, np.integer)) and (stop is None):
+            if isinstance(start, (int, backend_change.backend.integer)) and (stop is None):
                 return "slice.name", start
             return "slice.name", slice(start, stop, None)
 
@@ -211,7 +212,7 @@ class ExtIndexObject:
         if isinstance(idx_entry, slice):
             start = self.convert_to_np_slice_entry(idx_entry.start)
             stop = self.convert_to_np_slice_entry(idx_entry.stop)
-            if idx_entry.step is None or isinstance(idx_entry.step, (int, np.integer)):
+            if idx_entry.step is None or isinstance(idx_entry.step, (int, backend_change.backend.integer)):
                 step = self.convert_to_np_slice_entry(idx_entry.step)
             else:
                 raise TypeError(
@@ -305,7 +306,7 @@ class Parameters:
     def __getitem__(self, key):
         if isinstance(key, str):
             return self.paramvals_by_name[key]
-        if isinstance(key, (int, np.integer)):
+        if isinstance(key, (int, backend_change.backend.integer)):
             return self.paramvals_by_name[self.paramnames_list[key]]
         if key is Ellipsis:
             key = slice(None, None, None)
@@ -379,10 +380,10 @@ class Parameters:
         """
         if fixed_values is not None:
             # need to reformat as array of single-entry arrays
-            fixed_values_list = [np.asarray(value) for value in fixed_values]
+            fixed_values_list = [backend_change.backend.asarray(value) for value in fixed_values]
         else:
             fixed_values_list = [
-                np.asarray([self[name][0]]) for name in fixed_parametername_list
+                backend_change.backend.asarray([self[name][0]]) for name in fixed_parametername_list
             ]
 
         reduced_paramvals_by_name = {name: self[name] for name in self.paramnames_list}
@@ -415,7 +416,7 @@ class Parameters:
         for index, np_index in enumerate(np_indices):
             array_entry = new_paramvals_list[index][np_index]
             if isinstance(array_entry, numbers.Number):
-                array_entry = np.asarray([array_entry])
+                array_entry = backend_change.backend.asarray([array_entry])
             new_paramvals_list[index] = array_entry
 
         if not remove_fixed:
@@ -443,7 +444,7 @@ class Parameters:
         return Parameters(reduced_paramvals_by_name)
 
 
-class NamedSlotsNdarray(np.ndarray, Serializable):
+class NamedSlotsNdarray(backend_change.backend.ndarray, Serializable):
     """
     This class implements multi-dimensional arrays, for which the leading M dimensions
     are each associated with a slot name and a corresponding array of slot
@@ -501,7 +502,7 @@ class NamedSlotsNdarray(np.ndarray, Serializable):
     parameters: Parameters
 
     def __new__(
-        cls, input_array: np.ndarray, values_by_name: Dict[str, ndarray]
+        cls, input_array: backend_change.backend.ndarray, values_by_name: Dict[str, ndarray]
     ) -> "NamedSlotsNdarray":
         implied_shape = tuple(len(values) for values in values_by_name.values())
         if input_array.shape[0 : len(values_by_name)] != implied_shape:
@@ -511,7 +512,7 @@ class NamedSlotsNdarray(np.ndarray, Serializable):
                     input_array, input_array.shape, implied_shape, values_by_name
                 )
             )
-        obj = np.asarray(input_array).view(cls)
+        obj = backend_change.backend.asarray(input_array).view(cls)
         obj._parameters = Parameters(values_by_name)
         return obj
 
@@ -523,7 +524,7 @@ class NamedSlotsNdarray(np.ndarray, Serializable):
     def __getitem__(self, multi_index: ExtIndices) -> Any:
         """Overwrites the magic method for element selection and slicing to support
         extended string and value based slicing."""
-        multi_index_std = np.index_exp[multi_index]  # convert to standard tuple form
+        multi_index_std = backend_change.backend.index_exp[multi_index]  # convert to standard tuple form
         try:
             obj = super().__getitem__(multi_index_std)
             # This attempt fails if multi-index is string- or value-based
@@ -537,7 +538,7 @@ class NamedSlotsNdarray(np.ndarray, Serializable):
         # adjust the internal Parameters instance accordingly
         if isinstance(obj, NamedSlotsNdarray):
             param_count = len(self._parameters)
-            dummy_array = np.empty(shape=self._parameters.counts)
+            dummy_array = backend_change.backend.empty(shape=self._parameters.counts)
             # Check whether all parameters are getting fixed; if not, adjust
             # Parameters for the new object
             if not isinstance(dummy_array[multi_index_std[:param_count]], float):
@@ -577,7 +578,7 @@ class NamedSlotsNdarray(np.ndarray, Serializable):
         else:
             list_data = io_data.objects["input_array"]
             nested_list_shape = utils.get_shape(list_data)
-            input_array = np.empty(nested_list_shape, dtype=object)
+            input_array = backend_change.backend.empty(nested_list_shape, dtype=object)
             input_array[:] = list_data
         values_by_name = io_data.objects["values_by_name"]
         return NamedSlotsNdarray(input_array, values_by_name)
@@ -590,9 +591,9 @@ class NamedSlotsNdarray(np.ndarray, Serializable):
 
         typename = "NamedSlotsNdarray"
         io_attributes = None
-        if self.dtype in [np.float_, np.complex_, np.int_]:
+        if self.dtype in [backend_change.backend.float_, backend_change.backend.complex_, backend_change.backend.int_]:
             io_ndarrays: Optional[Dict[str, ndarray]] = {
-                "input_array": self.view(np.ndarray)
+                "input_array": self.view(backend_change.backend.ndarray)
             }
             objects = {"values_by_name": self._parameters.paramvals_by_name}
         else:
@@ -627,7 +628,7 @@ class NamedSlotsNdarray(np.ndarray, Serializable):
 
     def recast(self) -> "NamedSlotsNdarray":
         return NamedSlotsNdarray(
-            np.asarray(self[:].tolist()), self._parameters.paramvals_by_name
+            backend_change.backend.asarray(self[:].tolist()), self._parameters.paramvals_by_name
         )
 
     def toarray(self) -> ndarray:

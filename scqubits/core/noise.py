@@ -33,6 +33,7 @@ import scqubits.core.units as units
 import scqubits.settings as settings
 import scqubits.utils.plotting as plotting
 from scqubits.utils.misc import Qobj_to_scipy_csc_matrix
+import scqubits.backend_change as backend_change
 
 from scqubits.core.storage import SpectrumData
 from scqubits.settings import matplotlib_settings
@@ -90,8 +91,8 @@ NOISE_PARAMS = {
     "A_flux": 1e-6,  # Flux noise strength. Units: Phi_0
     "A_ng": 1e-4,  # Charge noise strength. Units of charge e
     "A_cc": 1e-7,  # Critical current noise strength. Units of critical current I_c
-    "omega_low": 1e-9 * 2 * np.pi,  # Low frequency cutoff. Units: 2pi GHz
-    "omega_high": 3 * 2 * np.pi,  # High frequency cutoff. Units: 2pi GHz
+    "omega_low": 1e-9 * 2 * backend_change.backend.pi,  # Low frequency cutoff. Units: 2pi GHz
+    "omega_high": 3 * 2 * backend_change.backend.pi,  # High frequency cutoff. Units: 2pi GHz
     "Delta": 3.4e-4,  # Superconducting gap for aluminum (at T=0). Units: eV
     "x_qp": 3e-6,  # Quasiparticles density (see for example Pol et al 2014)
     "t_exp": 1e4,  # Measurement time. Units: ns
@@ -257,7 +258,7 @@ class NoisySystem(ABC):
                 noise_channel_method = noise_channel
 
                 # calculate the noise over the full param span in param_vals
-                noise_vals = np.asarray(
+                noise_vals = backend_change.backend.asarray(
                     [
                         scale
                         * getattr(
@@ -286,7 +287,7 @@ class NoisySystem(ABC):
                 options.update(noise_channel[1])
 
                 # calculate the noise over the full param span in param_vals
-                noise_vals = np.asarray(
+                noise_vals = backend_change.backend.asarray(
                     [
                         scale
                         * getattr(
@@ -317,7 +318,7 @@ class NoisySystem(ABC):
             )
             # check whether rate is essentially zero and decoherence time thus
             # excessively large
-            if np.all(noise_vals / scale > 1e12):
+            if backend_change.backend.all(noise_vals / scale > 1e12):
                 ax.get_lines()[0].set_color("0.8")
                 at = AnchoredText(
                     "subdominant noise channel",
@@ -445,7 +446,7 @@ class NoisySystem(ABC):
         current_val = getattr(self, param_name)
 
         # calculate the noise over the full param span in param_vals
-        noise_vals = np.asarray(
+        noise_vals = backend_change.backend.asarray(
             [
                 scale
                 * self.set_and_return(
@@ -598,7 +599,7 @@ class NoisySystem(ABC):
         current_val = getattr(self, param_name)
 
         # calculate the noise over the full param span in param_vals
-        noise_vals = np.asarray(
+        noise_vals = backend_change.backend.asarray(
             [
                 scale
                 * self.set_and_return(param_name, v).t2_effective(  # type: ignore
@@ -826,7 +827,7 @@ class NoisySystem(ABC):
         if get_rate:
             return rate
         else:
-            return 1 / rate if rate != 0 else np.inf
+            return 1 / rate if rate != 0 else backend_change.backend.inf
 
     def t2_effective(
         self,
@@ -917,7 +918,7 @@ class NoisySystem(ABC):
         if get_rate:
             return rate
         else:
-            return 1 / rate if rate != 0 else np.inf
+            return 1 / rate if rate != 0 else backend_change.backend.inf
 
     def tphi_1_over_f(
         self,
@@ -968,29 +969,29 @@ class NoisySystem(ABC):
         evals, evecs = self.eigensys(evals_count=max(j, i) + 1) if esys is None else esys  # type: ignore
 
         if isinstance(
-            noise_op, np.ndarray
+            noise_op, backend_change.backend.ndarray
         ):  # Check if the operator is given in dense form
             # if so, use numpy's vdot and dot
-            rate = np.abs(
-                np.vdot(evecs[:, i], np.dot(noise_op, evecs[:, i]))
-                - np.vdot(evecs[:, j], np.dot(noise_op, evecs[:, j]))
+            rate = backend_change.backend.abs(
+                backend_change.backend.vdot(evecs[:, i], backend_change.backend.dot(noise_op, evecs[:, i]))
+                - backend_change.backend.vdot(evecs[:, j], backend_change.backend.dot(noise_op, evecs[:, j]))
             )
         else:  # Else, we have a sparse operator, use it's own dot method.
-            rate = np.abs(
-                np.vdot(evecs[:, i], noise_op.dot(evecs[:, i]))
-                - np.vdot(evecs[:, j], noise_op.dot(evecs[:, j]))
+            rate = backend_change.backend.abs(
+                backend_change.backend.vdot(evecs[:, i], noise_op.dot(evecs[:, i]))
+                - backend_change.backend.vdot(evecs[:, j], noise_op.dot(evecs[:, j]))
             )
 
-        rate *= A_noise * np.sqrt(2 * np.abs(np.log(p["omega_low"] * p["t_exp"])))
+        rate *= A_noise * backend_change.backend.sqrt(2 * backend_change.backend.abs(backend_change.backend.log(p["omega_low"] * p["t_exp"])))
 
         # We assume that the system energies are given in units of frequency and
         # not the angular frequency, hence we have to multiply by `2\pi`
-        rate *= 2 * np.pi
+        rate *= 2 * backend_change.backend.pi
 
         if get_rate:
             return rate
         else:
-            return 1 / rate if rate != 0 else np.inf
+            return 1 / rate if rate != 0 else backend_change.backend.inf
 
     def tphi_1_over_f_flux(
         self,
@@ -1220,7 +1221,7 @@ class NoisySystem(ABC):
         # We assume that the energies in `evals` are given in the units of frequency
         # and *not* angular frequency. The function `spectral_density` is assumed to
         # take as a parameter an angular frequency, hence we have to convert.
-        omega = 2 * np.pi * (evals[i] - evals[j])
+        omega = 2 * backend_change.backend.pi * (evals[i] - evals[j])
 
         s = (
             spectral_density(omega, T) + spectral_density(-omega, T)
@@ -1229,17 +1230,17 @@ class NoisySystem(ABC):
         )
 
         if isinstance(
-            noise_op, np.ndarray
+            noise_op, backend_change.backend.ndarray
         ):  # Check if the operator is given in dense form
             # if so, use numpy's vdot and dot
-            rate = np.abs(np.vdot(evecs[:, i], np.dot(noise_op, evecs[:, j]))) ** 2 * s
+            rate = backend_change.backend.abs(backend_change.backend.vdot(evecs[:, i], backend_change.backend.dot(noise_op, evecs[:, j]))) ** 2 * s
         else:  # Else, we have a sparse operator, use its own dot method.
-            rate = np.abs(np.vdot(evecs[:, i], noise_op.dot(evecs[:, j]))) ** 2 * s
+            rate = backend_change.backend.abs(backend_change.backend.vdot(evecs[:, i], noise_op.dot(evecs[:, j]))) ** 2 * s
 
         if get_rate:
             return rate
         else:
-            return 1 / rate if rate != 0 else np.inf
+            return 1 / rate if rate != 0 else backend_change.backend.inf
 
     def t1_capacitive(
         self,
@@ -1294,7 +1295,7 @@ class NoisySystem(ABC):
             def q_cap_fun(omega, T):
                 return (
                     1e6
-                    * (2 * np.pi * 6e9 / np.abs(units.to_standard_units(omega))) ** 0.7
+                    * (2 * backend_change.backend.pi * 6e9 / backend_change.backend.abs(units.to_standard_units(omega))) ** 0.7
                 )
 
         elif callable(Q_cap):  # Q_cap is a function of omega
@@ -1311,11 +1312,11 @@ class NoisySystem(ABC):
                 * 8
                 * (branch_params if branch_params else self.EC)
                 / q_cap_fun(omega, T)
-                * (1 / np.tanh(0.5 * np.abs(therm_ratio)))
-                / (1 + np.exp(-therm_ratio))
+                * (1 / backend_change.backend.tanh(0.5 * backend_change.backend.abs(therm_ratio)))
+                / (1 + backend_change.backend.exp(-therm_ratio))
             )
             s *= (
-                2 * np.pi
+                2 * backend_change.backend.pi
             )  # We assume that system energies are given in units of frequency
             return s
 
@@ -1386,14 +1387,14 @@ class NoisySystem(ABC):
         def spectral_density(omega, T):
             # Note, our definition of Q_c is different from Zhang et al (2020) by a
             # factor of 2
-            Q_c = NOISE_PARAMS["R_k"] / (8 * np.pi * complex(Z_fun(omega)).real)
+            Q_c = NOISE_PARAMS["R_k"] / (8 * backend_change.backend.pi * complex(Z_fun(omega)).real)
             therm_ratio = calc_therm_ratio(omega, T)
             s = (
                 2
                 * omega
                 / Q_c
-                * (1 / np.tanh(0.5 * therm_ratio))
-                / (1 + np.exp(-therm_ratio))
+                * (1 / backend_change.backend.tanh(0.5 * therm_ratio))
+                / (1 + backend_change.backend.exp(-therm_ratio))
             )
             return s
 
@@ -1473,13 +1474,13 @@ class NoisySystem(ABC):
             therm_ratio = calc_therm_ratio(omega, T)
             s = (
                 2
-                * (2 * np.pi) ** 2
+                * (2 * backend_change.backend.pi) ** 2
                 * M**2
                 * omega
                 * sp.constants.hbar
                 / complex(Z_fun(omega)).real
-                * (1 / np.tanh(0.5 * therm_ratio))
-                / (1 + np.exp(-therm_ratio))
+                * (1 / backend_change.backend.tanh(0.5 * therm_ratio))
+                / (1 + backend_change.backend.exp(-therm_ratio))
             )
             # We assume that system energies are given in units of frequency and that
             # the noise operator to be used with this `spectral_density` is dH/dflux.
@@ -1582,11 +1583,11 @@ class NoisySystem(ABC):
                 2
                 * (branch_params if branch_params else self.EL)
                 / q_ind_fun(omega, T)
-                * (1 / np.tanh(0.5 * np.abs(therm_ratio)))
-                / (1 + np.exp(-therm_ratio))
+                * (1 / backend_change.backend.tanh(0.5 * backend_change.backend.abs(therm_ratio)))
+                / (1 + backend_change.backend.exp(-therm_ratio))
             )
             s *= (
-                2 * np.pi
+                2 * backend_change.backend.pi
             )  # We assume that system energies are given in units of frequency
             return s
 
@@ -1677,18 +1678,18 @@ class NoisySystem(ABC):
 
                 therm_ratio = calc_therm_ratio(omega, T)
                 Delta_over_T = calc_therm_ratio(
-                    2 * np.pi * Delta_in_Hz, T, omega_in_standard_units=True
+                    2 * backend_change.backend.pi * Delta_in_Hz, T, omega_in_standard_units=True
                 )
 
                 re_y_qp = (
-                    np.sqrt(2 / np.pi)
+                    backend_change.backend.sqrt(2 / backend_change.backend.pi)
                     * (8 / NOISE_PARAMS["R_k"])
                     * (EJ_in_Hz / Delta_in_Hz)
                     * (2 * Delta_in_Hz / omega_in_Hz) ** (3 / 2)
                     * x_qp
-                    * np.sqrt(1 / 2 * therm_ratio)
+                    * backend_change.backend.sqrt(1 / 2 * therm_ratio)
                     * sp.special.kv(0, 1 / 2 * abs(therm_ratio))
-                    * np.sinh(1 / 2 * therm_ratio)
+                    * backend_change.backend.sinh(1 / 2 * therm_ratio)
                 )
 
                 return re_y_qp
@@ -1709,8 +1710,8 @@ class NoisySystem(ABC):
                 2
                 * omega
                 * complex(y_qp_fun(omega, T)).real
-                * (1 / np.tanh(0.5 * therm_ratio))
-                / (1 + np.exp(-therm_ratio))
+                * (1 / backend_change.backend.tanh(0.5 * therm_ratio))
+                / (1 + backend_change.backend.exp(-therm_ratio))
             )
 
         # In some literature the operator sin(phi/2) is used, which assumes

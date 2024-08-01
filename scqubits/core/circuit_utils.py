@@ -20,6 +20,7 @@ import qutip as qt
 from numpy import ndarray
 from scipy import sparse
 from scipy.sparse import csc_matrix
+from scqubits import backend_change
 
 from scqubits.core import discretization as discretization
 from scqubits.utils.misc import (
@@ -89,9 +90,9 @@ def sawtooth_potential(phi_pts):
     # definition from Andras
     skewness = 0.99
     N = 1000
-    V = np.zeros_like(phi_pts)
+    V = backend_change.backend.zeros_like(phi_pts)
     for idx in range(1, N + 1):
-        V += (skewness + 1) * (-skewness) ** (idx - 1) * np.cos(idx * phi_pts) / idx**2
+        V += (skewness + 1) * (-skewness) ** (idx - 1) * backend_change.backend.cos(idx * phi_pts) / idx**2
     return -V
 
 
@@ -268,7 +269,7 @@ def _cos_phi(grid: discretization.Grid1d) -> csc_matrix:
     pt_count = grid.pt_count
 
     cos_op = sparse.dia_matrix((pt_count, pt_count))
-    diag_elements = np.cos(grid.make_linspace())
+    diag_elements = backend_change.backend.cos(grid.make_linspace())
     cos_op.setdiag(diag_elements)
     return cos_op.tocsc()
 
@@ -289,7 +290,7 @@ def _sin_phi(grid: discretization.Grid1d) -> csc_matrix:
     pt_count = grid.pt_count
 
     sin_op = sparse.dia_matrix((pt_count, pt_count))
-    diag_elements = np.sin(grid.make_linspace())
+    diag_elements = backend_change.backend.sin(grid.make_linspace())
     sin_op.setdiag(diag_elements)
     return sin_op.tocsc()
 
@@ -307,7 +308,7 @@ def _n_theta_operator(ncut: int) -> csc_matrix:
     Returns charge operator `n` in the charge basis.
     """
     dim_theta = 2 * ncut + 1
-    diag_elements = np.arange(-ncut, ncut + 1)
+    diag_elements = backend_change.backend.arange(-ncut, ncut + 1)
     n_theta_matrix = sparse.dia_matrix(
         (diag_elements, [0]), shape=(dim_theta, dim_theta)
     ).tocsc()
@@ -322,7 +323,7 @@ def _exp_i_theta_operator(ncut, prefactor=1) -> csc_matrix:
     #     raise ValueError("Prefactor must be an integer")
     dim_theta = 2 * ncut + 1
     matrix = sparse.dia_matrix(
-        (np.ones(dim_theta), [-prefactor]),
+        (backend_change.backend.ones(dim_theta), [-prefactor]),
         shape=(dim_theta, dim_theta),
     ).tocsc()
     return matrix
@@ -334,7 +335,7 @@ def _exp_i_theta_operator_conjugate(ncut) -> csc_matrix:
     """
     dim_theta = 2 * ncut + 1
     matrix = sparse.dia_matrix(
-        (np.ones(dim_theta), [1]),
+        (backend_change.backend.ones(dim_theta), [1]),
         shape=(dim_theta, dim_theta),
     ).tocsc()
     return matrix
@@ -486,7 +487,7 @@ def _cos_dia(x: csc_matrix) -> csc_matrix:
     Take the diagonal of the array x, compute its cosine, and fill the result into
     the diagonal of a sparse matrix
     """
-    return sparse.diags(np.cos(x.diagonal())).tocsc()
+    return sparse.diags(backend_change.backend.cos(x.diagonal())).tocsc()
 
 
 def _sin_dia(x: csc_matrix) -> csc_matrix:
@@ -494,21 +495,21 @@ def _sin_dia(x: csc_matrix) -> csc_matrix:
     Take the diagonal of the array x, compute its sine, and fill the result into
     the diagonal of a sparse matrix.
     """
-    return sparse.diags(np.sin(x.diagonal())).tocsc()
+    return sparse.diags(backend_change.backend.sin(x.diagonal())).tocsc()
 
 
 def _sin_dia_dense(x: ndarray) -> ndarray:
     """
     This is a special function to calculate the sin of dense diagonal matrices
     """
-    return np.diag(np.sin(x.diagonal()))
+    return backend_change.backend.diag(backend_change.backend.sin(x.diagonal()))
 
 
 def _cos_dia_dense(x: ndarray) -> ndarray:
     """
     This is a special function to calculate the cos of dense diagonal matrices
     """
-    return np.diag(np.cos(x.diagonal()))
+    return backend_change.backend.diag(backend_change.backend.cos(x.diagonal()))
 
 
 def matrix_power_sparse(dense_mat: ndarray, n: int) -> csc_matrix:

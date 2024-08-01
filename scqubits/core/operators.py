@@ -17,6 +17,7 @@ import scipy as sp
 
 from numpy import ndarray
 from scipy.sparse import csc_matrix
+from scqubits import backend_change
 
 
 def annihilation(dimension: int) -> ndarray:
@@ -24,15 +25,15 @@ def annihilation(dimension: int) -> ndarray:
     Returns a dense matrix of size dimension x dimension representing the annihilation
     operator in number basis.
     """
-    offdiag_elements = np.sqrt(range(1, dimension))
-    return np.diagflat(offdiag_elements, 1)
+    offdiag_elements = backend_change.backend.sqrt(backend_change.backend.arange(1, dimension))
+    return backend_change.backend.diagflat(offdiag_elements, 1)
 
 
 def annihilation_sparse(dimension: int) -> csc_matrix:
     """Returns a matrix of size dimension x dimension representing the annihilation
     operator in the format of a scipy sparse.csc_matrix.
     """
-    offdiag_elements = np.sqrt(range(dimension))
+    offdiag_elements = backend_change.backend.sqrt(backend_change.backend.arange(1, dimension))
     return sp.sparse.dia_matrix(
         (offdiag_elements, [1]), shape=(dimension, dimension)
     ).tocsc()
@@ -67,7 +68,7 @@ def hubbard_sparse(j1: int, j2: int, dimension: int) -> csc_matrix:
     -------
         sparse number operator matrix, size dimension x dimension
     """
-    hubbardmat = sp.sparse.dok_matrix((dimension, dimension), dtype=np.float_)
+    hubbardmat = sp.sparse.dok_matrix((dimension, dimension), dtype=backend_change.backend.float_)
     hubbardmat[j1, j2] = 1.0
     return hubbardmat.asformat("csc")
 
@@ -91,10 +92,10 @@ def number(
     -------
         number operator matrix, size dimension x dimension
     """
-    diag_elements = np.arange(dimension, dtype=np.float_)
+    diag_elements = backend_change.backend.arange(dimension, dtype=backend_change.backend.float_)
     if prefactor:
         diag_elements *= prefactor
-    return np.diagflat(diag_elements)
+    return backend_change.backend.diagflat(diag_elements)
 
 
 def number_sparse(
@@ -115,11 +116,11 @@ def number_sparse(
     -------
         sparse number operator matrix, size dimension x dimension
     """
-    diag_elements = np.arange(dimension, dtype=np.float_)
+    diag_elements = backend_change.backend.arange(dimension, dtype=backend_change.backend.float_)
     if prefactor:
         diag_elements *= prefactor
     return sp.sparse.dia_matrix(
-        (diag_elements, [0]), shape=(dimension, dimension), dtype=np.float_
+        (diag_elements, [0]), shape=(dimension, dimension), dtype=backend_change.backend.float_
     ).tocsc()
 
 
@@ -253,21 +254,21 @@ def iadag_minus_ia(
     return iadag_minus_ia_sparse(dimension, prefactor=prefactor).toarray()
 
 
-def sigma_minus() -> np.ndarray:
+def sigma_minus() -> backend_change.backend.ndarray:
     return sigma_plus().T
 
 
-def sigma_plus() -> np.ndarray:
-    return np.asarray([[0.0, 1.0], [0.0, 0.0]])
+def sigma_plus() -> backend_change.backend.ndarray:
+    return backend_change.backend.asarray([[0.0, 1.0], [0.0, 0.0]])
 
 
-def sigma_x() -> np.ndarray:
-    return np.asarray([[0.0, 1.0], [1.0, 0.0]])
+def sigma_x() -> backend_change.backend.ndarray:
+    return backend_change.backend.asarray([[0.0, 1.0], [1.0, 0.0]])
 
 
-def sigma_y() -> np.ndarray:
-    return np.asarray([[0.0, -1j], [1j, 0.0]])
+def sigma_y() -> backend_change.backend.ndarray:
+    return backend_change.backend.asarray([[0.0, -1j], [1j, 0.0]])
 
 
-def sigma_z() -> np.ndarray:
-    return np.asarray([[1.0, 0.0], [0.0, -1.0]])
+def sigma_z() -> backend_change.backend.ndarray:
+    return backend_change.backend.asarray([[1.0, 0.0], [0.0, -1.0]])

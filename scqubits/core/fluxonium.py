@@ -27,6 +27,7 @@ import scqubits.core.oscillator as osc
 import scqubits.core.qubit_base as base
 import scqubits.core.storage as storage
 import scqubits.io_utils.fileio_serializers as serializers
+import scqubits.backend_change as backend_change
 
 from scqubits.core.noise import NoisySystem
 
@@ -104,7 +105,7 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         self.flux = flux
         self.cutoff = cutoff
         self.truncated_dim = truncated_dim
-        self._default_grid = discretization.Grid1d(-4.5 * np.pi, 4.5 * np.pi, 151)
+        self._default_grid = discretization.Grid1d(-4.5 * backend_change.backend.pi, 4.5 * backend_change.backend.pi, 151)
 
     @staticmethod
     def default_params() -> Dict[str, Any]:
@@ -269,7 +270,7 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
             unless energy_esys is specified, :math:`\\cos (\\alpha \\phi + \\beta)` has dimensions of truncated_dim
             x `truncated_dim`. Otherwise, if eigenenergy basis is chosen, :math:`\\cos (\\alpha \\phi + \\beta)` has dimensions of m x m, for m given eigenvectors.
         """
-        argument = alpha * self.phi_operator() + beta * np.eye(self.hilbertdim())
+        argument = alpha * self.phi_operator() + beta * backend_change.backend.eye(self.hilbertdim())
         native = sp.linalg.cosm(argument)
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
@@ -297,7 +298,7 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
             unless energy_esys is specified, :math:`\\sin (\\alpha \\phi + \\beta)` has dimensions of truncated_dim
             x `truncated_dim`. Otherwise, if eigenenergy basis is chosen, :math:`\\sin (\\alpha \\phi + \\beta)` has dimensions of m x m, for m given eigenvectors.
         """
-        argument = alpha * self.phi_operator() + beta * np.eye(self.hilbertdim())
+        argument = alpha * self.phi_operator() + beta * backend_change.backend.eye(self.hilbertdim())
         native = sp.linalg.sinm(argument)
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
@@ -325,11 +326,11 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         """
         dimension = self.hilbertdim()
         diag_elements = [(i + 0.5) * self.plasma_energy() for i in range(dimension)]
-        lc_osc_matrix = np.diag(diag_elements)
+        diag_elements = backend_change.backend.array(diag_elements)  # Ensure diag_elements is an ndarray
 
-        cos_matrix = self.cos_phi_operator(beta=2 * np.pi * self.flux)
+        cos_matrix = self.cos_phi_operator(beta=2 * backend_change.backend.pi * self.flux)
 
-        hamiltonian_mat = lc_osc_matrix - self.EJ * cos_matrix
+        hamiltonian_mat = backend_change.backend.diag(diag_elements) - self.EJ * cos_matrix
         return self.process_hamiltonian(
             native_hamiltonian=hamiltonian_mat, energy_esys=energy_esys
         )
@@ -356,7 +357,7 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
             x `truncated_dim`. Otherwise, if eigenenergy basis is chosen, operator has dimensions of m x m,
             for m given eigenvectors.
         """
-        native = -self.cos_phi_operator(1, 2 * np.pi * self.flux)
+        native = -self.cos_phi_operator(1, 2 * backend_change.backend.pi * self.flux)
 
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
@@ -389,7 +390,7 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
             x `truncated_dim`. Otherwise, if eigenenergy basis is chosen, operator has dimensions of m x m,
             for m given eigenvectors.
         """
-        native = -2 * np.pi * self.EJ * self.sin_phi_operator(1, 2 * np.pi * self.flux)
+        native = -2 * backend_change.backend.pi * self.EJ * self.sin_phi_operator(1, 2 * backend_change.backend.pi * self.flux)
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def hilbertdim(self) -> int:
@@ -410,8 +411,8 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         -------
         float or ndarray
         """
-        return 0.5 * self.EL * phi * phi - self.EJ * np.cos(
-            phi + 2.0 * np.pi * self.flux
+        return 0.5 * self.EL * phi * phi - self.EJ * backend_change.backend.cos(
+            phi + 2.0 * backend_change.backend.pi * self.flux
         )
 
     def wavefunction(
@@ -442,7 +443,7 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
 
         phi_basis_labels = phi_grid.make_linspace()
         wavefunc_osc_basis_amplitudes = evecs[:, which]
-        phi_wavefunc_amplitudes = np.zeros(phi_grid.pt_count, dtype=np.complex_)
+        phi_wavefunc_amplitudes = backend_change.backend.zeros(phi_grid.pt_count, dtype=backend_change.backend.complex_)
         phi_osc = self.phi_osc()
         for n in range(dim):
             phi_wavefunc_amplitudes += wavefunc_osc_basis_amplitudes[

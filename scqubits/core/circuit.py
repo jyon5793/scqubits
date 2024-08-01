@@ -21,6 +21,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy import ndarray
 from sympy import latex
+from scqubits import backend_change
 
 try:
     from IPython.display import Latex, display
@@ -403,7 +404,7 @@ class Circuit(
 
         # setting default grids for plotting
         self._default_grid_phi: discretization.Grid1d = discretization.Grid1d(
-            -6 * np.pi, 6 * np.pi, 200
+            -6 * backend_change.backend.pi, 6 * backend_change.backend.pi, 200
         )
 
         self.type_of_matrices: str = (
@@ -496,7 +497,7 @@ class Circuit(
 
         # setting default grids for plotting
         self._default_grid_phi: discretization.Grid1d = discretization.Grid1d(
-            -6 * np.pi, 6 * np.pi, 200
+            -6 * backend_change.backend.pi, 6 * backend_change.backend.pi, 200
         )
 
         self.type_of_matrices: str = (
@@ -804,7 +805,7 @@ class Circuit(
         # setting the ranges for flux ranges used for discrete phi vars
         for var_index in self.var_categories["extended"]:
             if var_index not in self.discretized_phi_range:
-                self.discretized_phi_range[var_index] = (-6 * np.pi, 6 * np.pi)
+                self.discretized_phi_range[var_index] = (-6 * backend_change.backend.pi, 6 * backend_change.backend.pi)
         # external flux vars
         for flux in self.external_fluxes:
             # setting the default to zero external flux
@@ -1001,7 +1002,7 @@ class Circuit(
         # setting the ranges for flux ranges used for discrete phi vars
         for var_index in self.var_categories["extended"]:
             if var_index not in self.discretized_phi_range:
-                self.discretized_phi_range[var_index] = (-6 * np.pi, 6 * np.pi)
+                self.discretized_phi_range[var_index] = (-6 * backend_change.backend.pi, 6 * backend_change.backend.pi)
         # external flux vars
         for flux in self.external_fluxes:
             # setting the default to zero external flux
@@ -1111,7 +1112,7 @@ class Circuit(
         """
         trans_mat = self.transformation_matrix
         if new_vars_to_node_vars:
-            trans_mat = np.linalg.inv(trans_mat)
+            trans_mat = backend_change.backend.linalg.inv(trans_mat)
         theta_vars = [
             sm.symbols(f"θ{index}")
             for index in range(
@@ -1128,11 +1129,11 @@ class Circuit(
         for idx, node_var in enumerate(node_vars):
             if not new_vars_to_node_vars:
                 var_eqns.append(
-                    sm.Eq(node_vars[idx], np.sum(trans_mat[idx, :] * theta_vars))
+                    sm.Eq(node_vars[idx], backend_change.backend.sum(trans_mat[idx, :] * theta_vars))
                 )
             else:
                 var_eqns.append(
-                    sm.Eq(theta_vars[idx], np.sum(trans_mat[idx, :] * node_vars))
+                    sm.Eq(theta_vars[idx], backend_change.backend.sum(trans_mat[idx, :] * node_vars))
                 )
         if _HAS_IPYTHON:
             self.print_expr_in_latex(var_eqns)

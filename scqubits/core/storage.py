@@ -21,6 +21,7 @@ import scqubits.io_utils.fileio_serializers as serializers
 import scqubits.utils.plotting as plot
 
 from scqubits.io_utils.fileio_qutip import QutipEigenstates
+from scqubits import backend_change
 
 if TYPE_CHECKING:
     from scqubits.core.discretization import GridSpec
@@ -45,7 +46,7 @@ class WaveFunction:
     """
 
     def __init__(
-        self, basis_labels: np.ndarray, amplitudes: np.ndarray, energy: float = None
+        self, basis_labels: backend_change.backend.ndarray, amplitudes: backend_change.backend.ndarray, energy: float = None
     ) -> None:
         self.basis_labels = basis_labels
         self.amplitudes = amplitudes
@@ -55,7 +56,7 @@ class WaveFunction:
         """Rescale the wavefunction amplitudes by a given factor"""
         self.amplitudes *= scale_factor
 
-    def rescale_to_potential(self, potential_vals: np.ndarray):
+    def rescale_to_potential(self, potential_vals: backend_change.backend.ndarray):
         """
         Rescale the dimensionless amplitude to a (pseudo-)energy that allows us to plot
         wavefunctions and potential energies in the same plot.
@@ -68,7 +69,7 @@ class WaveFunction:
         """
         self.amplitudes *= self.amplitude_scale_factor(potential_vals)
 
-    def amplitude_scale_factor(self, potential_vals: np.ndarray) -> float:
+    def amplitude_scale_factor(self, potential_vals: backend_change.backend.ndarray) -> float:
         """
         Returnn scale factor that converts the dimensionless amplitude to a (pseudo-)energy that allows us to plot
         wavefunctions and potential energies in the same plot.
@@ -84,8 +85,8 @@ class WaveFunction:
 
         """
         FILL_FACTOR = 0.1
-        energy_range = np.max(potential_vals) - np.min(potential_vals)
-        amplitude_range = np.max(self.amplitudes) - np.min(self.amplitudes)
+        energy_range = backend_change.backend.max(potential_vals) - backend_change.backend.min(potential_vals)
+        amplitude_range = backend_change.backend.max(self.amplitudes) - backend_change.backend.min(self.amplitudes)
         if amplitude_range < 1.0e-10:
             return 0.0
         return FILL_FACTOR * energy_range / amplitude_range
@@ -109,7 +110,7 @@ class WaveFunctionOnGrid:
     """
 
     def __init__(
-        self, gridspec: "GridSpec", amplitudes: np.ndarray, energy: float = None
+        self, gridspec: "GridSpec", amplitudes: backend_change.backend.ndarray, energy: float = None
     ) -> None:
         self.gridspec = gridspec
         self.amplitudes = amplitudes
@@ -140,13 +141,13 @@ class DataStore(serializers.Serializable):
         self,
         system_params: Dict[str, Any],
         param_name: str = None,
-        param_vals: np.ndarray = None,
+        param_vals: backend_change.backend.ndarray = None,
         **kwargs
     ) -> None:
         self.system_params = system_params
         self.param_name = param_name
         self.param_vals = param_vals
-        if isinstance(param_vals, np.ndarray):
+        if isinstance(param_vals, backend_change.backend.ndarray):
             self.param_count = len(self.param_vals)  # type: ignore
         else:
             self.param_count = 1  # just one value if there is no parameter sweep
@@ -206,12 +207,12 @@ class SpectrumData(DataStore):
     # mark for file serializers purposes:
     def __init__(
         self,
-        energy_table: np.ndarray,  # Union[np.ndarray, list],
+        energy_table: backend_change.backend.ndarray,  # Union[np.ndarray, list],
         system_params: Dict[str, Any],
         param_name: str = None,
-        param_vals: np.ndarray = None,
-        state_table: Union[List[QutipEigenstates], np.ndarray, List[np.ndarray]] = None,
-        matrixelem_table: np.ndarray = None,
+        param_vals: backend_change.backend.ndarray = None,
+        state_table: Union[List[QutipEigenstates], backend_change.backend.ndarray, List[backend_change.backend.ndarray]] = None,
+        matrixelem_table: backend_change.backend.ndarray = None,
         **kwargs
     ) -> None:
         self.system_params = system_params

@@ -29,6 +29,7 @@ from numpy import ndarray
 from scipy import sparse
 from scipy.sparse import csc_matrix
 from sympy import latex
+from scqubits import backend_change
 
 try:
     from IPython.display import display, Latex
@@ -190,8 +191,8 @@ class CircuitRoutines(ABC):
             raise Exception("The Subsystem Hamiltonian is not purely harmonic.")
         num_oscs = len(self.var_categories["extended"])
         # Construct capacitance and inductance matrices from the symbolic hamiltonian
-        EC = np.zeros([num_oscs, num_oscs])
-        EL = np.zeros([num_oscs, num_oscs])
+        EC = backend_change.backend.zeros([num_oscs, num_oscs])
+        EL = backend_change.backend.zeros([num_oscs, num_oscs])
         # substitute all external fluxes in the symbolic Hamiltonian
         hamiltonian = self.hamiltonian_symbolic
         for param in (
@@ -219,7 +220,7 @@ class CircuitRoutines(ABC):
                         f"θ{ext_var_indices[i]}*θ{ext_var_indices[j]}"
                     )
         # diagonalizing the matrices
-        normal_mode_freqs_sq, eig_vecs = np.linalg.eig(8 * EC @ EL)
+        normal_mode_freqs_sq, eig_vecs = backend_change.backend.linalg.eig(8 * EC @ EL)
 
         self.normal_mode_freqs = normal_mode_freqs_sq**0.5
 
@@ -229,14 +230,14 @@ class CircuitRoutines(ABC):
         )
         for flux in self.external_fluxes:
             self._hamiltonian_sym_for_numerics = (
-                self._hamiltonian_sym_for_numerics.subs(flux, flux * np.pi * 2)
+                self._hamiltonian_sym_for_numerics.subs(flux, flux * backend_change.backend.pi * 2)
             )
         # storing the annihilation operators in the eigenbasis
         osc_lengths = (
-            np.diagonal(
+            backend_change.backend.diagonal(
                 8
-                * np.linalg.inv(eig_vecs.T @ np.linalg.inv(EC) @ eig_vecs)
-                @ np.linalg.inv(eig_vecs.T @ EL @ eig_vecs)
+                * backend_change.backend.linalg.inv(eig_vecs.T @ backend_change.backend.linalg.inv(EC) @ eig_vecs)
+                @ backend_change.backend.linalg.inv(eig_vecs.T @ EL @ eig_vecs)
             )
             ** 0.25
         )
@@ -278,10 +279,10 @@ class CircuitRoutines(ABC):
         Qn_vars = [sm.symbols(f"Qn{var_idx}") for var_idx in ext_var_indices]
         θn_vars = [sm.symbols(f"θn{var_idx}") for var_idx in ext_var_indices]
 
-        Q_exprs = np.linalg.inv(transformation_matrix.T).dot(Qn_vars)
+        Q_exprs = backend_change.backend.linalg.inv(transformation_matrix.T).dot(Qn_vars)
         θ_exprs = transformation_matrix.dot(θn_vars)
         if return_transformed_exprs:
-            return np.linalg.inv(transformation_matrix.T).dot(
+            return backend_change.backend.linalg.inv(transformation_matrix.T).dot(
                 Q_vars
             ), transformation_matrix.dot(θ_vars)
 
@@ -304,7 +305,7 @@ class CircuitRoutines(ABC):
             raise Exception(
                 f"{self._id_str} instance is not generated from a SymbolicCircuit instance, and hence does not have any associated branches."
             )
-        trans_mat = np.linalg.inv(self.transformation_matrix.T)
+        trans_mat = backend_change.backend.linalg.inv(self.transformation_matrix.T)
         node_offset_charge_vars = [
             sm.symbols(f"q_n{index}")
             for index in range(
@@ -321,7 +322,7 @@ class CircuitRoutines(ABC):
                 self._make_expr_human_readable(
                     sm.Eq(
                         periodic_offset_charge_vars[idx],
-                        np.sum(trans_mat[idx, :] * node_offset_charge_vars),
+                        backend_change.backend.sum(trans_mat[idx, :] * node_offset_charge_vars),
                     )
                 )
             )
@@ -401,7 +402,7 @@ class CircuitRoutines(ABC):
         """
         # update the attribute for the current instance
         # first check if the input value is valid.
-        if not (np.isrealobj(value) and value >= 0):
+        if not (backend_change.backend.isrealobj(value) and value >= 0):
             raise AttributeError(
                 f"'{value}' is invalid. Branch parameters must be positive and real."
             )
@@ -474,7 +475,7 @@ class CircuitRoutines(ABC):
             The value to which the instance property is updated.
         """
         # first check if the input value is valid.
-        if not np.isrealobj(value):
+        if not backend_change.backend.isrealobj(value):
             raise AttributeError(
                 f"'{value}' is invalid. External flux and offset charges must be real valued."
             )
@@ -834,7 +835,7 @@ class CircuitRoutines(ABC):
             )
         for i in self.var_categories["periodic"]:
             grids[i] = discretization.Grid1d(
-                -np.pi, np.pi, self._default_grid_phi.pt_count
+                -backend_change.backend.pi, backend_change.backend.pi, self._default_grid_phi.pt_count
             )
         return grids
 
@@ -1146,7 +1147,7 @@ class CircuitRoutines(ABC):
             # adding a factor of 2pi for external flux
             for sym_param in interaction.free_symbols:
                 if sym_param in self.external_fluxes:
-                    interaction = interaction.subs(sym_param, 2 * np.pi * sym_param)
+                    interaction = interaction.subs(sym_param, 2 * backend_change.backend.pi * sym_param)
 
             expr_dict = interaction.as_coefficients_dict()
             interaction_terms = list(expr_dict.keys())
@@ -1452,7 +1453,7 @@ class CircuitRoutines(ABC):
                     sm.symbols(f"cosθ{i}"), sm.cos(1.0 * sm.symbols(f"θ{i}"))
                 )
                 .replace(sm.symbols(f"sinθ{i}"), sm.sin(1.0 * sm.symbols(f"θ{i}")))
-                .subs(sm.symbols("I"), 1 / (2 * np.pi))
+                .subs(sm.symbols("I"), 1 / (2 * backend_change.backend.pi))
             )
         return potential_symbolic
 
@@ -1482,7 +1483,7 @@ class CircuitRoutines(ABC):
         # associate an identity matrix with the external flux vars
         for ext_flux in self.external_fluxes:
             hamiltonian = hamiltonian.subs(
-                ext_flux, ext_flux * sm.symbols("I") * 2 * np.pi
+                ext_flux, ext_flux * sm.symbols("I") * 2 * backend_change.backend.pi
             )
 
         # associate an identity matrix with offset and free charge vars
@@ -1539,8 +1540,8 @@ class CircuitRoutines(ABC):
         """
         Returns the Hilbert dimension of the Circuit instance
         """
-        cutoff_values = np.fromiter(self._collect_cutoff_values(), dtype=int)
-        return np.prod(cutoff_values)
+        cutoff_values = backend_change.backend.fromiter(self._collect_cutoff_values(), dtype=int)
+        return backend_change.backend.prod(cutoff_values)
 
     # helper functions
     def _kron_operator(
@@ -1579,12 +1580,12 @@ class CircuitRoutines(ABC):
         if len(dynamic_var_indices) > 1:
             if var_index_pos > 0:
                 identity_left = sparse.identity(
-                    np.prod(var_dim_list[:var_index_pos]),
+                    backend_change.backend.prod(var_dim_list[:var_index_pos]),
                     format=matrix_format,
                 )
             if var_index_pos < len(dynamic_var_indices) - 1:
                 identity_right = sparse.identity(
-                    np.prod(var_dim_list[var_index_pos + 1 :]),
+                    backend_change.backend.prod(var_dim_list[var_index_pos + 1 :]),
                     format=matrix_format,
                 )
 
@@ -1653,7 +1654,7 @@ class CircuitRoutines(ABC):
             op = sparse.identity(dim, format="csc")
             return op
         elif self.type_of_matrices == "dense":
-            return np.identity(dim)
+            return backend_change.backend.identity(dim)
 
     def exp_i_operator(
         self, var_sym: sm.Symbol, prefactor: float
@@ -1680,7 +1681,7 @@ class CircuitRoutines(ABC):
                 self.cutoffs_dict()[var_index],
             )
             if "θ" in var_sym.name:
-                diagonal = np.exp(phi_grid.make_linspace() * prefactor * 1j)
+                diagonal = backend_change.backend.exp(phi_grid.make_linspace() * prefactor * 1j)
                 exp_i_theta = sparse.dia_matrix(
                     (diagonal, [0]), shape=(phi_grid.pt_count, phi_grid.pt_count)
                 ).tocsc()
@@ -1773,7 +1774,7 @@ class CircuitRoutines(ABC):
             for term in cos_argument_expr.as_ordered_terms():
                 if len(term.free_symbols) == 0:
                     cos_argument_expr -= term
-                    coefficient *= np.exp(float(term) * 1j)
+                    coefficient *= backend_change.backend.exp(float(term) * 1j)
 
             operator_list = []
             for idx, var_symbol in enumerate(cos_argument_expr.free_symbols):
@@ -2329,7 +2330,7 @@ class CircuitRoutines(ABC):
 
         # adding matrix power to the dict
         if self.type_of_matrices == "dense":
-            replacement_dict["matrix_power"] = np.linalg.matrix_power
+            replacement_dict["matrix_power"] = backend_change.backend.linalg.matrix_power
             replacement_dict["cos"] = _cos_dia_dense
             replacement_dict["sin"] = _sin_dia_dense
         else:
@@ -2420,14 +2421,14 @@ class CircuitRoutines(ABC):
         operator_for_var_index = []
         for idx, var_index in enumerate(self.var_categories["extended"]):
             cutoff = getattr(self, f"cutoff_ext_{var_index}")
-            evals = (0.5 + np.arange(0, cutoff)) * self.normal_mode_freqs[idx]
+            evals = (0.5 + backend_change.backend.arange(0, cutoff)) * self.normal_mode_freqs[idx]
             H_osc = sp.sparse.dia_matrix(
-                (evals, [0]), shape=(cutoff, cutoff), dtype=np.float_
+                (evals, [0]), shape=(cutoff, cutoff), dtype=backend_change.backend.float_
             )
             operator_for_var_index.append(self._kron_operator(H_osc, var_index))
         H = sum(operator_for_var_index)
         unsorted_eigs = H.diagonal()
-        dressed_indices = np.argsort(unsorted_eigs)[:evals_count]
+        dressed_indices = backend_change.backend.argsort(unsorted_eigs)[:evals_count]
         return unsorted_eigs[dressed_indices]
 
     @check_sync_status_circuit
@@ -2617,7 +2618,7 @@ class CircuitRoutines(ABC):
             evals = sp.linalg.eigvalsh(
                 hamiltonian_mat, subset_by_index=[0, evals_count - 1]
             )
-        return np.sort(evals)
+        return backend_change.backend.sort(evals)
 
     def _esys_calc(self, evals_count: int) -> Tuple[ndarray, ndarray]:
         # dimension of the hamiltonian
@@ -2654,8 +2655,8 @@ class CircuitRoutines(ABC):
     def set_bare_eigensys(self, eigensys):
         if not self.hierarchical_diagonalization:
             return None
-        bare_evals = np.empty((len(self.subsystems),), dtype=object)
-        bare_evecs = np.empty((len(self.subsystems),), dtype=object)
+        bare_evals = backend_change.backend.empty((len(self.subsystems),), dtype=object)
+        bare_evecs = backend_change.backend.empty((len(self.subsystems),), dtype=object)
 
         for subsys_idx, subsys in enumerate(self.subsystems):
             if subsys.hierarchical_diagonalization:
@@ -2664,19 +2665,19 @@ class CircuitRoutines(ABC):
             else:
                 sub_eigsys = eigensys[1][subsys_idx]
             bare_evals[subsys_idx] = NamedSlotsNdarray(
-                np.asarray([sub_eigsys[0].tolist()]),
+                backend_change.backend.asarray([sub_eigsys[0].tolist()]),
                 self.hilbert_space._parameters.paramvals_by_name,
             )
             bare_evecs[subsys_idx] = NamedSlotsNdarray(
-                np.asarray([sub_eigsys[1].tolist()]),
+                backend_change.backend.asarray([sub_eigsys[1].tolist()]),
                 self.hilbert_space._parameters.paramvals_by_name,
             )
         # store eigensys of the subsystem in the HilbertSpace Lookup table
         self.hilbert_space._data["bare_evals"] = NamedSlotsNdarray(
-            bare_evals, {"subsys": np.arange(len(self.subsystems))}
+            bare_evals, {"subsys": backend_change.backend.arange(len(self.subsystems))}
         )
         self.hilbert_space._data["bare_evecs"] = NamedSlotsNdarray(
-            bare_evecs, {"subsys": np.arange(len(self.subsystems))}
+            bare_evecs, {"subsys": backend_change.backend.arange(len(self.subsystems))}
         )
 
     # ****************************************************************
@@ -3046,12 +3047,12 @@ class CircuitRoutines(ABC):
                     for symbol in term_mod.free_symbols
                 ]
                 if np.array_equal(
-                    np.sort(interaction_var_indices), np.sort(subsystem_indices)
+                    backend_change.backend.sort(interaction_var_indices), backend_change.backend.sort(subsystem_indices)
                 ):
                     interaction += term
         for external_flux in self.external_fluxes:
             interaction = self._make_expr_human_readable(
-                interaction.replace(external_flux, external_flux / (2 * np.pi)),
+                interaction.replace(external_flux, external_flux / (2 * backend_change.backend.pi)),
                 float_round=float_round,
             )
             interaction = interaction.replace(
@@ -3089,7 +3090,7 @@ class CircuitRoutines(ABC):
         # substituting the parameters
         potential_sym = self.potential_symbolic.subs("I", 1)
         for ext_flux in self.external_fluxes:
-            potential_sym = potential_sym.subs(ext_flux, ext_flux * 2 * np.pi)
+            potential_sym = potential_sym.subs(ext_flux, ext_flux * 2 * backend_change.backend.pi)
 
         # constructing the grids
         parameters = dict.fromkeys(
@@ -3099,7 +3100,7 @@ class CircuitRoutines(ABC):
         )
 
         for var_name in kwargs:
-            if isinstance(kwargs[var_name], np.ndarray):
+            if isinstance(kwargs[var_name], backend_change.backend.ndarray):
                 parameters[var_name] = kwargs[var_name]
             elif isinstance(kwargs[var_name], (int, float)):
                 parameters[var_name] = kwargs[var_name]
@@ -3121,13 +3122,13 @@ class CircuitRoutines(ABC):
         # creating a meshgrid for multiple dimensions
         sweep_vars = {}
         for var_name in kwargs:
-            if isinstance(kwargs[var_name], np.ndarray):
+            if isinstance(kwargs[var_name], backend_change.backend.ndarray):
                 sweep_vars[var_name] = kwargs[var_name]
         if len(sweep_vars) > 1:
             sweep_vars.update(
                 zip(
                     sweep_vars,
-                    np.meshgrid(*[grid for grid in sweep_vars.values()]),
+                    backend_change.backend.meshgrid(*[grid for grid in sweep_vars.values()]),
                 )
             )
             for var_name in sweep_vars:
@@ -3176,10 +3177,10 @@ class CircuitRoutines(ABC):
 
         sweep_vars = {}
         for var_name in kwargs:
-            if isinstance(kwargs[var_name], np.ndarray):
+            if isinstance(kwargs[var_name], backend_change.backend.ndarray):
                 sweep_vars[var_name] = kwargs[var_name]
         if len(sweep_vars) > 1:
-            sweep_vars.update(zip(sweep_vars, np.meshgrid(*list(sweep_vars.values()))))
+            sweep_vars.update(zip(sweep_vars, backend_change.backend.meshgrid(*list(sweep_vars.values()))))
             for var_name in sweep_vars:
                 parameters[var_name] = sweep_vars[var_name]
 
@@ -3265,7 +3266,7 @@ class CircuitRoutines(ABC):
         U_sublist = [wf_dim, len(wf_sublist)]
         target_sublist = wf_sublist.copy()
         target_sublist[wf_dim] = len(wf_sublist)
-        wf_new_basis = np.einsum(
+        wf_new_basis = backend_change.backend.einsum(
             wf_reshaped, wf_sublist, U_subsys.T, U_sublist, target_sublist
         )
         if subsystem.hierarchical_diagonalization:
@@ -3302,7 +3303,7 @@ class CircuitRoutines(ABC):
         """
         Method to change the basis from harmonic oscillator to n basis
         """
-        U_ho_n = np.array(
+        U_ho_n = backend_change.backend.array(
             [
                 osc.harm_osc_wavefunction(
                     n,
@@ -3316,7 +3317,7 @@ class CircuitRoutines(ABC):
         U_sublist = [wf_dim, len(wf_sublist)]
         target_sublist = wf_sublist.copy()
         target_sublist[wf_dim] = len(wf_sublist)
-        wf_new_basis = np.einsum(
+        wf_new_basis = backend_change.backend.einsum(
             wf_original_basis, wf_sublist, U_ho_n.T, U_sublist, target_sublist
         )
         return wf_new_basis
@@ -3327,7 +3328,7 @@ class CircuitRoutines(ABC):
         """
         Method to change the basis from harmonic oscillator to phi basis
         """
-        U_ho_phi = np.array(
+        U_ho_phi = backend_change.backend.array(
             [
                 osc.harm_osc_wavefunction(
                     n,
@@ -3341,7 +3342,7 @@ class CircuitRoutines(ABC):
         U_sublist = [wf_dim, len(wf_sublist)]
         target_sublist = wf_sublist.copy()
         target_sublist[wf_dim] = len(wf_sublist)
-        wf_ext_basis = np.einsum(
+        wf_ext_basis = backend_change.backend.einsum(
             wf_original_basis, wf_sublist, U_ho_phi, U_sublist, target_sublist
         )
         return wf_ext_basis
@@ -3352,9 +3353,9 @@ class CircuitRoutines(ABC):
         """
         Method to change the basis from harmonic oscillator to phi basis
         """
-        U_n_phi = np.array(
+        U_n_phi = backend_change.backend.array(
             [
-                np.exp(n * grid_phi.make_linspace() * 1j)
+                backend_change.backend.exp(n * grid_phi.make_linspace() * 1j)
                 for n in range(
                     -getattr(self, "cutoff_n_" + str(var_index)),
                     getattr(self, "cutoff_n_" + str(var_index)) + 1,
@@ -3365,7 +3366,7 @@ class CircuitRoutines(ABC):
         U_sublist = [wf_dim, len(wf_sublist)]
         target_sublist = wf_sublist.copy()
         target_sublist[wf_dim] = len(wf_sublist)
-        wf_ext_basis = np.einsum(
+        wf_ext_basis = backend_change.backend.einsum(
             wf_original_basis, wf_sublist, U_n_phi, U_sublist, target_sublist
         )
         return wf_ext_basis
@@ -3558,28 +3559,28 @@ class CircuitRoutines(ABC):
         # summing over the dimensions
         # summing over the dimensions
         if mode == "abs-sqr":
-            wf_plot = np.sum(
-                np.abs(wf_ext_basis) ** 2,
+            wf_plot = backend_change.backend.sum(
+                backend_change.backend.abs(wf_ext_basis) ** 2,
                 axis=tuple(dims_to_be_summed),
             )
             return wf_plot
         if mode == "abs":
             if len(dims_to_be_summed) == 0:
-                return np.abs(wf_ext_basis)
+                return backend_change.backend.abs(wf_ext_basis)
             else:
                 raise AttributeError(
                     "Cannot plot the absolute value of the wave function in more than 2 dimensions."
                 )
         elif mode == "real":
             if len(dims_to_be_summed) == 0:
-                return np.real(wf_ext_basis)
+                return backend_change.backend.real(wf_ext_basis)
             else:
                 raise AttributeError(
                     "Cannot plot the real part of the wave function in more than 2 dimensions."
                 )
         elif mode == "imag":
             if len(dims_to_be_summed) == 0:
-                return np.imag(wf_ext_basis)
+                return backend_change.backend.imag(wf_ext_basis)
             else:
                 raise AttributeError(
                     "Cannot plot the imaginary part of the wave function in more than 2 dimensions."
@@ -3653,7 +3654,7 @@ class CircuitRoutines(ABC):
                 "Cannot plot wave function in more than 2 dimensions. The number of "
                 "dimensions should be less than 2."
             )
-        var_indices = np.sort(var_indices)
+        var_indices = backend_change.backend.sort(var_indices)
         grids_per_varindex_dict = grids_dict or self.discretized_grids_dict_for_vars()
 
         plot_data = self.generate_wf_plot_data(
@@ -3730,7 +3731,7 @@ class CircuitRoutines(ABC):
                     ),
                 )
                 labels.append(r"$\theta_{{{}}}$".format(str(var_indices[index_order])))
-        wavefunc_grid = discretization.GridSpec(np.asarray(grids))
+        wavefunc_grid = discretization.GridSpec(backend_change.backend.asarray(grids))
 
         wavefunc = storage.WaveFunctionOnGrid(wavefunc_grid, wf_plot)
         # obtain fig and axes from
@@ -3783,14 +3784,14 @@ class CircuitRoutines(ABC):
         ):
             ncut = self.cutoffs_dict()[var_indices[0]]
             wavefunc = storage.WaveFunction(
-                basis_labels=np.linspace(-ncut, ncut, 2 * ncut + 1),
+                basis_labels=backend_change.backend.linspace(-ncut, ncut, 2 * ncut + 1),
                 amplitudes=wf_plot,
             )
             kwargs = {
                 **defaults.wavefunction1d_discrete("abs_sqr"),
                 **kwargs,
             }
-            wavefunc.basis_labels = np.arange(
+            wavefunc.basis_labels = backend_change.backend.arange(
                 -getattr(self, "cutoff_n_" + str(var_index)),
                 getattr(self, "cutoff_n_" + str(var_index)) + 1,
             )

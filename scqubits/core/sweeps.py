@@ -17,6 +17,7 @@ import numpy as np
 from qutip import Qobj
 
 from scqubits.core.qubit_base import QubitBaseClass
+from scqubits import backend_change
 
 if TYPE_CHECKING:
     from scqubits.core.param_sweep import ParameterSweep
@@ -28,7 +29,7 @@ def bare_matrixelement(
     paramvals_tuple: Tuple[float, ...],
     operator_name: str,
     subsystem: QubitBaseClass,
-) -> np.ndarray:
+) -> backend_change.backend.ndarray:
     """
     Given parameter sweep data, compute and return a matrix element table using the bare
     states of the specified subsystem.
@@ -67,7 +68,7 @@ def dressed_matrixelement(
     paramindex_tuple: Tuple[int, ...],
     paramvals_tuple: Tuple[float, ...],
     operator: Qobj,
-) -> np.ndarray:
+) -> backend_change.backend.ndarray:
     """
     Given parameter sweep data, compute and return a matrix element table using the
     dressed states of the composite Hilbert space.
@@ -90,6 +91,6 @@ def dressed_matrixelement(
         size set by the truncated_dim of the subsystem
     """
     evecs = sweep["evecs"][paramindex_tuple]
-    return np.asarray(
+    return backend_change.backend.asarray(
         [[operator.matrix_element(evec1, evec2) for evec1 in evecs] for evec2 in evecs]
     )

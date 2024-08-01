@@ -58,6 +58,8 @@ from scqubits.core.oscillator import Oscillator
 from scqubits.core.qubit_base import QuantumSystem, QubitBaseClass
 from scqubits.core.spec_lookup import SpectrumLookupMixin
 from scqubits.core.storage import SpectrumData
+from scqubits import backend_change
+from scqubits.utils.helper import ndindex
 
 if TYPE_CHECKING:
     from scqubits.io_utils.fileio import IOData
@@ -186,7 +188,7 @@ class ParameterSweepBase(ABC, SpectrumLookupMixin):
             else:
                 key = (key,)
             self._current_param_indices = convert_to_std_npindex(key, self._parameters)
-        elif isinstance(key, np.integer):
+        elif isinstance(key, backend_change.backend.integer):
             key = (key,)
             self._current_param_indices = convert_to_std_npindex(key, self._parameters)
         return self
@@ -445,7 +447,7 @@ class ParameterSweepBase(ABC, SpectrumLookupMixin):
         initial_energies: NamedSlotsNdarray,
         param_indices: NpIndices,
     ) -> None:
-        if np.isnan(initial_energies.toarray().astype(np.float_)).any():
+        if backend_change.backend.isnan(initial_energies.toarray().astype(backend_change.backend.float_)).any():
             warnings.warn(
                 "The initial state undergoes significant hybridization. "
                 "Identification with a bare product state was not (fully) "
@@ -454,7 +456,7 @@ class ParameterSweepBase(ABC, SpectrumLookupMixin):
                 "index (integer) instead of a bare product state.\n",
                 UserWarning,
             )
-        elif sum(initial) == 0 and not np.all(
+        elif sum(initial) == 0 and not backend_change.backend.all(
             initial_energies == self["evals"][param_indices][..., 0]
         ):
             warnings.warn(
@@ -607,8 +609,8 @@ class ParameterSweepBase(ABC, SpectrumLookupMixin):
                     diff_energies = (final_energies - initial_energies).astype(float)
                     diff_energies /= photon_number
                     if make_positive:
-                        diff_energies = np.abs(diff_energies)
-                    if not np.isnan(
+                        diff_energies = backend_change.backend.abs(diff_energies)
+                    if not backend_change.backend.isnan(
                         diff_energies
                     ).all():  # omit transitions with all nans
                         transitions.append((initial_state, final_state))
@@ -628,18 +630,18 @@ class ParameterSweepBase(ABC, SpectrumLookupMixin):
             name = reduced_parameters.names[0]
             vals = reduced_parameters[name]
             return SpectrumData(
-                energy_table=np.asarray(transition_energies).T,
+                energy_table=backend_change.backend.asarray(transition_energies).T,
                 system_params=self.system_params,
                 param_name=name,
                 param_vals=vals,
                 labels=label_list,
-                subtract=np.asarray(
+                subtract=backend_change.backend.asarray(
                     [initial_energies] * self._evals_count, dtype=float
                 ).T,
             )
 
         return SpectrumData(
-            energy_table=np.asarray(transition_energies),
+            energy_table=backend_change.backend.asarray(transition_energies),
             system_params=self.system_params,
             labels=label_list,
         )
@@ -790,7 +792,7 @@ class ParameterSweepBase(ABC, SpectrumLookupMixin):
         specdata_all.energy_table -= specdata_for_highlighting.subtract  # type:ignore
         specdata_all.energy_table /= photon_number
         if make_positive:
-            specdata_all.energy_table = np.abs(specdata_all.energy_table)
+            specdata_all.energy_table = backend_change.backend.abs(specdata_all.energy_table)
 
         self.reset_preslicing()
 
@@ -1128,10 +1130,10 @@ class ParameterSweep(  # type:ignore
             likewise for evecs;
             here, "subsys": 0, 1, ... enumerates subsystems and
         """
-        bare_evals = np.empty((self.subsystem_count,), dtype=object)
-        bare_evecs = np.empty((self.subsystem_count,), dtype=object)
+        bare_evals = backend_change.backend.empty((self.subsystem_count,), dtype=object)
+        bare_evecs = backend_change.backend.empty((self.subsystem_count,), dtype=object)
         # creating data arrays for subsystems, to store the esys for all subsystems when HD is used
-        circuit_esys = np.empty((self.subsystem_count,), dtype=object)
+        circuit_esys = backend_change.backend.empty((self.subsystem_count,), dtype=object)
 
         for subsys_index, subsystem in enumerate(self.hilbertspace):
             bare_esys = self._subsys_bare_spectrum_sweep(subsystem)
@@ -1139,20 +1141,28 @@ class ParameterSweep(  # type:ignore
                 hasattr(subsystem, "hierarchical_diagonalization")
                 and subsystem.hierarchical_diagonalization
             ):
-                evals = np.empty_like(bare_esys[..., 0])
-                evecs = np.empty_like(bare_esys[..., 0])
-                for array_index, esys in np.ndenumerate(bare_esys[..., 0]):
-                    evals[array_index] = esys[0]
-                    evecs[array_index] = esys[1]
+                evals = backend_change.backend.empty_like(bare_esys[..., 0])
+                evecs = backend_change.backend.empty_like(bare_esys[..., 0])
+                shape = bare_esys[..., 0].shape
+
+                if backend_change.backend.__name__ == 'jax':
+                    indices = ndindex(shape)
+                else:
+                    indices = np.ndindex(shape)
+                
+                for array_index in indices:
+                    evals[array_index] = bare_esys[array_index][0]
+                    evecs[array_index] = bare_esys[array_index][1]
             else:
                 evals = bare_esys[..., 0]
                 evecs = bare_esys[..., 1]
+            
             bare_evals[subsys_index] = NamedSlotsNdarray(
-                np.asarray(evals.tolist()),
+                backend_change.backend.asarray(evals.tolist()),
                 self._parameters.paramvals_by_name,
             )
             bare_evecs[subsys_index] = NamedSlotsNdarray(
-                np.asarray(evecs.tolist()),
+                backend_change.backend.asarray(evecs.tolist()),
                 self._parameters.paramvals_by_name,
             )
             circuit_esys[subsys_index] = (
@@ -1160,10 +1170,10 @@ class ParameterSweep(  # type:ignore
             )
 
         return (
-            NamedSlotsNdarray(bare_evals, {"subsys": np.arange(self.subsystem_count)}),
-            NamedSlotsNdarray(bare_evecs, {"subsys": np.arange(self.subsystem_count)}),
+            NamedSlotsNdarray(bare_evals, {"subsys": backend_change.backend.arange(self.subsystem_count)}),
+            NamedSlotsNdarray(bare_evecs, {"subsys": backend_change.backend.arange(self.subsystem_count)}),
             NamedSlotsNdarray(
-                circuit_esys, {"subsys": np.arange(self.subsystem_count)}
+                circuit_esys, {"subsys": backend_change.backend.arange(self.subsystem_count)}
             ),
         )
 
@@ -1178,7 +1188,7 @@ class ParameterSweep(  # type:ignore
         if isinstance(subsystem, (scq.Circuit, scq.core.circuit.Subsystem)):
             return subsystem.generate_bare_eigensys()
         evals, evecs = subsystem.eigensys(evals_count=subsystem.truncated_dim)
-        esys_array = np.empty(shape=(2,), dtype=object)
+        esys_array = backend_change.backend.empty(shape=(2,), dtype=object)
         esys_array[0] = evals
         esys_array[1] = evecs
         return esys_array
@@ -1208,7 +1218,7 @@ class ParameterSweep(  # type:ignore
         """
         fixed_paramnames = self._paramnames_no_subsys_update(subsystem)
         reduced_parameters = self._parameters.create_reduced(fixed_paramnames)
-        total_count = np.prod([len(param_vals) for param_vals in reduced_parameters])
+        total_count = backend_change.backend.prod([len(param_vals) for param_vals in reduced_parameters])
 
         target_map = cpu_switch.get_map_method(self._num_cpus)
 
@@ -1233,7 +1243,7 @@ class ParameterSweep(  # type:ignore
                 disable=self.tqdm_disabled,
             )
 
-        bare_eigendata = np.asarray(list(bare_eigendata), dtype=object)
+        bare_eigendata = backend_change.backend.asarray(list(bare_eigendata), dtype=object)
         bare_eigendata = bare_eigendata.reshape((*reduced_parameters.counts, 2))
 
         # Bare spectral data was only computed once for each parameter that has no
@@ -1242,7 +1252,7 @@ class ParameterSweep(  # type:ignore
         for name in fixed_paramnames:
             index = self._parameters.index_by_name[name]
             param_count = self._parameters.counts[index]
-            bare_eigendata = np.repeat(bare_eigendata, param_count, axis=index)
+            bare_eigendata = backend_change.backend.repeat(bare_eigendata, param_count, axis=index)
 
         return bare_eigendata
 
@@ -1280,7 +1290,7 @@ class ParameterSweep(  # type:ignore
         evals, evecs = hilbertspace.eigensys(
             evals_count=evals_count, bare_esys=bare_esys  # type:ignore
         )
-        esys_array = np.empty(shape=(2,), dtype=object)
+        esys_array = backend_change.backend.empty(shape=(2,), dtype=object)
         esys_array[0] = evals
         esys_array[1] = evecs
         return esys_array
@@ -1296,7 +1306,7 @@ class ParameterSweep(  # type:ignore
             likewise for eigenvectors
         """
         target_map = cpu_switch.get_map_method(self._num_cpus)
-        total_count = np.prod(self._parameters.counts)
+        total_count = backend_change.backend.prod(self._parameters.counts)
 
         with utils.InfoBar(
             "Parallel compute dressed eigensys [num_cpus={}]".format(self._num_cpus),
@@ -1320,13 +1330,13 @@ class ParameterSweep(  # type:ignore
                 )
             )
 
-        spectrum_data_ndarray = np.asarray(spectrum_data, dtype=object)
+        spectrum_data_ndarray = backend_change.backend.asarray(spectrum_data, dtype=object)
         spectrum_data_ndarray = spectrum_data_ndarray.reshape(
             (*self._parameters.counts, 2)
         )
         slotparamvals_by_name = OrderedDict(self._parameters.ordered_dict.copy())
 
-        evals = np.asarray(spectrum_data_ndarray[..., 0].tolist())
+        evals = backend_change.backend.asarray(spectrum_data_ndarray[..., 0].tolist())
         evecs = spectrum_data_ndarray[..., 1]
 
         return (
@@ -1335,21 +1345,21 @@ class ParameterSweep(  # type:ignore
         )
 
     def _energies_1(self, subsys):
-        bare_label = np.zeros(len(self.hilbertspace))
+        bare_label = backend_change.backend.zeros(len(self.hilbertspace))
         bare_label[self.get_subsys_index(subsys)] = 1
 
-        energies_all_l = np.empty(self._parameters.counts + (subsys.truncated_dim,))
+        energies_all_l = backend_change.backend.empty(self._parameters.counts + (subsys.truncated_dim,))
         for l in range(subsys.truncated_dim):
             energies_all_l[..., l] = self[:].energy_by_bare_index(tuple(l * bare_label))
         return energies_all_l
 
     def _energies_2(self, subsys1, subsys2):
-        bare_label1 = np.zeros(len(self.hilbertspace))
+        bare_label1 = backend_change.backend.zeros(len(self.hilbertspace))
         bare_label1[self.get_subsys_index(subsys1)] = 1
-        bare_label2 = np.zeros(len(self.hilbertspace))
+        bare_label2 = backend_change.backend.zeros(len(self.hilbertspace))
         bare_label2[self.get_subsys_index(subsys2)] = 1
 
-        energies_all_l1_l2 = np.empty(
+        energies_all_l1_l2 = backend_change.backend.empty(
             self._parameters.counts
             + (subsys1.truncated_dim,)
             + (subsys2.truncated_dim,)
@@ -1366,9 +1376,9 @@ class ParameterSweep(  # type:ignore
     ) -> Tuple[NamedSlotsNdarray, NamedSlotsNdarray, NamedSlotsNdarray]:
         energy_0 = self[:].energy_by_dressed_index(0).toarray()
 
-        lamb_data = np.empty(self.subsystem_count, dtype=object)
-        kerr_data = np.empty((self.subsystem_count, self.subsystem_count), dtype=object)
-        chi_data = np.empty((self.subsystem_count, self.subsystem_count), dtype=object)
+        lamb_data = backend_change.backend.empty(self.subsystem_count, dtype=object)
+        kerr_data = backend_change.backend.empty((self.subsystem_count, self.subsystem_count), dtype=object)
+        chi_data = backend_change.backend.empty((self.subsystem_count, self.subsystem_count), dtype=object)
 
         # Lamb shifts
         for subsys_index1, subsys1 in enumerate(self.hilbertspace):
@@ -1406,7 +1416,7 @@ class ParameterSweep(  # type:ignore
                         kerr_subsys1_subsys2_all_l1_l2[..., 1, 1],
                         self._parameters.paramvals_by_name,
                     )
-                    chi_data[subsys_index1, subsys_index2] = np.asarray([])
+                    chi_data[subsys_index1, subsys_index2] = backend_change.backend.asarray([])
                 # self-Kerr and cross-Kerr: qubit modes
                 elif (
                     subsys1 in self.qbt_subsys_list and subsys2 in self.qbt_subsys_list
@@ -1415,7 +1425,7 @@ class ParameterSweep(  # type:ignore
                         kerr_subsys1_subsys2_all_l1_l2,
                         self._parameters.paramvals_by_name,
                     )
-                    chi_data[subsys_index1, subsys_index2] = np.asarray([])
+                    chi_data[subsys_index1, subsys_index2] = backend_change.backend.asarray([])
                 # ac Stark shifts
                 else:
                     if subsys1 in self.qbt_subsys_list:
@@ -1428,9 +1438,9 @@ class ParameterSweep(  # type:ignore
                             kerr_subsys1_subsys2_all_l1_l2[..., :, 1],
                             self._parameters.paramvals_by_name,
                         )
-                    kerr_data[subsys_index1, subsys_index2] = np.asarray([])
+                    kerr_data[subsys_index1, subsys_index2] = backend_change.backend.asarray([])
 
-        sys_indices = np.arange(self.subsystem_count)
+        sys_indices = backend_change.backend.arange(self.subsystem_count)
         lamb_data = NamedSlotsNdarray(lamb_data, {"subsys": sys_indices})
         kerr_data = NamedSlotsNdarray(
             kerr_data, {"subsys1": sys_indices, "subsys2": sys_indices}
@@ -1508,7 +1518,7 @@ class StoredSweep(
         )
 
 
-def generator(sweep: "ParameterSweepBase", func: Callable, **kwargs) -> np.ndarray:
+def generator(sweep: "ParameterSweepBase", func: Callable, **kwargs) -> backend_change.backend.ndarray:
     """Method for computing custom data as a function of the external parameter,
     calculated via the function `func`.
 
@@ -1531,7 +1541,7 @@ def generator(sweep: "ParameterSweepBase", func: Callable, **kwargs) -> np.ndarr
     reduced_parameters = sweep._parameters.create_sliced(
         sweep._current_param_indices, remove_fixed=False
     )
-    total_count = np.prod(reduced_parameters.counts)
+    total_count = backend_change.backend.prod(reduced_parameters.counts)
 
     def func_effective(paramindex_tuple: Tuple[int], params, **kw) -> Any:
         paramvals_tuple = params[paramindex_tuple]
@@ -1564,10 +1574,10 @@ def generator(sweep: "ParameterSweepBase", func: Callable, **kwargs) -> np.ndarr
         )
     )
     element_shape: Tuple[int, ...] = tuple()
-    if isinstance(data_array[0], np.ndarray):
+    if isinstance(data_array[0], backend_change.backend.ndarray):
         element_shape = data_array[0].shape
 
-    data_ndarray = np.asarray(data_array)
+    data_ndarray = backend_change.backend.asarray(data_array)
     return NamedSlotsNdarray(
         data_ndarray.reshape(reduced_parameters.counts + element_shape),
         reduced_parameters.paramvals_by_name,

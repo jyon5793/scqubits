@@ -23,6 +23,7 @@ import scqubits.core.descriptors as descriptors
 import scqubits.io_utils.fileio_serializers as serializers
 import scqubits.settings as settings
 import scqubits.utils.misc as utils
+from scqubits import backend_change
 
 
 FIRST_STENCIL_COEFFS: Dict[int, List[float]] = {
@@ -71,7 +72,7 @@ def band_matrix(
         if set to True, the off diagonals are wrapped into the opposing corners of
         the matrix
     """
-    ones_vector = np.ones(dim)
+    ones_vector = backend_change.backend.ones(dim)
     vectors = [ones_vector * number for number in band_coeffs]
     matrix = sparse.dia_matrix((vectors, band_offsets), shape=(dim, dim), dtype=dtype)
     if not has_corners:
@@ -157,7 +158,7 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
         -------
         ndarray
         """
-        return np.linspace(self.min_val, self.max_val, self.pt_count)
+        return backend_change.backend.linspace(self.min_val, self.max_val, self.pt_count)
 
     def first_derivative_matrix(
         self, prefactor: Union[float, complex] = 1.0, periodic: bool = False
@@ -178,9 +179,9 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
             sparse matrix in `dia` format
         """
         if isinstance(prefactor, complex):
-            dtp = np.complex_
+            dtp = backend_change.backend.complex_
         else:
-            dtp = np.float_
+            dtp = backend_change.backend.float_
 
         delta_x = self.grid_spacing()
         matrix_diagonals = [
@@ -212,9 +213,9 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
             sparse matrix in `dia` format
         """
         if isinstance(prefactor, complex):
-            dtp = np.complex_
+            dtp = backend_change.backend.complex_
         else:
-            dtp = np.float_
+            dtp = backend_change.backend.float_
 
         delta_x = self.grid_spacing()
         matrix_diagonals = [

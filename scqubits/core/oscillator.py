@@ -23,6 +23,7 @@ import scqubits.core.descriptors as descriptors
 import scqubits.core.operators as op
 import scqubits.core.qubit_base as base
 import scqubits.io_utils.fileio_serializers as serializers
+import scqubits.backend_change as backend_change
 
 _default_evals_count = 6
 
@@ -51,16 +52,16 @@ def harm_osc_wavefunction(
     -------
         value of harmonic oscillator wave function
     """
-    result = pbdv(n, np.sqrt(2.0) * x / l_osc) / np.sqrt(
-        l_osc * np.sqrt(np.pi) * factorial(n)
+    result = pbdv(n, backend_change.backend.sqrt(2.0) * x / l_osc)[0] / backend_change.backend.sqrt(
+        l_osc * backend_change.backend.sqrt(backend_change.backend.pi) * factorial(n)
     )
-    return result[0]
+    return result
 
 
 def convert_to_E_osc(E_kin: float, E_pot: float) -> float:
     r"""Returns the oscillator energy given a harmonic Hamiltonian of the form
     :math:`H=\frac{1}{2}E_{\text{kin}}p^2 + \frac{1}{2}E_{\text{pot}}x^2`"""
-    return np.sqrt(E_kin * E_pot)
+    return backend_change.backend.sqrt(E_kin * E_pot)
 
 
 def convert_to_l_osc(E_kin: float, E_pot: float) -> float:
@@ -121,11 +122,9 @@ class Oscillator(base.QuantumSystem, serializers.Serializable):
             number of desired eigenvalues (default value = 6)
         """
         evals = [self.E_osc * n for n in range(evals_count)]
-        return np.asarray(evals)
+        return backend_change.backend.asarray(evals)
 
-    def eigensys(
-        self, evals_count: int = _default_evals_count
-    ) -> Tuple[ndarray, ndarray]:
+    def eigensys(self, evals_count: int = _default_evals_count) -> Tuple[ndarray, ndarray]:
         """Returns array of eigenvalues and eigenvectors
 
         Parameters
@@ -134,9 +133,13 @@ class Oscillator(base.QuantumSystem, serializers.Serializable):
             number of desired eigenvalues (default value = 6)
         """
         evals_count = evals_count or _default_evals_count
-        evecs = np.zeros(shape=(self.truncated_dim, evals_count), dtype=np.float_)
-        np.fill_diagonal(evecs, 1.0)
-
+        evecs = backend_change.backend.zeros(shape=(self.truncated_dim, evals_count), dtype=backend_change.backend.float_)
+        
+        if backend_change.backend.__name__ == 'jax':
+            evecs = evecs.at[backend_change.backend.diag_indices(min(self.truncated_dim, evals_count))].set(1.0)
+        else:
+            backend_change.backend.fill_diagonal(evecs, 1.0)
+        
         return self.eigenvals(evals_count=evals_count), evecs
 
     def hilbertdim(self) -> int:
@@ -168,7 +171,7 @@ class Oscillator(base.QuantumSystem, serializers.Serializable):
                 + "passing it to the class constructor, or by setting it afterwards."
             )
         a = op.annihilation(self.truncated_dim)
-        return self.l_osc / np.sqrt(2) * (a + a.T)
+        return self.l_osc / backend_change.backend.sqrt(2) * (a + a.T)
 
     def n_operator(self) -> ndarray:
         r"""Returns the charge-number n operator defined as
@@ -183,7 +186,7 @@ class Oscillator(base.QuantumSystem, serializers.Serializable):
                 + "passing it to the class constructor, or by setting it afterwards."
             )
         a = op.annihilation(self.truncated_dim)
-        return 1.0j / (self.l_osc * np.sqrt(2)) * (a.T - a)
+        return 1.0j / (self.l_osc * backend_change.backend.sqrt(2)) * (a.T - a)
 
 
 # -KerrOscillator class-------------------------------------------------------------------
@@ -250,4 +253,4 @@ class KerrOscillator(Oscillator, serializers.Serializable):
             number of desired eigenvalues (default value = 6)
         """
         evals = [(self.E_osc + self.K) * n - self.K * n**2 for n in range(evals_count)]
-        return np.asarray(evals)
+        return backend_change.backend.asarray(evals)

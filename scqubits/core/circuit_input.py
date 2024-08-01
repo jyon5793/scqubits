@@ -7,6 +7,7 @@ from pyparsing import Group, Opt, Or, Literal, Suppress
 import numpy as np
 import scipy as sp
 import sympy as sm
+from scqubits import backend_change
 
 # *****************************************************************
 #  OUR GRAMMAR DEFINITIONS
@@ -249,9 +250,9 @@ def convert_value_to_GHz(val, units):
     elif unit_str == "F":
         return e**2 / (2 * val * h) * 1e-9
     elif unit_str == "H":
-        return Φ0**2 / (val * h * (2 * np.pi) ** 2) * 1e-9
+        return Φ0**2 / (val * h * (2 * backend_change.backend.pi) ** 2) * 1e-9
     elif unit_str == "A":
-        return val * Φ0 / (2 * np.pi * h) * 1e-9
+        return val * Φ0 / (2 * backend_change.backend.pi * h) * 1e-9
     else:
         raise ValueError(f"Unknown unit {unit_str}")
 

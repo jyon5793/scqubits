@@ -24,6 +24,7 @@ from scqubits.core.noise import NOISE_PARAMS, NoisySystem, calc_therm_ratio
 from scqubits.core.circuit_utils import get_trailing_number, keep_terms_for_subsystem
 from scqubits.utils.misc import is_string_float, Qobj_to_scipy_csc_matrix
 import scqubits.core.units as units
+from scqubits import backend_change
 
 from types import MethodType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -499,7 +500,7 @@ class NoisyCircuit(NoisySystem, ABC):
             total_rate = sum([1 / tphi for tphi in tphi_times])
             if get_rate:
                 return total_rate
-            return 1 / total_rate if total_rate != 0 else np.inf
+            return 1 / total_rate if total_rate != 0 else backend_change.backend.inf
 
         setattr(self, "tphi_1_over_f_cc", MethodType(tphi_1_over_f_cc, self))
 
@@ -568,7 +569,7 @@ class NoisyCircuit(NoisySystem, ABC):
             total_rate = sum([1 / tphi for tphi in tphi_times])
             if get_rate:
                 return total_rate
-            return 1 / total_rate if total_rate != 0 else np.inf
+            return 1 / total_rate if total_rate != 0 else backend_change.backend.inf
 
         setattr(self, "tphi_1_over_f_flux", MethodType(tphi_1_over_f_flux, self))
 
@@ -635,7 +636,7 @@ class NoisyCircuit(NoisySystem, ABC):
             total_rate = sum([1 / tphi for tphi in tphi_times])
             if get_rate:
                 return total_rate
-            return 1 / total_rate if total_rate != 0 else np.inf
+            return 1 / total_rate if total_rate != 0 else backend_change.backend.inf
 
         setattr(self, "tphi_1_over_f_ng", MethodType(tphi_1_over_f_ng, self))
 
@@ -1273,7 +1274,7 @@ class NoisyCircuit(NoisySystem, ABC):
             total_rate = sum([1 / t1 for t1 in t1_times])
             if get_rate:
                 return total_rate
-            return 1 / total_rate if total_rate != 0 else np.inf
+            return 1 / total_rate if total_rate != 0 else backend_change.backend.inf
 
         setattr(
             self,
@@ -1384,7 +1385,7 @@ class NoisyCircuit(NoisySystem, ABC):
             total_rate = sum([1 / t1 for t1 in t1_times])
             if get_rate:
                 return total_rate
-            return 1 / total_rate if total_rate != 0 else np.inf
+            return 1 / total_rate if total_rate != 0 else backend_change.backend.inf
 
         setattr(self, "t1_inductive", MethodType(t1_method, self))
 
@@ -1491,7 +1492,7 @@ class NoisyCircuit(NoisySystem, ABC):
             total_rate = sum([1 / t1 for t1 in t1_times])
             if get_rate:
                 return total_rate
-            return 1 / total_rate if total_rate != 0 else np.inf
+            return 1 / total_rate if total_rate != 0 else backend_change.backend.inf
 
         setattr(self, "t1_capacitive", MethodType(t1_method, self))
 
@@ -1711,7 +1712,7 @@ class NoisyCircuit(NoisySystem, ABC):
             total_rate = sum([1 / t1 for t1 in t1_times])
             if get_rate:
                 return total_rate
-            return 1 / total_rate if total_rate != 0 else np.inf
+            return 1 / total_rate if total_rate != 0 else backend_change.backend.inf
 
         setattr(self, "t1_flux_bias_line", MethodType(t1_flux_bias_line, self))
 
