@@ -28,6 +28,8 @@ import scqubits.utils.spectrum_utils as spec_utils
 
 from scqubits.core.namedslots_array import NamedSlotsNdarray
 from scqubits.utils.typedefs import NpIndexTuple, NpIndices
+from scqubits import backend_change
+from scqubits.utils.helper import ndindex
 
 if TYPE_CHECKING:
     from typing_extensions import Protocol
@@ -79,15 +81,15 @@ class SpectrumLookupMixin(MixinCompatible):
     def _bare_product_states_labels(self) -> List[Tuple[int, ...]]:
         """
         Generates the list of bare-state labels in canonical order. For example,
-         for a Hilbert space composed of two subsystems sys1 and sys2, each label is
-         of the type (3,0) meaning sys1 is in bare eigenstate 3, sys2 in bare
-         eigenstate 0. The full list then reads
-         [(0,0), (0,1), (0,2), ..., (0,max_2),
-         (1,0), (1,1), (1,2), ..., (1,max_2),
-         ...
-         (max_1,0), (max_1,1), (max_1,2), ..., (max_1,max_2)]
+        for a Hilbert space composed of two subsystems sys1 and sys2, each label is
+        of the type (3,0) meaning sys1 is in bare eigenstate 3, sys2 in bare
+        eigenstate 0. The full list then reads
+        [(0,0), (0,1), (0,2), ..., (0,max_2),
+        (1,0), (1,1), (1,2), ..., (1,max_2),
+        ...
+        (max_1,0), (max_1,1), (max_1,2), ..., (max_1,max_2)]
         """
-        return list(np.ndindex(*self.hilbertspace.subsystem_dims))
+        return list(itertools.product(*[range(dim) for dim in self.hilbertspace.subsystem_dims]))
 
     def generate_lookup(self) -> NamedSlotsNdarray:
         """
@@ -101,12 +103,12 @@ class SpectrumLookupMixin(MixinCompatible):
             ordering of bare indices (as stored in .canonical_bare_labels,
             thus establishing the mapping)
         """
-        dressed_indices = np.empty(shape=self._parameters.counts, dtype=object)
+        dressed_indices = backend_change.backend.empty(shape=self._parameters.counts, dtype=object)
 
         param_indices = itertools.product(*map(range, self._parameters.counts))
         for index in param_indices:
             dressed_indices[index] = self._generate_single_mapping(index)
-        dressed_indices = np.asarray(dressed_indices[:].tolist())
+        dressed_indices = backend_change.backend.asarray(dressed_indices[:].tolist())
 
         parameter_dict = self._parameters.ordered_dict.copy()
         return NamedSlotsNdarray(dressed_indices, parameter_dict)
@@ -151,15 +153,15 @@ class SpectrumLookupMixin(MixinCompatible):
         dim = self.hilbertspace.dimension
         dressed_indices: List[Union[int, None]] = [None] * dim
         for dressed_index in range(self._evals_count):
-            max_position = (np.abs(overlap_matrix[dressed_index, :])).argmax()
-            max_overlap = np.abs(overlap_matrix[dressed_index, max_position])
+            max_position = (backend_change.backend.abs(overlap_matrix[dressed_index, :])).argmax()
+            max_overlap = backend_change.backend.abs(overlap_matrix[dressed_index, max_position])
             if self._ignore_low_overlap or (
                 max_overlap**2 > settings.OVERLAP_THRESHOLD
             ):
                 overlap_matrix[:, max_position] = 0
                 dressed_indices[int(max_position)] = dressed_index
 
-        return np.asarray(dressed_indices)
+        return backend_change.backend.asarray(dressed_indices)
 
     def set_npindextuple(
         self, param_indices: Optional[NpIndices] = None
@@ -228,7 +230,7 @@ class SpectrumLookupMixin(MixinCompatible):
                 "the use of `.bare_index`."
             )
         try:
-            lookup_position = np.where(
+            lookup_position = backend_change.backend.where(
                 self._data["dressed_indices"][param_index_tuple] == dressed_index
             )[0][0]
         except IndexError:
@@ -308,26 +310,26 @@ class SpectrumLookupMixin(MixinCompatible):
         dressed_index = self.dressed_index(bare_tuple, param_npindices)
 
         if dressed_index is None:
-            return np.nan  # type:ignore
+            return backend_change.backend.nan  # type:ignore
         if isinstance(dressed_index, numbers.Number):
             energy = self["evals"][param_npindices + (dressed_index,)]
             if subtract_ground:
                 energy -= self["evals"][param_npindices + (0,)]
             return energy
 
-        dressed_index = np.asarray(dressed_index)
-        energies = np.empty_like(dressed_index, dtype=np.float_)
-        it = np.nditer(dressed_index, flags=["multi_index", "refs_ok"])
+        dressed_index = backend_change.backend.asarray(dressed_index)
+        energies = backend_change.backend.empty_like(dressed_index, dtype=backend_change.backend.float_)
         sliced_energies = self["evals"][param_npindices]
 
-        for location in it:
-            location = location.tolist()
+        for idx in ndindex(dressed_index.shape):
+            location = dressed_index[idx]
             if location is None:
-                energies[it.multi_index] = np.nan
+                energies[idx] = backend_change.backend.nan
             else:
-                energies[it.multi_index] = sliced_energies[it.multi_index][location]
+                energies[idx] = sliced_energies[idx][location]
                 if subtract_ground:
-                    energies[it.multi_index] -= sliced_energies[it.multi_index][0]
+                    energies[idx] -= sliced_energies[idx][0]
+
         return NamedSlotsNdarray(
             energies, sliced_energies._parameters.paramvals_by_name
         )

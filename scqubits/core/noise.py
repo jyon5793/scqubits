@@ -1555,17 +1555,17 @@ class NoisySystem(ABC):
             def q_ind_fun(omega, T):
                 therm_ratio = abs(calc_therm_ratio(omega, T))
                 therm_ratio_500MHz = calc_therm_ratio(
-                    2 * np.pi * 500e6, T, omega_in_standard_units=True
+                    2 * backend_change.backend.pi * 500e6, T, omega_in_standard_units=True
                 )
                 return (
                     500e6
                     * (
                         sp.special.kv(0, 1 / 2 * therm_ratio_500MHz)
-                        * np.sinh(1 / 2 * therm_ratio_500MHz)
+                        * backend_change.backend.sinh(1 / 2 * therm_ratio_500MHz)
                     )
                     / (
                         sp.special.kv(0, 1 / 2 * therm_ratio)
-                        * np.sinh(1 / 2 * therm_ratio)
+                        * backend_change.backend.sinh(1 / 2 * therm_ratio)
                     )
                 )
 
@@ -1673,7 +1673,7 @@ class NoisySystem(ABC):
 
                 Delta_in_Hz = convert_eV_to_Hz(Delta)
 
-                omega_in_Hz = units.to_standard_units(omega) / (2 * np.pi)
+                omega_in_Hz = units.to_standard_units(omega) / (2 * backend_change.backend.pi)
                 EJ_in_Hz = units.to_standard_units(self.EJ)
 
                 therm_ratio = calc_therm_ratio(omega, T)
@@ -1718,7 +1718,7 @@ class NoisySystem(ABC):
         # that the flux is grouped with the inductive term in the Hamiltonian.
         # Here we assume a grouping with the cosine term, which requires us to
         # transform the operator using phi -> phi + 2*pi*flux
-        noise_op = noise_op or self.sin_phi_operator(alpha=0.5, beta=0.5 * (2 * np.pi * self.flux))  # type: ignore
+        noise_op = noise_op or self.sin_phi_operator(alpha=0.5, beta=0.5 * (2 * backend_change.backend.pi * self.flux))  # type: ignore
 
         if not isinstance(noise_op, (ndarray, csc_matrix, qt.Qobj)):
             raise AttributeError(

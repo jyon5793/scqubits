@@ -87,6 +87,7 @@ class NumpyBackend(Backend):
     kron = staticmethod(np.kron)
     reshape = staticmethod(np.reshape)
     complex64 = staticmethod(np.complex64)
+    nan = staticmethod(np.nan)
 
     @staticmethod
     def convert_to_array(obj_list):
@@ -160,6 +161,7 @@ class JaxBackend(Backend):
     kron = staticmethod(jax.numpy.kron)
     reshape = staticmethod(jax.numpy.reshape)
     complex64 = staticmethod(jax.numpy.complex64)
+    nan = staticmethod(jax.numpy.nan)
 
     @staticmethod
     def convert_to_array(obj_list):
