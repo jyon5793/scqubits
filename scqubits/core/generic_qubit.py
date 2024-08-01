@@ -21,6 +21,7 @@ import scqubits.core.descriptors as descriptors
 import scqubits.core.operators as operators
 import scqubits.core.qubit_base as base
 import scqubits.io_utils.fileio_serializers as serializers
+from scqubits import backend_change
 
 from scqubits.utils.spectrum_utils import get_matrixelement_table, order_eigensystem
 
@@ -66,7 +67,7 @@ class GenericQubit(base.QuantumSystem, serializers.Serializable):
     def eigenvals(self, evals_count: int = 2) -> ndarray:
         hamiltonian_mat = self.hamiltonian()
         evals = sp.linalg.eigh(hamiltonian_mat, eigvals_only=True)
-        return np.sort(evals)
+        return backend_change.backend.sort(evals)
 
     def eigensys(self, evals_count: int = 2) -> Tuple[ndarray, ndarray]:
         hamiltonian_mat = self.hamiltonian()

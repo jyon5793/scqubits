@@ -11,16 +11,17 @@
 ############################################################################
 
 import numpy as np
+from scqubits import backend_change
 
 # supported file types
 FILE_TYPES = [".h5 | .hdf5", ".csv"]
 
 # helper functions for plotting wave functions
 MODE_FUNC_DICT = {
-    "abs_sqr": (lambda x: np.abs(x) ** 2),
-    "abs": np.abs,
-    "real": np.real,
-    "imag": np.imag,
+    "abs_sqr": (lambda x: backend_change.backend.abs(x) ** 2),
+    "abs": backend_change.backend.abs,
+    "real": backend_change.backend.real,
+    "imag": backend_change.backend.imag,
 }
 
 # the following string manipulations are used in automatic generation of default

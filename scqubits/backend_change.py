@@ -84,6 +84,9 @@ class NumpyBackend(Backend):
     isinf = staticmethod(np.isinf)
     intersect1d = staticmethod(np.intersect1d)
     vstack = staticmethod(np.vstack)
+    kron = staticmethod(np.kron)
+    reshape = staticmethod(np.reshape)
+    complex64 = staticmethod(np.complex64)
 
     @staticmethod
     def convert_to_array(obj_list):
@@ -154,6 +157,9 @@ class JaxBackend(Backend):
     isinf = staticmethod(jax.numpy.isinf)
     intersect1d = staticmethod(jax.numpy.intersect1d)
     vstack = staticmethod(jax.numpy.vstack)
+    kron = staticmethod(jax.numpy.kron)
+    reshape = staticmethod(jax.numpy.reshape)
+    complex64 = staticmethod(jax.numpy.complex64)
 
     @staticmethod
     def convert_to_array(obj_list):

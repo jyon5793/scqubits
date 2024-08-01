@@ -20,6 +20,7 @@ import scipy as sp
 import sympy
 import sympy as sm
 import random
+from sympy import lambdify
 
 from numpy import ndarray
 from sympy import symbols, use
@@ -2055,57 +2056,56 @@ class SymbolicCircuit(serializers.Serializable):
         θ_dot_vars = [
             symbols(f"vθ{i}") for i in range(1, len(self.nodes) - self.is_grounded + 1)
         ]
-        # writing φ in terms of θ variables
+
+        θ_vars_matrix = sympy.Matrix(θ_vars)
+        θ_dot_vars_matrix = sympy.Matrix(θ_dot_vars)
+
         if backend_change.backend.__name__ == "jax":
-            φ_vars_θ = sympy.Matrix(transformation_matrix).dot(sympy.Matrix(θ_vars))
-            φ_dot_vars_θ = sympy.Matrix(transformation_matrix).dot(sympy.Matrix(θ_dot_vars))
+            transformation_matrix_np = np.array(transformation_matrix).astype(float)
+            θ_vars_lambdified = lambdify(θ_vars, θ_vars, modules=["numpy"])
+            θ_dot_vars_lambdified = lambdify(θ_dot_vars, θ_dot_vars, modules=["numpy"])
+
+            θ_vars_np = np.array(θ_vars_lambdified(*[1.0]*len(θ_vars)))
+            θ_dot_vars_np = np.array(θ_dot_vars_lambdified(*[1.0]*len(θ_dot_vars)))  
+
+
+            φ_vars_θ_np = backend_change.backend.dot(transformation_matrix_np, θ_vars_np)
+            φ_dot_vars_θ_np = backend_change.backend.dot(transformation_matrix_np, θ_dot_vars_np)
+
+            φ_vars_θ = sympy.Matrix(φ_vars_θ_np.tolist())
+            φ_dot_vars_θ = sympy.Matrix(φ_dot_vars_θ_np.tolist())
         else:
-            φ_vars_θ = transformation_matrix.dot(θ_vars)
-            φ_dot_vars_θ = transformation_matrix.dot(θ_dot_vars)
+            φ_vars_θ = transformation_matrix * θ_vars_matrix
+            φ_dot_vars_θ = transformation_matrix * θ_dot_vars_matrix
 
         # C_terms = self._C_terms()
         C_mat = self._capacitance_matrix()
         if not self.is_any_branch_parameter_symbolic():
             # in terms of node variables
-            C_terms_φ = C_mat.dot(φ_dot_vars).dot(φ_dot_vars) * 0.5
+            C_terms_φ = sympy.Matrix(C_mat) * sympy.Matrix(φ_dot_vars).T * sympy.Matrix(φ_dot_vars) * 0.5
             # in terms of new variables
-            C_terms_θ = C_mat.dot(φ_dot_vars_θ).dot(φ_dot_vars_θ) * 0.5
+            C_terms_θ = sympy.Matrix(C_mat) * φ_dot_vars_θ.T * φ_dot_vars_θ * 0.5
         else:
-            C_terms_φ = (sympy.Matrix(φ_dot_vars).T * C_mat * sympy.Matrix(φ_dot_vars))[
-                0
-            ] * 0.5  # in terms of node variables
-            C_terms_θ = (
-                sympy.Matrix(φ_dot_vars_θ).T * C_mat * sympy.Matrix(φ_dot_vars_θ)
-            )[
-                0
-            ] * 0.5  # in terms of new variables
+            C_terms_φ = (sympy.Matrix(φ_dot_vars).T * C_mat * sympy.Matrix(φ_dot_vars))[0] * 0.5
+            C_terms_θ = (φ_dot_vars_θ.T * C_mat * φ_dot_vars_θ)[0] * 0.5
 
         inductor_terms_φ = self._inductor_terms(substitute_params=substitute_params)
-
         JJ_terms_φ = self._junction_terms() + self._JJs_terms()
 
         lagrangian_φ = C_terms_φ - inductor_terms_φ - JJ_terms_φ
-
         potential_φ = inductor_terms_φ + JJ_terms_φ
-        potential_θ = (
-            potential_φ.copy() if potential_φ != 0 else symbols("x") * 0
-        )  # copying the potential in terms of the old variables to make substitutions
+        potential_θ = potential_φ.copy() if potential_φ != 0 else symbols("x") * 0
 
-        for index in range(
-            len(self.nodes) - self.is_grounded
-        ):  # converting potential to new variables
+        for index in range(len(self.nodes) - self.is_grounded):
             potential_θ = potential_θ.subs(symbols(f"φ{index + 1}"), φ_vars_θ[index])
 
-        # eliminating the frozen variables
         for frozen_var_index in self.var_categories["frozen"]:
             frozen_expr = sympy.solve(
                 potential_θ.diff(symbols(f"θ{frozen_var_index}")),
                 symbols(f"θ{frozen_var_index}"),
             )[0]
             self.frozen_var_exprs[frozen_var_index] = frozen_expr
-            potential_θ = potential_θ.replace(
-                symbols(f"θ{frozen_var_index}"), frozen_expr
-            )
+            potential_θ = potential_θ.replace(symbols(f"θ{frozen_var_index}"), frozen_expr)
 
         lagrangian_θ = C_terms_θ - potential_θ
 
@@ -2136,7 +2136,6 @@ class SymbolicCircuit(serializers.Serializable):
         frozen_indices = [
             i - 1 for i in self.var_categories["frozen"] + self.var_categories["sigma"]
         ]
-        # generating the C_mat_θ by inverting the capacitance matrix
         if self.is_any_branch_parameter_symbolic() and not substitute_params:
             C_mat_θ = (
                 transformation_matrix.T
@@ -2169,25 +2168,15 @@ class SymbolicCircuit(serializers.Serializable):
                 + self.var_categories["extended"]
                 + self.var_categories["free"]
             )
-            # replacing the free charge with 0, as it would not affect the circuit
-            # Lagrangian.
         ]
-        ### NOTE: sorting the variable indices in the above step is important as the transformation
-        ### matrix already takes care of defining the appropriate momenta in the new variables. So, the above variables should be
-        ### in the node variable order.
-        # generating the kinetic energy terms for the Hamiltonian
+
         if not self.is_any_branch_parameter_symbolic():
-            C_terms_new = (
-                C_mat_θ.dot(p_φ_vars).dot(p_φ_vars) * 0.5
-            )  # in terms of new variables
+            C_terms_new = C_mat_θ.dot(p_φ_vars).dot(p_φ_vars) * 0.5
         else:
-            C_terms_new = (sympy.Matrix(p_φ_vars).T * C_mat_θ * sympy.Matrix(p_φ_vars))[
-                0
-            ] * 0.5  # in terms of new variables
+            C_terms_new = (sympy.Matrix(p_φ_vars).T * C_mat_θ * sympy.Matrix(p_φ_vars))[0] * 0.5
 
         hamiltonian_symbolic = C_terms_new + potential_symbolic
 
-        # adding the offset charge variables
         for var_index in self.var_categories["periodic"]:
             hamiltonian_symbolic = hamiltonian_symbolic.subs(
                 symbols(f"Q{var_index}"),
