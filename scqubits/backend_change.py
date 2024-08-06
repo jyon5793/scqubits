@@ -88,6 +88,8 @@ class NumpyBackend(Backend):
     reshape = staticmethod(np.reshape)
     complex64 = staticmethod(np.complex64)
     nan = staticmethod(np.nan)
+    max = staticmethod(np.max)
+    min = staticmethod(np.min)
 
     @staticmethod
     def convert_to_array(obj_list):
@@ -162,6 +164,8 @@ class JaxBackend(Backend):
     reshape = staticmethod(jax.numpy.reshape)
     complex64 = staticmethod(jax.numpy.complex64)
     nan = staticmethod(jax.numpy.nan)
+    max = staticmethod(jax.numpy.max)
+    min = staticmethod(jax.numpy.min)
 
     @staticmethod
     def convert_to_array(obj_list):

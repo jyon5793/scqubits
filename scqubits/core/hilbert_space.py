@@ -49,7 +49,6 @@ import scqubits.ui.hspace_widget
 import scqubits.utils.cpu_switch as cpu_switch
 import scqubits.utils.misc as utils
 import scqubits.utils.spectrum_utils as spec_utils
-from scqubits import backend_change
 
 from scqubits.core.namedslots_array import NamedSlotsNdarray, Parameters
 from scqubits.core.storage import SpectrumData
@@ -69,8 +68,8 @@ from scqubits.core.qubit_base import QubitBaseClass
 
 
 def has_duplicate_id_str(subsystem_list: List[QuantumSys]):
-    id_str_list = [obj._id_str for obj in subsystem_list]
-    id_str_set = set(obj._id_str for obj in subsystem_list)
+    id_str_list = [obj.id_str for obj in subsystem_list]
+    id_str_set = set(obj.id_str for obj in subsystem_list)
     return len(id_str_set) != len(id_str_list)
 
 
@@ -439,7 +438,7 @@ class HilbertSpace(
 
         # The following attributes are for compatibility with SpectrumLookupMixin
         self._data: Dict[str, Any] = {}
-        self._parameters = Parameters({"dummy_parameter": backend_change.backend.array([0])})
+        self._parameters = Parameters({"dummy_parameter": np.array([0])})
         self._ignore_low_overlap = ignore_low_overlap
         self._current_param_indices = 0
         self._evals_count = self.dimension
@@ -576,15 +575,15 @@ class HilbertSpace(
     def receive(self, event: str, sender: Any, **kwargs) -> None:
         if event == "QUANTUMSYSTEM_UPDATE" and sender in self:
             self.broadcast("HILBERTSPACE_UPDATE")
-            if self._lookup_exists:
+            if self.lookup_exists():
                 self._out_of_sync = True
         elif event == "INTERACTIONTERM_UPDATE" and sender in self.interaction_list:
             self.broadcast("HILBERTSPACE_UPDATE")
-            if self._lookup_exists:
+            if self.lookup_exists():
                 self._out_of_sync = True
         elif event == "INTERACTIONLIST_UPDATE" and sender is self:
             self.broadcast("HILBERTSPACE_UPDATE")
-            if self._lookup_exists:
+            if self.lookup_exists():
                 self._out_of_sync = True
 
     ###################################################################################
@@ -608,7 +607,7 @@ class HilbertSpace(
     @property
     def dimension(self) -> int:
         """Returns total dimension of joint Hilbert space"""
-        return backend_change.backend.prod(backend_change.backend.array(self.subsystem_dims)).item()
+        return np.prod(np.asarray(self.subsystem_dims)).item()
 
     @property
     def subsystem_count(self) -> int:
@@ -630,74 +629,58 @@ class HilbertSpace(
         )
         # The following workaround ensures that eigenvectors maintain QutipEigenstates
         # view when getting placed inside an outer array
-        evecs_wrapped = backend_change.backend.empty(shape=1, dtype=object)
+        evecs_wrapped = np.empty(shape=1, dtype=object)
         evecs_wrapped[0] = evecs
 
-        evals = backend_change.backend.asarray(evals).reshape(1, -1)
-
-        self._data["evals"] = NamedSlotsNdarray(evals, dummy_params)
+        self._data["evals"] = NamedSlotsNdarray(np.array([evals]), dummy_params)
         self._data["evecs"] = NamedSlotsNdarray(evecs_wrapped, dummy_params)
         self._data["dressed_indices"] = spec_lookup.SpectrumLookupMixin.generate_lookup(
             self
         )
-        
+
+    def lookup_exists(self) -> bool:
+        return self._lookup_exists
+
     def generate_bare_esys(self, update_subsystem_indices: List[int] = None) -> dict:
+        # update all the subsystems when update_subsystem_indices is set to None
         if update_subsystem_indices is None:
             update_subsystem_indices = list(range(self.subsystem_count))
 
-        print(f"Current backend: {backend_change.backend}")
-
-        if backend_change.backend.__name__ == 'numpy':
-            bare_evals = backend_change.backend.empty((self.subsystem_count,), dtype=object)
-            bare_evecs = backend_change.backend.empty((self.subsystem_count,), dtype=object)
-        else:
-            bare_evals = backend_change.backend.empty((self.subsystem_count,), dtype=backend_change.backend.float32)
-            bare_evecs = backend_change.backend.empty((self.subsystem_count,), dtype=backend_change.backend.float32)
-
+        bare_evals = np.empty((self.subsystem_count,), dtype=object)
+        bare_evecs = np.empty((self.subsystem_count,), dtype=object)
         bare_esys_dict = {}
 
         for subsys_index, subsys in enumerate(self):
-            if hasattr(subsys, "hierarchical_diagonalization") and subsys.hierarchical_diagonalization:
+            # generate bare_esys for the subsystem as well if necessary
+            if (
+                hasattr(subsys, "hierarchical_diagonalization")
+                and subsys.hierarchical_diagonalization
+            ):
                 subsys.hilbert_space.generate_bare_esys(
                     update_subsystem_indices=subsys.affected_subsystem_indices
                 )
+            # diagonalizing only those subsystems present in update_subsystem_indices
             if subsys_index in update_subsystem_indices:
                 bare_esys = subsys.eigensys(evals_count=subsys.truncated_dim)
             else:
                 bare_esys = (
-                    self._data["bare_evals"][subsys_index][0],
-                    self._data["bare_evecs"][subsys_index][0],
+                    self["bare_evals"][subsys_index][0],
+                    self["bare_evecs"][subsys_index][0],
                 )
             bare_esys_dict[subsys_index] = bare_esys
-
-            print(f"Subsystem index: {subsys_index}")
-            print(f"bare_esys[0] shape: {bare_esys[0].shape}, bare_esys[1] shape: {bare_esys[1].shape}")
-
-            # reshape named_evals to match implied shape
-            named_evals = NamedSlotsNdarray(
-                backend_change.backend.asarray(bare_esys[0]).reshape(1, -1),
+            bare_evals[subsys_index] = NamedSlotsNdarray(
+                np.asarray([bare_esys[0].tolist()]),
                 self._parameters.paramvals_by_name,
             )
-            
-            # Adjust the shape of named_evecs to be compatible with values_by_name
-            named_evecs = NamedSlotsNdarray(
-                backend_change.backend.asarray(bare_esys[1]).reshape(1, *bare_esys[1].shape),
+            bare_evecs[subsys_index] = NamedSlotsNdarray(
+                np.asarray([bare_esys[1].tolist()]),
                 self._parameters.paramvals_by_name,
             )
-
-            print(f"named_evals shape: {named_evals.shape}, named_evecs shape: {named_evecs.shape}")
-
-            bare_evals = set_array_value(bare_evals, subsys_index, named_evals)
-            bare_evecs = set_array_value(bare_evecs, subsys_index, named_evecs)
-
-            print(f"bare_evals shape after setting: {bare_evals.shape}")
-            print(f"bare_evecs shape after setting: {bare_evecs.shape}")
-
         self._data["bare_evals"] = NamedSlotsNdarray(
-            bare_evals, {"subsys": backend_change.backend.arange(self.subsystem_count)}
+            bare_evals, {"subsys": np.arange(self.subsystem_count)}
         )
         self._data["bare_evecs"] = NamedSlotsNdarray(
-            bare_evecs, {"subsys": backend_change.backend.arange(self.subsystem_count)}
+            bare_evecs, {"subsys": np.arange(self.subsystem_count)}
         )
         return bare_esys_dict
 
@@ -899,7 +882,7 @@ class HilbertSpace(
         hamiltonian = sum(operator_list)
         return hamiltonian
 
-    def diag_hamiltonian(self, subsystem: QuantumSys, evals: backend_change.backend.ndarray = None) -> qt.Qobj:
+    def diag_hamiltonian(self, subsystem: QuantumSys, evals: ndarray = None) -> qt.Qobj:
         """Returns a `qutip.Qobj` which has the eigenenergies of the object `subsystem`
         on the diagonal.
 
@@ -914,7 +897,7 @@ class HilbertSpace(
 
         if evals is None:
             evals = subsystem.eigenvals(evals_count=evals_count)
-        diag_qt_op = qt.Qobj(backend_change.backend.diagflat(evals[0:evals_count]))  # type:ignore
+        diag_qt_op = qt.Qobj(np.diagflat(evals[0:evals_count]))  # type:ignore
         return spec_utils.identity_wrap(diag_qt_op, subsystem, self.subsystem_list)
 
     ###################################################################################
@@ -935,7 +918,7 @@ class HilbertSpace(
         """
         dim = subsystem.truncated_dim
         index = range(dim)
-        diag_matrix = backend_change.backend.zeros((dim, dim), dtype=backend_change.backend.float64)
+        diag_matrix = np.zeros((dim, dim), dtype=np.float64)
         diag_matrix[index, index] = diag_elements
         return spec_utils.identity_wrap(diag_matrix, subsystem, self.subsystem_list)
 
@@ -970,7 +953,7 @@ class HilbertSpace(
     ###################################################################################
     def get_spectrum_vs_paramvals(
         self,
-        param_vals: backend_change.backend.ndarray,
+        param_vals: ndarray,
         update_hilbertspace: Callable,
         evals_count: int = 10,
         get_eigenstates: bool = False,
@@ -1039,7 +1022,7 @@ class HilbertSpace(
                 "Parallel computation of eigensystems [num_cpus={}]".format(num_cpus),
                 num_cpus,
             ):
-                eigenvalue_table = backend_change.backend.array(
+                eigenvalue_table = np.asarray(
                     list(
                         target_map(
                             func,
@@ -1069,12 +1052,12 @@ class HilbertSpace(
         for idx, evec in enumerate(self._data["evecs"][0]):
             array = utils.Qobj_to_scipy_csc_matrix(evec)
             phase = spec_utils.extract_phase(array)
-            self._data["evecs"][0][idx] = evec * backend_change.backend.exp(-1j * phase)
+            self._data["evecs"][0][idx] = evec * np.exp(-1j * phase)
 
     def op_in_dressed_eigenbasis(
         self,
         op_callable_or_tuple: Union[
-            Tuple[Union[backend_change.backend, csc_matrix], QuantumSys], Callable
+            Tuple[Union[np.ndarray, csc_matrix], QuantumSys], Callable
         ],
         truncated_dim: Optional[int] = None,
         **kwargs,
@@ -1203,7 +1186,7 @@ class HilbertSpace(
             raise TypeError(
                 "Invalid combination and/or types of arguments for `add_interaction`"
             )
-        if self._lookup_exists:
+        if self.lookup_exists():
             self._out_of_sync = True
 
         self.interaction_list.append(interaction)
@@ -1304,22 +1287,3 @@ class HilbertSpace(
             # format expected:  (<op as array>, <subsys as QuantumSystem>)
             return self.get_subsys_index(op[1]), op[0]
         raise TypeError("Cannot interpret specified operator {}".format(op))
-
-
-def set_array_value(array, index, value):
-    if backend_change.backend.__name__ == 'numpy':
-        array[index] = value
-    else:
-        # 调试输出
-        print(f"Setting array at index {index} with value of shape {value.shape}")
-        print(f"Array shape before setting: {array.shape}")
-
-        # 确保 value 的形状与 array[index] 预期形状一致
-        if len(array.shape) > 1 and len(value.shape) < len(array.shape):
-            value = value.reshape(array.shape[1:])
-
-        array = array.at[index].set(value)
-        
-        # 调试输出
-        print(f"Array shape after setting: {array.shape}")
-    return array
