@@ -16,6 +16,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import scipy as sp
+import jax.numpy as jnp
 
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -33,6 +34,7 @@ import scqubits.utils.plotting as plot
 from scqubits.core.discretization import Grid1d
 from scqubits.core.noise import NoisySystem
 from scqubits.core.storage import WaveFunction
+from scqubits import backend_change as bc
 
 LevelsTuple = Tuple[int, ...]
 Transition = Tuple[int, int]
@@ -106,7 +108,7 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         self.ng = ng
         self.ncut = ncut
         self.truncated_dim = truncated_dim
-        self._default_grid = discretization.Grid1d(-np.pi, np.pi, 151)
+        self._default_grid = discretization.Grid1d(-bc.backend.pi, bc.backend.pi, 151)
         self._default_n_range = (-5, 6)
 
     @staticmethod
@@ -133,36 +135,48 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
 
     def _hamiltonian_diagonal(self) -> ndarray:
         dimension = self.hilbertdim()
-        return 4.0 * self.EC * (np.arange(dimension) - self.ncut - self.ng) ** 2
+        return 4.0 * self.EC * (bc.backend.arange(dimension) - self.ncut - self.ng) ** 2
 
     def _hamiltonian_offdiagonal(self) -> ndarray:
         dimension = self.hilbertdim()
-        return np.full(shape=(dimension - 1,), fill_value=-self.EJ / 2.0)
+        return bc.backend.full(shape=(dimension - 1,), fill_value=-self.EJ / 2.0)
 
     def _evals_calc(self, evals_count: int) -> ndarray:
         diagonal = self._hamiltonian_diagonal()
         off_diagonal = self._hamiltonian_offdiagonal()
 
-        evals = sp.linalg.eigvalsh_tridiagonal(
-            diagonal,
-            off_diagonal,
-            select="i",
-            select_range=(0, evals_count - 1),
-            check_finite=False,
-        )
+        if bc.backend.__name__ == "jax":
+            H = bc.backend.diag(diagonal) + bc.backend.diag(off_diagonal, 1) + bc.backend.diag(off_diagonal, -1)
+            evals, _ = bc.backend.eigh(H)
+        else:
+            evals = sp.linalg.eigvalsh_tridiagonal(
+                diagonal,
+                off_diagonal,
+                select="i",
+                select_range=(0, evals_count - 1),
+                check_finite=False
+            )
+
         return evals
 
     def _esys_calc(self, evals_count: int) -> Tuple[ndarray, ndarray]:
         diagonal = self._hamiltonian_diagonal()
         off_diagonal = self._hamiltonian_offdiagonal()
 
-        evals, evecs = sp.linalg.eigh_tridiagonal(
-            diagonal,
-            off_diagonal,
-            select="i",
-            select_range=(0, evals_count - 1),
-            check_finite=False,
-        )
+        if bc.backend.__name__ == "jax":
+            H = bc.backend.diag(diagonal) + bc.backend.diag(off_diagonal, 1) + bc.backend.diag(off_diagonal, -1)
+            evals, evecs = bc.backend.eigh(H)
+            evals = evals[:evals_count]
+            evecs = evecs[:, :evals_count]
+        else:
+            evals, evecs = sp.linalg.eigh_tridiagonal(
+                diagonal,
+                off_diagonal,
+                select="i",
+                select_range=(0, evals_count - 1),
+                check_finite=False
+            )
+
         return evals, evecs
 
     @staticmethod
@@ -188,7 +202,7 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
             A tuple of the EJ and EC values representing the best fit.
         """
         tmon = Transmon(EJ=10.0, EC=0.1, ng=ng, ncut=ncut)
-        start_EJ_EC = np.array([tmon.EJ, tmon.EC])
+        start_EJ_EC = bc.backend.array([tmon.EJ, tmon.EC])
 
         def cost_func(EJ_EC: Tuple[float, float]) -> float:
             EJ, EC = EJ_EC
@@ -201,7 +215,21 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
             cost += (anharmonicity - computed_anharmonicity) ** 2
             return cost
 
-        return sp.optimize.minimize(cost_func, start_EJ_EC).x
+        if bc.backend.__name__ == "jax":
+            grad_cost_func = bc.backend.grad(cost_func)
+            value_and_grad_func = bc.backend.value_and_grad(cost_func)
+
+            def jax_optimization(value_and_grad_func, init_params, learning_rate=0.01, num_steps=500):
+                params = init_params
+                for _ in range(num_steps):
+                    value, grads = value_and_grad_func(params)
+                    params = params - learning_rate * grads
+                return params
+            result = jax_optimization(value_and_grad_func, start_EJ_EC)
+        else:
+            result = sp.optimize.minimize(cost_func, start_EJ_EC)
+
+        return result if bc.backend.__name__ == "jax" else result.x
 
     def n_operator(
         self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
@@ -225,8 +253,8 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
             If an actual eigensystem is handed to `energy_sys`, then `n` has dimensions of m x m,
             where m is the number of given eigenvectors.
         """
-        diag_elements = np.arange(-self.ncut, self.ncut + 1, 1)
-        native = np.diag(diag_elements)
+        diag_elements = bc.backend.arange(-self.ncut, self.ncut + 1, 1)
+        native = bc.backend.diag(diag_elements)
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def exp_i_phi_operator(
@@ -251,8 +279,8 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
             for m given eigenvectors.
         """
         dimension = self.hilbertdim()
-        entries = np.repeat(1.0, dimension - 1)
-        exp_op = np.diag(entries, -1)
+        entries = bc.backend.repeat(1.0, dimension - 1)
+        exp_op = bc.backend.diag(entries, -1)
         return self.process_op(native_op=exp_op, energy_esys=energy_esys)
 
     def cos_phi_operator(
@@ -326,13 +354,13 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
             for m given eigenvectors.
         """
         dimension = self.hilbertdim()
-        hamiltonian_mat = np.diag(
+        hamiltonian_mat = bc.backend.diag(
             [
                 4.0 * self.EC * (ind - self.ncut - self.ng) ** 2
                 for ind in range(dimension)
             ]
         )
-        ind = np.arange(dimension - 1)
+        ind = bc.backend.arange(dimension - 1)
         hamiltonian_mat[ind, ind + 1] = -self.EJ / 2.0
         hamiltonian_mat[ind + 1, ind] = -self.EJ / 2.0
         return self.process_hamiltonian(
@@ -401,7 +429,7 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         phi:
             phase variable value
         """
-        return -self.EJ * np.cos(phi)
+        return -self.EJ * bc.backend.cos(phi)
 
     def plot_n_wavefunction(
         self,
@@ -476,7 +504,7 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
             esys = self.eigensys(evals_count=evals_count)
         evals, evecs = esys
 
-        n_vals = np.arange(-self.ncut, self.ncut + 1)
+        n_vals = bc.backend.arange(-self.ncut, self.ncut + 1)
         return storage.WaveFunction(n_vals, evecs[:, which], evals[which])
 
     def wavefunction(
@@ -509,12 +537,15 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
 
         phi_grid = phi_grid or self._default_grid
         phi_basis_labels = phi_grid.make_linspace()
-        phi_wavefunc_amplitudes = np.empty(phi_grid.pt_count, dtype=np.complex_)
+        phi_wavefunc_amplitudes = bc.backend.empty(phi_grid.pt_count, dtype=bc.backend.complex_)
         for k in range(phi_grid.pt_count):
-            phi_wavefunc_amplitudes[k] = (1j**which / math.sqrt(2 * np.pi)) * np.sum(
-                n_wavefunc.amplitudes
-                * np.exp(1j * phi_basis_labels[k] * n_wavefunc.basis_labels)
+            amplitude_value = (1j**which / math.sqrt(2 * bc.backend.pi)) * bc.backend.sum(
+                n_wavefunc.amplitudes * bc.backend.exp(1j * phi_basis_labels[k] * n_wavefunc.basis_labels)
             )
+            if bc.backend.__name__ == "numpy":
+                phi_wavefunc_amplitudes[k] = amplitude_value
+            else:
+                phi_wavefunc_amplitudes = phi_wavefunc_amplitudes.at[k].set(amplitude_value)
         return storage.WaveFunction(
             basis_labels=phi_basis_labels,
             amplitudes=phi_wavefunc_amplitudes,
@@ -543,7 +574,7 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
             )
 
         max_level = (
-            np.max(transitions_tuple) if levels_tuple is None else np.max(levels_tuple)
+            bc.backend.max(transitions_tuple) if levels_tuple is None else bc.backend.max(levels_tuple)
         )
         previous_ng = self.ng
         self.ng = 0.0
@@ -565,10 +596,10 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         self.ng = previous_ng
 
         if levels_tuple is not None:
-            dispersion = np.asarray(
+            dispersion = bc.backend.asarray(
                 [
                     [
-                        np.abs(
+                        bc.backend.abs(
                             specdata_ng_0.energy_table[param_index, j]
                             - specdata_ng_05.energy_table[param_index, j]
                         )
@@ -588,11 +619,11 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
                 ej_0 = specdata_ng_0.energy_table[param_index, j]
                 ej_05 = specdata_ng_05.energy_table[param_index, j]
                 list_ij.append(
-                    np.max([np.abs(ei_0 - ej_0), np.abs(ei_05 - ej_05)])
-                    - np.min([np.abs(ei_0 - ej_0), np.abs(ei_05 - ej_05)])
+                    bc.backend.max([bc.backend.abs(ei_0 - ej_0), bc.backend.abs(ei_05 - ej_05)])
+                    - bc.backend.min([bc.backend.abs(ei_0 - ej_0), bc.backend.abs(ei_05 - ej_05)])
                 )
             dispersion_list.append(list_ij)
-        return specdata_ng_0.energy_table, np.asarray(dispersion_list)
+        return specdata_ng_0.energy_table, bc.backend.asarray(dispersion_list)
 
 
 # - Flux-tunable Cooper pair box / transmon-------------------------------------------
@@ -675,15 +706,15 @@ class TunableTransmon(Transmon, serializers.Serializable, NoisySystem):
         self.ng = ng
         self.ncut = ncut
         self.truncated_dim = truncated_dim
-        self._default_grid = discretization.Grid1d(-np.pi, np.pi, 151)
+        self._default_grid = discretization.Grid1d(-bc.backend.pi, bc.backend.pi, 151)
         self._default_n_range = (-5, 6)
 
     @property
     def EJ(self) -> float:  # type: ignore
         """This is the effective, flux dependent Josephson energy, playing the role
         of EJ in the parent class `Transmon`"""
-        return self.EJmax * np.sqrt(
-            np.cos(np.pi * self.flux) ** 2 + self.d**2 * np.sin(np.pi * self.flux) ** 2
+        return self.EJmax * bc.backend.sqrt(
+            bc.backend.cos(bc.backend.pi * self.flux) ** 2 + self.d**2 * bc.backend.sin(bc.backend.pi * self.flux) ** 2
         )
 
     @staticmethod
@@ -738,22 +769,22 @@ class TunableTransmon(Transmon, serializers.Serializable, NoisySystem):
             for m given eigenvectors.
         """
         native = (
-            np.pi
+            bc.backend.pi
             * self.EJmax
-            * np.cos(np.pi * self.flux)
-            * np.sin(np.pi * self.flux)
+            * bc.backend.cos(bc.backend.pi * self.flux)
+            * bc.backend.sin(bc.backend.pi * self.flux)
             * (self.d**2 - 1)
-            / np.sqrt(
-                np.cos(np.pi * self.flux) ** 2
-                + self.d**2 * np.sin(np.pi * self.flux) ** 2
+            / bc.backend.sqrt(
+                bc.backend.cos(bc.backend.pi * self.flux) ** 2
+                + self.d**2 * bc.backend.sin(bc.backend.pi * self.flux) ** 2
             )
             * self.cos_phi_operator()
-            - np.pi
+            - bc.backend.pi
             * self.EJmax
             * self.d
-            / np.sqrt(
-                np.cos(np.pi * self.flux) ** 2
-                + self.d**2 * np.sin(np.pi * self.flux) ** 2
+            / bc.backend.sqrt(
+                bc.backend.cos(bc.backend.pi * self.flux) ** 2
+                + self.d**2 * bc.backend.sin(bc.backend.pi * self.flux) ** 2
             )
             * self.sin_phi_operator()
         )
@@ -781,7 +812,7 @@ class TunableTransmon(Transmon, serializers.Serializable, NoisySystem):
             )
 
         max_level = (
-            np.max(transitions_tuple) if levels_tuple is None else np.max(levels_tuple)
+            bc.backend.max(transitions_tuple) if levels_tuple is None else bc.backend.max(levels_tuple)
         )
         previous_flux = self.flux
         self.flux = 0.0
@@ -803,10 +834,10 @@ class TunableTransmon(Transmon, serializers.Serializable, NoisySystem):
         self.flux = previous_flux
 
         if levels_tuple is not None:
-            dispersion = np.asarray(
+            dispersion = bc.backend.asarray(
                 [
                     [
-                        np.abs(
+                        bc.backend.abs(
                             specdata_flux_0.energy_table[param_index, j]  # type:ignore
                             - specdata_flux_05.energy_table[
                                 param_index, j
@@ -828,8 +859,8 @@ class TunableTransmon(Transmon, serializers.Serializable, NoisySystem):
                 ej_0 = specdata_flux_0.energy_table[param_index, j]  # type:ignore
                 ej_05 = specdata_flux_05.energy_table[param_index, j]  # type:ignore
                 list_ij.append(
-                    np.max([np.abs(ei_0 - ej_0), np.abs(ei_05 - ej_05)])
-                    - np.min([np.abs(ei_0 - ej_0), np.abs(ei_05 - ej_05)])
+                    bc.backend.max([bc.backend.abs(ei_0 - ej_0), bc.backend.abs(ei_05 - ej_05)])
+                    - bc.backend.min([bc.backend.abs(ei_0 - ej_0), bc.backend.abs(ei_05 - ej_05)])
                 )
             dispersion_list.append(list_ij)
-        return specdata_flux_0.energy_table, np.asarray(dispersion_list)  # type:ignore
+        return specdata_flux_0.energy_table, bc.backend.asarray(dispersion_list)  # type:ignore

@@ -19,13 +19,13 @@ from numpy import ndarray
 from scipy.sparse import csc_matrix
 from scqubits import backend_change
 
-
 def annihilation(dimension: int) -> ndarray:
     """
     Returns a dense matrix of size dimension x dimension representing the annihilation
     operator in number basis.
     """
-    offdiag_elements = backend_change.backend.sqrt(backend_change.backend.arange(1, dimension))
+    middle_variable = backend_change.backend.array(range(1, dimension))
+    offdiag_elements = backend_change.backend.sqrt(middle_variable)
     return backend_change.backend.diagflat(offdiag_elements, 1)
 
 
@@ -33,7 +33,11 @@ def annihilation_sparse(dimension: int) -> csc_matrix:
     """Returns a matrix of size dimension x dimension representing the annihilation
     operator in the format of a scipy sparse.csc_matrix.
     """
-    offdiag_elements = backend_change.backend.sqrt(backend_change.backend.arange(1, dimension))
+    if backend_change.backend.__name__ == "jax":
+        offdiag_elements = backend_change.backend.sqrt(backend_change.backend.arange(dimension))
+    else:
+        offdiag_elements = backend_change.backend.sqrt(range(dimension))
+        
     return sp.sparse.dia_matrix(
         (offdiag_elements, [1]), shape=(dimension, dimension)
     ).tocsc()

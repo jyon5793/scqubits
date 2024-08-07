@@ -103,7 +103,7 @@ class SpectrumLookupMixin(MixinCompatible):
             ordering of bare indices (as stored in .canonical_bare_labels,
             thus establishing the mapping)
         """
-        dressed_indices = backend_change.backend.empty(shape=self._parameters.counts, dtype=object)
+        dressed_indices = np.empty(shape=self._parameters.counts, dtype=object)
 
         param_indices = itertools.product(*map(range, self._parameters.counts))
         for index in param_indices:

@@ -53,6 +53,7 @@ import scqubits.utils.spectrum_utils as spec_utils
 from scqubits.core.namedslots_array import NamedSlotsNdarray, Parameters
 from scqubits.core.storage import SpectrumData
 from scqubits.io_utils.fileio_qutip import QutipEigenstates
+from scqubits import backend_change
 
 
 if settings.IN_IPYTHON:
@@ -438,7 +439,7 @@ class HilbertSpace(
 
         # The following attributes are for compatibility with SpectrumLookupMixin
         self._data: Dict[str, Any] = {}
-        self._parameters = Parameters({"dummy_parameter": np.array([0])})
+        self._parameters = Parameters({"dummy_parameter": backend_change.backend.array([0])})
         self._ignore_low_overlap = ignore_low_overlap
         self._current_param_indices = 0
         self._evals_count = self.dimension
@@ -607,7 +608,7 @@ class HilbertSpace(
     @property
     def dimension(self) -> int:
         """Returns total dimension of joint Hilbert space"""
-        return np.prod(np.asarray(self.subsystem_dims)).item()
+        return backend_change.backend.prod(backend_change.backend.asarray(self.subsystem_dims)).item()
 
     @property
     def subsystem_count(self) -> int:
@@ -632,7 +633,7 @@ class HilbertSpace(
         evecs_wrapped = np.empty(shape=1, dtype=object)
         evecs_wrapped[0] = evecs
 
-        self._data["evals"] = NamedSlotsNdarray(np.array([evals]), dummy_params)
+        self._data["evals"] = NamedSlotsNdarray(backend_change.backend.array([evals]), dummy_params)
         self._data["evecs"] = NamedSlotsNdarray(evecs_wrapped, dummy_params)
         self._data["dressed_indices"] = spec_lookup.SpectrumLookupMixin.generate_lookup(
             self
@@ -669,18 +670,18 @@ class HilbertSpace(
                 )
             bare_esys_dict[subsys_index] = bare_esys
             bare_evals[subsys_index] = NamedSlotsNdarray(
-                np.asarray([bare_esys[0].tolist()]),
+                backend_change.backend.asarray([bare_esys[0].tolist()]),
                 self._parameters.paramvals_by_name,
             )
             bare_evecs[subsys_index] = NamedSlotsNdarray(
-                np.asarray([bare_esys[1].tolist()]),
+                backend_change.backend.asarray([bare_esys[1].tolist()]),
                 self._parameters.paramvals_by_name,
             )
         self._data["bare_evals"] = NamedSlotsNdarray(
-            bare_evals, {"subsys": np.arange(self.subsystem_count)}
+            bare_evals, {"subsys": backend_change.backend.arange(self.subsystem_count)}
         )
         self._data["bare_evecs"] = NamedSlotsNdarray(
-            bare_evecs, {"subsys": np.arange(self.subsystem_count)}
+            bare_evecs, {"subsys": backend_change.backend.arange(self.subsystem_count)}
         )
         return bare_esys_dict
 
@@ -897,7 +898,7 @@ class HilbertSpace(
 
         if evals is None:
             evals = subsystem.eigenvals(evals_count=evals_count)
-        diag_qt_op = qt.Qobj(np.diagflat(evals[0:evals_count]))  # type:ignore
+        diag_qt_op = qt.Qobj(backend_change.backend.diagflat(evals[0:evals_count]))  # type:ignore
         return spec_utils.identity_wrap(diag_qt_op, subsystem, self.subsystem_list)
 
     ###################################################################################
@@ -918,7 +919,7 @@ class HilbertSpace(
         """
         dim = subsystem.truncated_dim
         index = range(dim)
-        diag_matrix = np.zeros((dim, dim), dtype=np.float64)
+        diag_matrix = np.zeros((dim, dim), dtype=np.float_)
         diag_matrix[index, index] = diag_elements
         return spec_utils.identity_wrap(diag_matrix, subsystem, self.subsystem_list)
 
@@ -1022,7 +1023,7 @@ class HilbertSpace(
                 "Parallel computation of eigensystems [num_cpus={}]".format(num_cpus),
                 num_cpus,
             ):
-                eigenvalue_table = np.asarray(
+                eigenvalue_table = backend_change.backend.asarray(
                     list(
                         target_map(
                             func,
@@ -1052,12 +1053,12 @@ class HilbertSpace(
         for idx, evec in enumerate(self._data["evecs"][0]):
             array = utils.Qobj_to_scipy_csc_matrix(evec)
             phase = spec_utils.extract_phase(array)
-            self._data["evecs"][0][idx] = evec * np.exp(-1j * phase)
+            self._data["evecs"][0][idx] = evec * backend_change.backend.exp(-1j * phase)
 
     def op_in_dressed_eigenbasis(
         self,
         op_callable_or_tuple: Union[
-            Tuple[Union[np.ndarray, csc_matrix], QuantumSys], Callable
+            Tuple[Union[backend_change.backend.ndarray, csc_matrix], QuantumSys], Callable
         ],
         truncated_dim: Optional[int] = None,
         **kwargs,

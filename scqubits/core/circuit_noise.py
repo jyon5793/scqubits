@@ -1599,7 +1599,7 @@ class NoisyCircuit(NoisySystem, ABC):
             total_rate = sum([1 / t1 for t1 in t1_times])
             if get_rate:
                 return total_rate
-            return 1 / total_rate if total_rate != 0 else np.inf
+            return 1 / total_rate if total_rate != 0 else backend_change.backend.inf
 
         setattr(self, "t1_charge_impedance", MethodType(t1_method, self))
 

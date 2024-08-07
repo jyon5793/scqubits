@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 
 from scqubits.utils.typedefs import QuantumSys
 from scqubits.utils.misc import Qobj_to_scipy_csc_matrix
+from scqubits import backend_change as bc
 
 
 def eigsh_safe(*args, **kwargs):
@@ -52,15 +53,15 @@ def eigsh_safe(*args, **kwargs):
 
 
 def has_degeneracy(evals: ndarray) -> bool:
-    evals_rightpad = np.pad(evals, (0, 1))
-    evals_leftpad = np.pad(evals, (1, 0))
+    evals_rightpad = bc.backend.pad(evals, (0, 1))
+    evals_leftpad = bc.backend.pad(evals, (1, 0))
     evals_neighbor_diffs = evals_leftpad - evals_rightpad
-    return np.isclose(np.min(np.abs(evals_neighbor_diffs)), 0)
+    return bc.backend.isclose(bc.backend.min(bc.backend.abs(evals_neighbor_diffs)), 0)
 
 
 def order_eigensystem(
-    evals: np.ndarray, evecs: np.ndarray
-) -> Tuple[np.ndarray, np.ndarray]:
+    evals: bc.backend.ndarray, evecs: bc.backend.ndarray
+) -> Tuple[bc.backend.ndarray, bc.backend.ndarray]:
     """Takes eigenvalues and corresponding eigenvectors and orders them (in place)
     according to the eigenvalues (from smallest to largest; real valued eigenvalues
     are assumed). Compare http://stackoverflow.com/questions/22806398.
@@ -79,7 +80,7 @@ def order_eigensystem(
 
 
 def extract_phase(
-    complex_array: np.ndarray, position: Optional[Tuple[int, ...]] = None
+    complex_array: bc.backend.ndarray, position: Optional[Tuple[int, ...]] = None
 ) -> float:
     """Extracts global phase from `complex_array` at given `position`. If position is
     not specified, the `position` is set as follows. Find the maximum between the
@@ -95,14 +96,14 @@ def extract_phase(
     """
     if position is None:
         halfway_position = (complex_array.shape[0]) // 2
-        flattened_position = np.argmax(
-            np.abs(complex_array[:halfway_position])
+        flattened_position = bc.backend.argmax(
+            bc.backend.abs(complex_array[:halfway_position])
         )  # extract phase from element with largest amplitude modulus
-        position = np.unravel_index(flattened_position, complex_array.shape)
+        position = bc.backend.unravel_index(flattened_position, complex_array.shape)
     return cmath.phase(complex_array[position])
 
 
-def standardize_phases(complex_array: np.ndarray) -> np.ndarray:
+def standardize_phases(complex_array: bc.backend.ndarray) -> bc.backend.ndarray:
     """Uses `extract_phase` to obtain global phase from `array` and returns
     standardized array with global phase factor standardized.
 
@@ -112,11 +113,11 @@ def standardize_phases(complex_array: np.ndarray) -> np.ndarray:
         complex
     """
     phase = extract_phase(complex_array)
-    std_array = complex_array * np.exp(-1j * phase)
+    std_array = complex_array * bc.backend.exp(-1j * phase)
     return std_array
 
 
-def standardize_sign(real_array: np.ndarray) -> np.ndarray:
+def standardize_sign(real_array: bc.backend.ndarray) -> bc.backend.ndarray:
     """Standardizes the sign of a real-valued wavefunction by calculating the sign of
     the sum of all amplitudes up to the wavefunctions mid-position and making it
     positive.
@@ -126,16 +127,16 @@ def standardize_sign(real_array: np.ndarray) -> np.ndarray:
     centered at zero.
     """
     halfway_position = len(real_array) // 2
-    return np.sign(np.sum(real_array[:halfway_position])) * real_array
+    return bc.backend.sign(bc.backend.sum(real_array[:halfway_position])) * real_array
 
 
 # -Matrix elements and operators (outside qutip) --------------------------------------
 
 
 def matrix_element(
-    state1: Union[np.ndarray, qt.Qobj],
-    operator: Union[np.ndarray, csc_matrix, qt.Qobj],
-    state2: Union[np.ndarray, qt.Qobj],
+    state1: Union[bc.backend.ndarray, qt.Qobj],
+    operator: Union[bc.backend.ndarray, csc_matrix, qt.Qobj],
+    state2: Union[bc.backend.ndarray, qt.Qobj],
 ) -> Union[float, complex]:
     """Calculate the matrix element `<state1|operator|state2>`.
 
@@ -171,9 +172,9 @@ def matrix_element(
 
 
 def get_matrixelement_table(
-    operator: Union[np.ndarray, csc_matrix, dia_matrix, qt.Qobj],
-    state_table: Union[np.ndarray, qt.Qobj],
-) -> np.ndarray:
+    operator: Union[bc.backend.ndarray, csc_matrix, dia_matrix, qt.Qobj],
+    state_table: Union[bc.backend.ndarray, qt.Qobj],
+) -> bc.backend.ndarray:
     """Calculates a table of matrix elements.
 
     Parameters
@@ -198,7 +199,7 @@ def get_matrixelement_table(
 
 
 def closest_dressed_energy(
-    bare_energy: float, dressed_energy_vals: np.ndarray
+    bare_energy: float, dressed_energy_vals: bc.backend.ndarray
 ) -> float:
     """For a given bare energy value, this returns the closest lying dressed energy
     value from an array.
@@ -214,7 +215,7 @@ def closest_dressed_energy(
     -------
         element from `dressed_energy_vals` closest to `bare_energy`
     """
-    index = (np.abs(dressed_energy_vals - bare_energy)).argmin()
+    index = (bc.backend.abs(dressed_energy_vals - bare_energy)).argmin()
     return dressed_energy_vals[index]
 
 
@@ -242,18 +243,18 @@ def get_eigenstate_index_maxoverlap(
         index of eigenstate from `eigenstates_Qobj` with the largest overlap with the
         `reference_state_qobj`, None if `|overlap|<0.5`
     """
-    overlaps = np.asarray(
+    overlaps = bc.backend.asarray(
         [
             eigenstates_qobj[j].overlap(reference_state_qobj)
             for j in range(len(eigenstates_qobj))
         ]
     )
-    max_overlap = np.max(np.abs(overlaps))
+    max_overlap = bc.backend.max(bc.backend.abs(overlaps))
     if max_overlap < 0.5:
         return None
-    index = (np.abs(overlaps)).argmax()
+    index = (bc.backend.abs(overlaps)).argmax()
     if return_overlap:
-        return index, np.abs(overlaps[index])
+        return index, bc.backend.abs(overlaps[index])
     return index
 
 
@@ -281,7 +282,7 @@ def emission_spectrum(spectrum_data: "SpectrumData") -> "SpectrumData":
     return spectrum_data
 
 
-def convert_evecs_to_ndarray(evecs_qutip: ndarray) -> np.ndarray:
+def convert_evecs_to_ndarray(evecs_qutip: ndarray) -> bc.backend.ndarray:
     """Takes a qutip eigenstates array, as obtained with .eigenstates(), and converts
     it into a pure numpy array.
 
@@ -296,17 +297,17 @@ def convert_evecs_to_ndarray(evecs_qutip: ndarray) -> np.ndarray:
     """
     evals_count = len(evecs_qutip)
     dimension = evecs_qutip[0].shape[0]
-    evecs_ndarray = np.empty((evals_count, dimension), dtype=np.complex_)
+    evecs_ndarray = bc.backend.empty((evals_count, dimension), dtype=bc.backend.complex_)
     for index, eigenstate in enumerate(evecs_qutip):
         evecs_ndarray[index] = eigenstate.full()[:, 0]
     return evecs_ndarray
 
 
 def convert_matrix_to_qobj(
-    operator: Union[np.ndarray, csc_matrix, dia_matrix],
+    operator: Union[bc.backend.ndarray, csc_matrix, dia_matrix],
     subsystem: Union["QubitBaseClass", "Oscillator"],
     op_in_eigenbasis: bool,
-    evecs: Optional[np.ndarray],
+    evecs: Optional[bc.backend.ndarray],
 ) -> qt.Qobj:
     dim = subsystem.truncated_dim
 
@@ -321,7 +322,7 @@ def convert_matrix_to_qobj(
 def convert_opstring_to_qobj(
     operator: str,
     subsystem: Union["QubitBaseClass", "Oscillator"],
-    evecs: Optional[np.ndarray],
+    evecs: Optional[bc.backend.ndarray],
 ) -> qt.Qobj:
     dim = subsystem.truncated_dim
 
@@ -332,14 +333,14 @@ def convert_opstring_to_qobj(
 
 
 def convert_operator_to_qobj(
-    operator: Union[np.ndarray, csc_matrix, dia_matrix, qt.Qobj, str],
+    operator: Union[bc.backend.ndarray, csc_matrix, dia_matrix, qt.Qobj, str],
     subsystem: Union["QubitBaseClass", "Oscillator"],
     op_in_eigenbasis: bool,
-    evecs: Optional[np.ndarray],
+    evecs: Optional[bc.backend.ndarray],
 ) -> qt.Qobj:
     if isinstance(operator, qt.Qobj):
         return operator
-    if isinstance(operator, (np.ndarray, csc_matrix, csr_matrix, dia_matrix)):
+    if isinstance(operator, (bc.backend.ndarray, csc_matrix, csr_matrix, dia_matrix)):
         return convert_matrix_to_qobj(operator, subsystem, op_in_eigenbasis, evecs)
     if isinstance(operator, str):
         return convert_opstring_to_qobj(operator, subsystem, evecs)
@@ -378,8 +379,8 @@ def generate_target_states_list(
 
 
 def recast_esys_mapdata(
-    esys_mapdata: List[Tuple[np.ndarray, np.ndarray]]
-) -> Tuple[np.ndarray, List[np.ndarray]]:
+    esys_mapdata: List[Tuple[bc.backend.ndarray, bc.backend.ndarray]]
+) -> Tuple[bc.backend.ndarray, List[bc.backend.ndarray]]:
     """
     Takes data generated by a map of eigensystem calls and returns the eigenvalue and
     eigenstate tables
@@ -389,7 +390,7 @@ def recast_esys_mapdata(
         eigenvalues and eigenvectors
     """
     paramvals_count = len(esys_mapdata)
-    eigenenergy_table = np.asarray(
+    eigenenergy_table = bc.backend.asarray(
         [esys_mapdata[index][0] for index in range(paramvals_count)]
     )
     eigenstate_table = [esys_mapdata[index][1] for index in range(paramvals_count)]

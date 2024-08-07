@@ -58,6 +58,7 @@ from scqubits.core.oscillator import Oscillator
 from scqubits.core.qubit_base import QuantumSystem, QubitBaseClass
 from scqubits.core.spec_lookup import SpectrumLookupMixin
 from scqubits.core.storage import SpectrumData
+from scqubits import backend_change as bc
 
 if TYPE_CHECKING:
     from scqubits.io_utils.fileio import IOData
@@ -186,7 +187,7 @@ class ParameterSweepBase(ABC, SpectrumLookupMixin):
             else:
                 key = (key,)
             self._current_param_indices = convert_to_std_npindex(key, self._parameters)
-        elif isinstance(key, np.integer):
+        elif isinstance(key, bc.backend.integer):
             key = (key,)
             self._current_param_indices = convert_to_std_npindex(key, self._parameters)
         return self
@@ -445,7 +446,7 @@ class ParameterSweepBase(ABC, SpectrumLookupMixin):
         initial_energies: NamedSlotsNdarray,
         param_indices: NpIndices,
     ) -> None:
-        if np.isnan(initial_energies.toarray().astype(np.float64)).any():
+        if bc.backend.isnan(initial_energies.toarray().astype(bc.backend.float64)).any():
             warnings.warn(
                 "The initial state undergoes significant hybridization. "
                 "Identification with a bare product state was not (fully) "
@@ -454,7 +455,7 @@ class ParameterSweepBase(ABC, SpectrumLookupMixin):
                 "index (integer) instead of a bare product state.\n",
                 UserWarning,
             )
-        elif sum(initial) == 0 and not np.all(
+        elif sum(initial) == 0 and not bc.backend.all(
             initial_energies == self["evals"][param_indices][..., 0]
         ):
             warnings.warn(

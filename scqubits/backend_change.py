@@ -2,6 +2,8 @@ import numpy as np
 import jax
 from functools import wraps
 from scipy import sparse
+from jax import custom_vjp
+from scipy.special import pbdv
 
 
 class Backend(object):
@@ -19,6 +21,10 @@ class Backend(object):
     
     @staticmethod
     def eye(N, dtype=None):
+        raise NotImplementedError("This method should be overridden by subclasses")
+    
+    @staticmethod
+    def fill_diagonal(array, value):
         raise NotImplementedError("This method should be overridden by subclasses")
     
 class NumpyBackend(Backend):
@@ -90,6 +96,13 @@ class NumpyBackend(Backend):
     nan = staticmethod(np.nan)
     max = staticmethod(np.max)
     min = staticmethod(np.min)
+    full = staticmethod(np.full)
+    pad = staticmethod(np.pad)
+    isclose = staticmethod(np.isclose)
+    argmax = staticmethod(np.argmax)
+    unravel_index = staticmethod(np.unravel_index)
+    sign = staticmethod(np.sign)
+    allclose = staticmethod(np.allclose)
 
     @staticmethod
     def convert_to_array(obj_list):
@@ -149,7 +162,7 @@ class JaxBackend(Backend):
     index_exp = staticmethod(jax.numpy.index_exp)
     all = staticmethod(jax.numpy.all)
     log = staticmethod(jax.numpy.log)
-    fill_diagonal = staticmethod(jax.numpy.fill_diagonal)
+    # fill_diagonal = staticmethod(lambda array, value: array.at[jax.numpy.diag_indices(min(array.shape))].set(value))
     diag_indices = staticmethod(jax.numpy.diag_indices)
     isnan = staticmethod(jax.numpy.isnan)
     empty_like = staticmethod(jax.numpy.empty_like)
@@ -166,6 +179,20 @@ class JaxBackend(Backend):
     nan = staticmethod(jax.numpy.nan)
     max = staticmethod(jax.numpy.max)
     min = staticmethod(jax.numpy.min)
+    abs = staticmethod(jax.numpy.abs)
+    full = staticmethod(jax.numpy.full)
+    pad= staticmethod(jax.numpy.pad)
+    isclose = staticmethod(jax.numpy.isclose)
+    argmax = staticmethod(jax.numpy.argmax)
+    unravel_index = staticmethod(jax.numpy.unravel_index)
+    sign = staticmethod(jax.numpy.sign)
+    allclose = staticmethod(jax.numpy.allclose)
+    pbdv = staticmethod(jax.numpy)
+
+    scipy = staticmethod(jax.scipy)
+    grad = staticmethod(jax.grad)
+    value_and_grad = staticmethod(jax.value_and_grad)
+    eigh = staticmethod(jax.scipy.linalg.eigh)
 
     @staticmethod
     def convert_to_array(obj_list):
@@ -173,6 +200,31 @@ class JaxBackend(Backend):
     @staticmethod
     def eye(N, dtype=None):
         return jax.numpy.eye(N, dtype=dtype)
+    
+    @staticmethod
+    def fill_diagonal(array, value):
+        indices = jax.numpy.diag_indices(min(array.shape))
+        return array.at[indices].set(value)
+    
+@custom_vjp
+def pbdv_jax(n, x):
+    return pbdv(n, x)[0]
+
+def pbdv_jax_fwd(n, x):
+    res = pbdv_jax(n, x)
+    return res, (res, n, x)
+
+def pbdv_jax_bwd(res, g):
+    res, n, x = res
+    eps = 1e-5
+    dres_dx = (pbdv(n, x + eps)[0] - pbdv(n, x - eps)[0]) / (2 * eps)
+    return (None, g * dres_dx)
+
+pbdv_jax.defvjp(pbdv_jax_fwd, pbdv_jax_bwd)
+
+def initialize_jax_backend():
+    JaxBackend.pbdv_jax = staticmethod(pbdv_jax)
+
 
 backend = NumpyBackend()
 
@@ -181,6 +233,7 @@ def set_backend(name):
         backend.__class__ = NumpyBackend
     elif name == 'jax':
         backend.__class__ = JaxBackend
+        initialize_jax_backend()
     else:
         raise ValueError(f"Unknown backend '{name}'")
 

@@ -695,12 +695,8 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def _n_operator(self) -> ndarray:
-        if backend_change.backend.__name__ == "jax":
-            diag_elements = backend_change.backend.arange(-self.ncut, self.ncut + 1, dtype=backend_change.backend.complex64)
-            return backend_change.backend.diag(diag_elements)
-        else:
-            diag_elements = backend_change.backend.arange(-self.ncut, self.ncut + 1, dtype=backend_change.backend.complex_)
-            return backend_change.backend.diag(diag_elements)
+        diag_elements = backend_change.backend.arange(-self.ncut, self.ncut + 1, dtype=backend_change.backend.complex_)
+        return backend_change.backend.diag(diag_elements)
 
     def _exp_i_phi_operator(self) -> ndarray:
         dim = 2 * self.ncut + 1
