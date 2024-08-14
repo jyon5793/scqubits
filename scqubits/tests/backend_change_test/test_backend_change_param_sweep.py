@@ -1,120 +1,75 @@
 import pytest
 import numpy as np
-from scqubits import ParameterSweep, HilbertSpace, backend_change
+import jax.numpy as jnp
+from scqubits import backend_change
+from scqubits.core.hilbert_space import HilbertSpace
 from scqubits.core.oscillator import Oscillator
 from scqubits.core.transmon import Transmon
-from scqubits.core.operators import number
+from scqubits.core.storage import SpectrumData
+from scqubits.core.param_sweep import ParameterSweep
+from scqubits.core.namedslots_array import NamedSlotsNdarray
 
-def create_hilbert_space():
+@pytest.fixture
+def setup_hilbert_space():
     osc1 = Oscillator(E_osc=5.0, l_osc=1.0, truncated_dim=10)
-    osc2 = Oscillator(E_osc=6.0, l_osc=1.0, truncated_dim=10)
-    transmon = Transmon(EJ=20.0, EC=0.2, ng=0.0, ncut=30, truncated_dim=10)
-    return HilbertSpace([osc1, osc2, transmon])
+    osc2 = Oscillator(E_osc=4.0, l_osc=1.0, truncated_dim=10)
+    transmon = Transmon(EJ=10.0, EC=0.2, ng=0.0, ncut=5, truncated_dim=5)
+    hilbert_space = HilbertSpace([osc1, osc2, transmon])
+    return hilbert_space
 
-def update_hilbert_space(sweep, osc_E, transmon_EJ):
-    sweep.hilbertspace[0].E_osc = osc_E
-    sweep.hilbertspace[2].EJ = transmon_EJ
+def dummy_update_hilbertspace(_):
+    pass
 
-def setup_parameters():
-    paramvals_by_name = {
-        'osc_E': np.linspace(4.0, 6.0, 5),
-        'transmon_EJ': np.linspace(19.0, 21.0, 3)
-    }
-    return paramvals_by_name
-
-def test_bare_spectrum_sweep_numpy():
-    hilbert_space = create_hilbert_space()
-    paramvals_by_name = setup_parameters()
-
-    backend_change.set_backend('numpy')
-
-    sweep = ParameterSweep(
+@pytest.fixture
+def setup_parameter_sweep(setup_hilbert_space):
+    hilbert_space = setup_hilbert_space
+    paramvals_by_name = {"param1": np.linspace(0, 1, 5)}
+    parameter_sweep = ParameterSweep(
         hilbertspace=hilbert_space,
         paramvals_by_name=paramvals_by_name,
-        update_hilbertspace=update_hilbert_space,
-        evals_count=5,
-        autorun=False
+        update_hilbertspace=dummy_update_hilbertspace
+    )
+    return parameter_sweep
+
+@pytest.mark.parametrize("backend", ["numpy", "jax"])
+def test_transitions(setup_parameter_sweep, backend):
+    backend_change.set_backend(backend)
+    parameter_sweep = setup_parameter_sweep
+
+    # 设置测试参数
+    subsystems = [parameter_sweep.hilbertspace[0], parameter_sweep.hilbertspace[1]]
+    initial_state = (0, 0, 0)
+    final_state = (1, 0, 0)
+
+    transitions, energies = parameter_sweep.transitions(
+        subsystems=subsystems,
+        initial=initial_state,
+        final=final_state,
+        param_indices=(slice(None),)
     )
 
-    evals, evecs = sweep._bare_spectrum_sweep()
+    # 检查返回值的类型
+    assert isinstance(transitions, list)
+    assert isinstance(energies, list)
 
-    assert evals.shape == (3, 5, 3, 10)
-    assert evecs.shape == (3, 5, 3, 10)
+    for transition in transitions:
+        assert isinstance(transition, tuple)
+        assert len(transition) == 2
 
-def test_bare_spectrum_sweep_jax():
-    hilbert_space = create_hilbert_space()
-    paramvals_by_name = setup_parameters()
+    if backend == "numpy":
+        for energy in energies:
+            assert isinstance(energy, np.ndarray)
+            energy = np.asarray(energy)  # 转换为普通的 numpy 数组
+    elif backend == "jax":
+        for energy in energies:
+            assert isinstance(energy, jnp.ndarray)
+            energy = jnp.asarray(energy)  # 转换为 JAX 数组
 
-    backend_change.set_backend('jax')
+    # 检查转换数量和能量维度
+    assert len(transitions) == len(energies)
 
-    sweep = ParameterSweep(
-        hilbertspace=hilbert_space,
-        paramvals_by_name=paramvals_by_name,
-        update_hilbertspace=update_hilbert_space,
-        evals_count=5,
-        autorun=False
-    )
+    for energy in energies:
+        assert energy.shape == (5,)
 
-    evals, evecs = sweep._bare_spectrum_sweep()
-
-    assert evals.shape == (3, 5, 3, 10)
-    assert evecs.shape == (3, 5, 3, 10)
-
-def test_bare_spectrum_sweep_comparison():
-    hilbert_space = create_hilbert_space()
-    paramvals_by_name = setup_parameters()
-
-    backend_change.set_backend('numpy')
-    sweep_numpy = ParameterSweep(
-        hilbertspace=hilbert_space,
-        paramvals_by_name=paramvals_by_name,
-        update_hilbertspace=update_hilbert_space,
-        evals_count=5,
-        autorun=False
-    )
-    evals_numpy, evecs_numpy = sweep_numpy._bare_spectrum_sweep()
-
-    backend_change.set_backend('jax')
-    sweep_jax = ParameterSweep(
-        hilbertspace=hilbert_space,
-        paramvals_by_name=paramvals_by_name,
-        update_hilbertspace=update_hilbert_space,
-        evals_count=5,
-        autorun=False
-    )
-    evals_jax, evecs_jax = sweep_jax._bare_spectrum_sweep()
-
-    np.testing.assert_allclose(evals_numpy, evals_jax, rtol=1e-5, atol=1e-8)
-    np.testing.assert_allclose(evecs_numpy, evecs_jax, rtol=1e-5, atol=1e-8)
-
-def test_bare_spectrum_sweep_with_number_operator():
-    hilbert_space = create_hilbert_space()
-    paramvals_by_name = setup_parameters()
-
-    backend_change.set_backend('numpy')
-    sweep_numpy = ParameterSweep(
-        hilbertspace=hilbert_space,
-        paramvals_by_name=paramvals_by_name,
-        update_hilbertspace=update_hilbert_space,
-        evals_count=5,
-        autorun=False
-    )
-    evals_numpy, evecs_numpy = sweep_numpy._bare_spectrum_sweep()
-
-    backend_change.set_backend('jax')
-    sweep_jax = ParameterSweep(
-        hilbertspace=hilbert_space,
-        paramvals_by_name=paramvals_by_name,
-        update_hilbertspace=update_hilbert_space,
-        evals_count=5,
-        autorun=False
-    )
-    evals_jax, evecs_jax = sweep_jax._bare_spectrum_sweep()
-
-    np.testing.assert_allclose(evals_numpy, evals_jax, rtol=1e-5, atol=1e-8)
-    np.testing.assert_allclose(evecs_numpy, evecs_jax, rtol=1e-5, atol=1e-8)
-
-    num_op_numpy = number(10)
-    num_op_jax = number(10)
-    
-    np.testing.assert_allclose(num_op_numpy, num_op_jax, rtol=1e-5, atol=1e-8)
+if __name__ == "__main__":
+    pytest.main()

@@ -915,14 +915,16 @@ class QubitBaseClass(QuantumSystem, ABC):
         for index, paramval in enumerate(param_vals):
             evecs = spectrumdata.state_table[index]
             setattr(self, param_name, paramval)
-            if backend_change.backend.__name__ == "jax":
-                matelem_table = matelem_table.at[index].set(self.matrixelement_table(
-                    operator, evecs=evecs, evals_count=evals_count
-                ))
-            else:
-                matelem_table[index] = self.matrixelement_table(
-                    operator, evecs=evecs, evals_count=evals_count
-                )
+            # if backend_change.backend.__name__ == "jax":
+            #     matelem_table = matelem_table.at[index].set(self.matrixelement_table(
+            #         operator, evecs=evecs, evals_count=evals_count
+            #     ))
+            matelem_table = backend_change.backend.array_solve(matelem_table,index,self.matrixelement_table(
+                    operator, evecs=evecs, evals_count=evals_count))
+            # elif backend_change.backend.__name__ == "numpy":
+            #     matelem_table[index] = self.matrixelement_table(
+            #         operator, evecs=evecs, evals_count=evals_count
+            #     )
         setattr(self, param_name, paramval_before)
 
         spectrumdata.matrixelem_table = matelem_table

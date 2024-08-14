@@ -59,6 +59,7 @@ from scqubits.core.qubit_base import QuantumSystem, QubitBaseClass
 from scqubits.core.spec_lookup import SpectrumLookupMixin
 from scqubits.core.storage import SpectrumData
 from scqubits import backend_change as bc
+from scqubits.utils.helper import convert_to_jax_compatible
 
 if TYPE_CHECKING:
     from scqubits.io_utils.fileio import IOData
@@ -608,8 +609,8 @@ class ParameterSweepBase(ABC, SpectrumLookupMixin):
                     diff_energies = (final_energies - initial_energies).astype(float)
                     diff_energies /= photon_number
                     if make_positive:
-                        diff_energies = np.abs(diff_energies)
-                    if not np.isnan(
+                        diff_energies = bc.backend.abs(diff_energies)
+                    if not bc.backend.isnan(
                         diff_energies
                     ).all():  # omit transitions with all nans
                         transitions.append((initial_state, final_state))
@@ -629,18 +630,18 @@ class ParameterSweepBase(ABC, SpectrumLookupMixin):
             name = reduced_parameters.names[0]
             vals = reduced_parameters[name]
             return SpectrumData(
-                energy_table=np.asarray(transition_energies).T,
+                energy_table=bc.backend.asarray(transition_energies).T,
                 system_params=self.system_params,
                 param_name=name,
                 param_vals=vals,
                 labels=label_list,
-                subtract=np.asarray(
+                subtract=bc.backend.asarray(
                     [initial_energies] * self._evals_count, dtype=float
                 ).T,
             )
 
         return SpectrumData(
-            energy_table=np.asarray(transition_energies),
+            energy_table=bc.backend.asarray(transition_energies),
             system_params=self.system_params,
             labels=label_list,
         )
@@ -791,7 +792,7 @@ class ParameterSweepBase(ABC, SpectrumLookupMixin):
         specdata_all.energy_table -= specdata_for_highlighting.subtract  # type:ignore
         specdata_all.energy_table /= photon_number
         if make_positive:
-            specdata_all.energy_table = np.abs(specdata_all.energy_table)
+            specdata_all.energy_table = bc.backend.abs(specdata_all.energy_table)
 
         self.reset_preslicing()
 
@@ -1133,6 +1134,10 @@ class ParameterSweep(  # type:ignore
         bare_evecs = np.empty((self.subsystem_count,), dtype=object)
         # creating data arrays for subsystems, to store the esys for all subsystems when HD is used
         circuit_esys = np.empty((self.subsystem_count,), dtype=object)
+        if bc.backend.__name__ == "jax":
+            bare_evals = convert_to_jax_compatible(bare_evals)
+            bare_evecs = convert_to_jax_compatible(bare_evecs)
+            circuit_esys = convert_to_jax_compatible(circuit_esys)
 
         for subsys_index, subsystem in enumerate(self.hilbertspace):
             bare_esys = self._subsys_bare_spectrum_sweep(subsystem)
@@ -1140,31 +1145,49 @@ class ParameterSweep(  # type:ignore
                 hasattr(subsystem, "hierarchical_diagonalization")
                 and subsystem.hierarchical_diagonalization
             ):
-                evals = np.empty_like(bare_esys[..., 0])
-                evecs = np.empty_like(bare_esys[..., 0])
-                for array_index, esys in np.ndenumerate(bare_esys[..., 0]):
-                    evals[array_index] = esys[0]
-                    evecs[array_index] = esys[1]
+                evals = bc.backend.empty_like(bare_esys[..., 0])
+                evecs = bc.backend.empty_like(bare_esys[..., 0])
+                if bc.backend.__name__ == "numpy":
+                    for array_index, esys in bc.backend.ndenumerate(bare_esys[..., 0]):
+                        evals[array_index] = esys[0]
+                        evecs[array_index] = esys[1]
+                elif bc.backend.__name__ == "jax":
+                    shape = bare_esys[..., 0].shape
+                    indices = itertools.product(*[range(s) for s in shape])
+                    for array_index in indices:
+                        esys = bare_esys[array_index]
+                        evals = evals.at[array_index].set(esys[0])
+                        evecs = evecs.at[array_index].set(esys[1])
             else:
                 evals = bare_esys[..., 0]
                 evecs = bare_esys[..., 1]
-            bare_evals[subsys_index] = NamedSlotsNdarray(
-                np.asarray(evals.tolist()),
-                self._parameters.paramvals_by_name,
-            )
-            bare_evecs[subsys_index] = NamedSlotsNdarray(
-                np.asarray(evecs.tolist()),
-                self._parameters.paramvals_by_name,
-            )
+            if bc.backend.__name__ == "numpy":
+                bare_evals[subsys_index] = NamedSlotsNdarray(
+                    bc.backend.asarray(evals.tolist()),
+                    self._parameters.paramvals_by_name,
+                )
+                bare_evecs[subsys_index] = NamedSlotsNdarray(
+                    bc.backend.asarray(evecs.tolist()),
+                    self._parameters.paramvals_by_name,
+                )
+            elif bc.backend.__name__ == "jax":
+                bare_evals[subsys_index] = NamedSlotsNdarray(
+                    bc.backend.asarray(evals),
+                    self._parameters.paramvals_by_name,
+                )
+                bare_evecs[subsys_index] = NamedSlotsNdarray(
+                    bc.backend.asarray(evecs),
+                    self._parameters.paramvals_by_name,
+                )
             circuit_esys[subsys_index] = (
                 bare_esys  # when param =(p0, p1, p2, ...), subsys i esys is circuit_esys[i][p0, p1, p3, ...]
             )
 
         return (
-            NamedSlotsNdarray(bare_evals, {"subsys": np.arange(self.subsystem_count)}),
-            NamedSlotsNdarray(bare_evecs, {"subsys": np.arange(self.subsystem_count)}),
+            NamedSlotsNdarray(bare_evals, {"subsys": bc.backend.arange(self.subsystem_count)}),
+            NamedSlotsNdarray(bare_evecs, {"subsys": bc.backend.arange(self.subsystem_count)}),
             NamedSlotsNdarray(
-                circuit_esys, {"subsys": np.arange(self.subsystem_count)}
+                circuit_esys, {"subsys": bc.backend.arange(self.subsystem_count)}
             ),
         )
 
@@ -1180,6 +1203,8 @@ class ParameterSweep(  # type:ignore
             return subsystem.generate_bare_eigensys()
         evals, evecs = subsystem.eigensys(evals_count=subsystem.truncated_dim)
         esys_array = np.empty(shape=(2,), dtype=object)
+        if bc.backend.__name__ == "jax":
+            esys_array = convert_to_jax_compatible(esys_array)
         esys_array[0] = evals
         esys_array[1] = evecs
         return esys_array
@@ -1209,7 +1234,7 @@ class ParameterSweep(  # type:ignore
         """
         fixed_paramnames = self._paramnames_no_subsys_update(subsystem)
         reduced_parameters = self._parameters.create_reduced(fixed_paramnames)
-        total_count = np.prod([len(param_vals) for param_vals in reduced_parameters])
+        total_count = bc.backend.prod([len(param_vals) for param_vals in reduced_parameters])
 
         target_map = cpu_switch.get_map_method(self._num_cpus)
 
@@ -1235,6 +1260,8 @@ class ParameterSweep(  # type:ignore
             )
 
         bare_eigendata = np.asarray(list(bare_eigendata), dtype=object)
+        if bc.backend.__name__ == "jax":
+            bare_eigendata = convert_to_jax_compatible(bare_eigendata)
         bare_eigendata = bare_eigendata.reshape((*reduced_parameters.counts, 2))
 
         # Bare spectral data was only computed once for each parameter that has no
@@ -1243,7 +1270,7 @@ class ParameterSweep(  # type:ignore
         for name in fixed_paramnames:
             index = self._parameters.index_by_name[name]
             param_count = self._parameters.counts[index]
-            bare_eigendata = np.repeat(bare_eigendata, param_count, axis=index)
+            bare_eigendata = bc.backend.repeat(bare_eigendata, param_count, axis=index)
 
         return bare_eigendata
 
@@ -1282,6 +1309,8 @@ class ParameterSweep(  # type:ignore
             evals_count=evals_count, bare_esys=bare_esys  # type:ignore
         )
         esys_array = np.empty(shape=(2,), dtype=object)
+        if bc.backend.__name__ == "jax":
+            esys_array = convert_to_jax_compatible(esys_array)
         esys_array[0] = evals
         esys_array[1] = evecs
         return esys_array
@@ -1297,7 +1326,7 @@ class ParameterSweep(  # type:ignore
             likewise for eigenvectors
         """
         target_map = cpu_switch.get_map_method(self._num_cpus)
-        total_count = np.prod(self._parameters.counts)
+        total_count = bc.backend.prod(self._parameters.counts)
 
         with utils.InfoBar(
             "Parallel compute dressed eigensys [num_cpus={}]".format(self._num_cpus),
@@ -1322,12 +1351,14 @@ class ParameterSweep(  # type:ignore
             )
 
         spectrum_data_ndarray = np.asarray(spectrum_data, dtype=object)
+        if bc.backend.__name__ == "jax":
+            spectrum_data_ndarray = convert_to_jax_compatible(spectrum_data_ndarray)
         spectrum_data_ndarray = spectrum_data_ndarray.reshape(
             (*self._parameters.counts, 2)
         )
         slotparamvals_by_name = OrderedDict(self._parameters.ordered_dict.copy())
 
-        evals = np.asarray(spectrum_data_ndarray[..., 0].tolist())
+        evals = bc.backend.asarray(spectrum_data_ndarray[..., 0].tolist())
         evecs = spectrum_data_ndarray[..., 1]
 
         return (
@@ -1336,21 +1367,21 @@ class ParameterSweep(  # type:ignore
         )
 
     def _energies_1(self, subsys):
-        bare_label = np.zeros(len(self.hilbertspace))
+        bare_label = bc.backend.zeros(len(self.hilbertspace))
         bare_label[self.get_subsys_index(subsys)] = 1
 
-        energies_all_l = np.empty(self._parameters.counts + (subsys.truncated_dim,))
+        energies_all_l = bc.backend.empty(self._parameters.counts + (subsys.truncated_dim,))
         for l in range(subsys.truncated_dim):
             energies_all_l[..., l] = self[:].energy_by_bare_index(tuple(l * bare_label))
         return energies_all_l
 
     def _energies_2(self, subsys1, subsys2):
-        bare_label1 = np.zeros(len(self.hilbertspace))
+        bare_label1 = bc.backend.zeros(len(self.hilbertspace))
         bare_label1[self.get_subsys_index(subsys1)] = 1
-        bare_label2 = np.zeros(len(self.hilbertspace))
+        bare_label2 = bc.backend.zeros(len(self.hilbertspace))
         bare_label2[self.get_subsys_index(subsys2)] = 1
 
-        energies_all_l1_l2 = np.empty(
+        energies_all_l1_l2 = bc.backend.empty(
             self._parameters.counts
             + (subsys1.truncated_dim,)
             + (subsys2.truncated_dim,)

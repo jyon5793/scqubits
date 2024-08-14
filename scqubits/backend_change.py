@@ -103,6 +103,7 @@ class NumpyBackend(Backend):
     unravel_index = staticmethod(np.unravel_index)
     sign = staticmethod(np.sign)
     allclose = staticmethod(np.allclose)
+    ndenumerate = staticmethod(np.ndenumerate)
 
     @staticmethod
     def convert_to_array(obj_list):
@@ -110,6 +111,11 @@ class NumpyBackend(Backend):
     @staticmethod
     def eye(N, dtype=None):
         return np.eye(N, dtype=dtype)
+    
+    @staticmethod
+    def array_solve(arr, index_tuple, value):
+        arr[index_tuple] = value
+        return arr
 
 class JaxBackend(Backend):
     __name__ = 'jax'
@@ -206,6 +212,11 @@ class JaxBackend(Backend):
         indices = jax.numpy.diag_indices(min(array.shape))
         return array.at[indices].set(value)
     
+    @staticmethod
+    def array_solve(arr, index_tuple, value):
+        arr = arr.at[index_tuple].set(value)
+        return arr
+
 @custom_vjp
 def pbdv_jax(n, x):
     return pbdv(n, x)[0]

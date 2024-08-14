@@ -316,7 +316,7 @@ class SpectrumLookupMixin(MixinCompatible):
             if subtract_ground:
                 energy -= self["evals"][param_npindices + (0,)]
             return energy
-
+        #TODO
         dressed_index = backend_change.backend.asarray(dressed_index)
         energies = backend_change.backend.empty_like(dressed_index, dtype=backend_change.backend.float_)
         sliced_energies = self["evals"][param_npindices]

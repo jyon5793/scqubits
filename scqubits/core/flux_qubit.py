@@ -415,16 +415,10 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
         Cg1 = 1.0 / (2 * self.ECg1)
         Cg2 = 1.0 / (2 * self.ECg2)
 
-        if backend_change.backend.__name__ == "jax":
-            Cmat = Cmat.at[0, 0].set(CJ1 + CJ3 + Cg1)
-            Cmat = Cmat.at[1, 1].set(CJ2 + CJ3 + Cg2)
-            Cmat = Cmat.at[0, 1].set(-CJ3)
-            Cmat = Cmat.at[1, 0].set(-CJ3)
-        else:
-            Cmat[0, 0] = CJ1 + CJ3 + Cg1
-            Cmat[1, 1] = CJ2 + CJ3 + Cg2
-            Cmat[0, 1] = -CJ3
-            Cmat[1, 0] = -CJ3
+        Cmat = backend_change.backend.array_solve(Cmat, (0, 0), CJ1 + CJ3 + Cg1)
+        Cmat = backend_change.backend.array_solve(Cmat, (1, 1), CJ2 + CJ3 + Cg2)
+        Cmat = backend_change.backend.array_solve(Cmat, (0, 1), -CJ3)
+        Cmat = backend_change.backend.array_solve(Cmat, (1, 0), -CJ3)
 
         return backend_change.backend.linalg.inv(Cmat) / 2.0
 
