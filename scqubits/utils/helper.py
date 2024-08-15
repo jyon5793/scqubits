@@ -15,6 +15,6 @@ def convert_to_jax_compatible(array):
 @staticmethod
 def create_empty_array(length):
     if bc.backend.__name__ == "jax":
-        return np.empty((length,), dtype=object)  # 使用 NumPy 实现
+        return np.empty((length,), dtype=object) 
     else:
         return np.empty((length,), dtype=object)
