@@ -578,7 +578,7 @@ class NamedSlotsNdarray(backend_change.backend.ndarray, Serializable):
         else:
             list_data = io_data.objects["input_array"]
             nested_list_shape = utils.get_shape(list_data)
-            input_array = backend_change.backend.empty(nested_list_shape, dtype=object)
+            input_array = np.empty(nested_list_shape, dtype=object)
             input_array[:] = list_data
         values_by_name = io_data.objects["values_by_name"]
         return NamedSlotsNdarray(input_array, values_by_name)

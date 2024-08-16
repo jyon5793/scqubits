@@ -162,7 +162,6 @@ class JaxBackend(Backend):
     transpose = staticmethod(jax.numpy.transpose)
     complex_ = staticmethod(jax.numpy.complex_)
     float32 = staticmethod(jax.numpy.float32)
-    float_ = staticmethod(jax.numpy.float_)
     int_ = staticmethod(jax.numpy.int_)
     integer = staticmethod(jax.numpy.integer)
     index_exp = staticmethod(jax.numpy.index_exp)

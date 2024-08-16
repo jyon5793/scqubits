@@ -33,10 +33,8 @@ def annihilation_sparse(dimension: int) -> csc_matrix:
     """Returns a matrix of size dimension x dimension representing the annihilation
     operator in the format of a scipy sparse.csc_matrix.
     """
-    if backend_change.backend.__name__ == "jax":
-        offdiag_elements = backend_change.backend.sqrt(backend_change.backend.arange(dimension))
-    else:
-        offdiag_elements = backend_change.backend.sqrt(range(dimension))
+
+    offdiag_elements = backend_change.backend.sqrt(backend_change.backend.arange(dimension))
         
     return sp.sparse.dia_matrix(
         (offdiag_elements, [1]), shape=(dimension, dimension)

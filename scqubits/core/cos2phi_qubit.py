@@ -17,6 +17,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import scipy as sp
+import jax
 
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -1980,3 +1981,24 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
             * (self.n_theta_operator() - self.ng - self.n_zeta_operator())
         )
         return self.process_op(native_op=native, energy_esys=energy_esys)
+
+    def gradient_track_d_hamiltonian_d_EJ(self):
+        grad_fn = jax.grad(self.d_hamiltonian_d_EJ)
+        gradients = grad_fn(self.EJ)
+        return gradients
+    
+    def gradient_track_d_hamiltonian_d_ng(self):
+        grad_fn = jax.grad(self.d_hamiltonian_d_EJ)
+        gradients = grad_fn(self.ng)
+        return gradients
+    
+    def gradient_track_d_hamiltonian_d_flux(self):
+        grad_fn = jax.grad(self.d_hamiltonian_d_flux)
+        gradients = grad_fn(self.flux)
+        return gradients
+    
+    def gradient_track_evals_calc(self):
+        grad_fn = jax.grad(self._evals_calc)
+        # hamiltonian_mat = self.hamiltonian()
+        gradients = grad_fn(self.EJ, self.ng, self.flux, self.dL, self.dEJ, self.dCJ)
+        return gradients
