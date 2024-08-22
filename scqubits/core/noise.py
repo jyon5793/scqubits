@@ -28,12 +28,14 @@ from matplotlib.offsetbox import AnchoredText
 from numpy import ndarray
 from scipy.sparse import csc_matrix
 from sympy import csc
+import scipy.constants as sp_constants
 
 import scqubits.core.units as units
 import scqubits.settings as settings
 import scqubits.utils.plotting as plotting
 from scqubits.utils.misc import Qobj_to_scipy_csc_matrix
 import scqubits.backend_change as backend_change
+from scqubits.backend_change import backend_dependent_vjp
 
 from scqubits.core.storage import SpectrumData
 from scqubits.settings import matplotlib_settings
@@ -43,7 +45,7 @@ from scqubits.settings import matplotlib_settings
 # filtering does not seem to work in jupyter.
 _t1_default_warning_given_flag = False
 
-
+@backend_dependent_vjp
 def calc_therm_ratio(
     omega: float, T: float, omega_in_standard_units: bool = False
 ) -> float:
@@ -69,6 +71,21 @@ def calc_therm_ratio(
     omega = units.to_standard_units(omega) if not omega_in_standard_units else omega
     return (sp.constants.hbar * omega) / (sp.constants.k * T)
 
+def calc_therm_ratio_fwd(omega, T, omega_in_standard_units=False):
+    if not omega_in_standard_units:
+        omega = units.to_standard_units(omega)  # 将单位转换为标准单位
+    result = (sp_constants.hbar * omega) / (sp_constants.k * T)
+    return result, (omega, T, omega_in_standard_units)
+
+def calc_therm_ratio_bwd(residuals, grad_output):
+    omega, T, omega_in_standard_units = residuals
+    grad_omega = grad_output * (sp_constants.hbar / (sp_constants.k * T))
+    grad_T = grad_output * (-sp_constants.hbar * omega / (sp_constants.k * T**2))
+    if not omega_in_standard_units:
+        grad_omega *= units.to_standard_units_derivative(omega)  # 单位转换的导数
+    return grad_omega, grad_T, None  # omega_in_standard_units 不需要梯度
+
+calc_therm_ratio = backend_change.backend.bind_custom_vjp(calc_therm_ratio_fwd, calc_therm_ratio_bwd, calc_therm_ratio)
 
 def convert_eV_to_Hz(val: float) -> float:
     r"""
