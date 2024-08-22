@@ -104,6 +104,7 @@ class NumpyBackend(Backend):
     sign = staticmethod(np.sign)
     allclose = staticmethod(np.allclose)
     ndenumerate = staticmethod(np.ndenumerate)
+    stack = staticmethod(np.stack)
 
     @staticmethod
     def convert_to_array(obj_list):
@@ -116,6 +117,10 @@ class NumpyBackend(Backend):
     def array_solve(arr, index_tuple, value):
         arr[index_tuple] = value
         return arr
+    
+    @staticmethod
+    def bind_custom_vjp(fwd_func, bwd_func, func):
+        return func
 
 class JaxBackend(Backend):
     __name__ = 'jax'
@@ -192,7 +197,8 @@ class JaxBackend(Backend):
     unravel_index = staticmethod(jax.numpy.unravel_index)
     sign = staticmethod(jax.numpy.sign)
     allclose = staticmethod(jax.numpy.allclose)
-    pbdv = staticmethod(jax.numpy)
+    stack = staticmethod(jax.numpy.stack)
+    custom_vjp = staticmethod(jax.custom_jvp)
 
     scipy = staticmethod(jax.scipy)
     grad = staticmethod(jax.grad)
@@ -215,6 +221,13 @@ class JaxBackend(Backend):
     def array_solve(arr, index_tuple, value):
         arr = arr.at[index_tuple].set(value)
         return arr
+    
+    @staticmethod
+    def bind_custom_vjp(fwd_func, bwd_func, func):
+        custom_vjp_func = custom_vjp(func)
+        custom_vjp_func.defvjp(fwd_func, bwd_func)
+        return custom_vjp_func
+
 
 @custom_vjp
 def pbdv_jax(n, x):
@@ -234,6 +247,12 @@ pbdv_jax.defvjp(pbdv_jax_fwd, pbdv_jax_bwd)
 
 def initialize_jax_backend():
     JaxBackend.pbdv_jax = staticmethod(pbdv_jax)
+
+def backend_dependent_vjp(fn):
+    if backend.__name__ == 'jax':
+        return jax.custom_vjp(fn)
+    else:
+        return fn
 
 
 backend = NumpyBackend()

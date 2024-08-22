@@ -21,6 +21,7 @@ import scipy as sp
 from numpy import ndarray
 from qutip import Qobj
 from scipy.sparse import csc_matrix, dia_matrix, csr_matrix
+from jax import custom_vjp
 
 import scqubits.settings as settings
 
@@ -35,21 +36,49 @@ from scqubits import backend_change as bc
 
 
 def eigsh_safe(*args, **kwargs):
-    """Wrapper method for `scipy.sparse.linalg.eigsh` which ensures the following.
+    from scqubits.backend_change import backend_dependent_vjp
 
-    1. Always use the same "random" starting vector v0. Otherwise, results show
-       random behavior (small deviations between different runs, problem for pytests)
-    2. Test for degenerate eigenvalues. If there are any, need to orthogonalize the
-        eigenvectors properly."""
-    mat_size = args[0].shape[0]
-    kwargs["v0"] = settings.RANDOM_ARRAY[:mat_size]
+    @backend_dependent_vjp
+    def eigsh_safe_impl(*args, **kwargs):
+        mat_size = args[0].shape[0]
+        kwargs["v0"] = settings.RANDOM_ARRAY[:mat_size]
+        return_eigenvectors = kwargs.get("return_eigenvectors", True)
+    
+        if return_eigenvectors:
+            evals, evecs = sp.sparse.linalg.eigsh(*args, **kwargs)
+            if has_degeneracy(evals):
+                evecs, _ = sp.linalg.qr(evecs, mode="economic")
+            return evals, evecs
+        else:
+            evals = sp.sparse.linalg.eigsh(*args, **kwargs)
+            return evals
 
-    if kwargs.get("return_eigenvectors"):
-        evals, evecs = sp.sparse.linalg.eigsh(*args, **kwargs)
-        if has_degeneracy(evals):
-            evecs, _ = sp.linalg.qr(evecs, mode="economic")
-        return evals, evecs
-    return sp.sparse.linalg.eigsh(*args, **kwargs)
+    return eigsh_safe_impl(*args, **kwargs)
+
+# 前向计算
+def eigsh_safe_fwd(A, k=6, return_eigenvectors=True, **kwargs):
+    evals, evecs = eigsh_safe(A, k=k, return_eigenvectors=return_eigenvectors, **kwargs)
+    return (evals, evecs), (A, evals, evecs)
+
+# 反向传播
+def eigsh_safe_bwd(residuals, g):
+    A, evals, evecs = residuals
+    grad_evals, grad_evecs = g
+    
+    grad_A = bc.backend.zeros_like(A)
+    
+    # 实现梯度的计算逻辑
+    for i in range(len(evals)):
+        for j in range(len(evals)):
+            if i != j:
+                grad_A += (
+                    grad_evecs[:, i].dot(evecs[:, j])
+                    / (evals[i] - evals[j])
+                    * (bc.backend.outer(evecs[:, j], evecs[:, i]) + bc.backend.outer(evecs[:, i], evecs[:, j]))
+                )
+    
+    return (grad_A,)
+eigsh_safe = bc.backend.bind_custom_vjp(eigsh_safe_fwd, eigsh_safe_bwd,eigsh_safe)
 
 
 def has_degeneracy(evals: ndarray) -> bool:
@@ -73,10 +102,34 @@ def order_eigensystem(
     evecs:
         array containing eigenvectors; evecs[:, 0] is the first eigenvector etc.
     """
-    ordered_evals_indices = evals.argsort()  # sort manually
-    evals[:] = evals[ordered_evals_indices]
-    evecs[:] = evecs[:, ordered_evals_indices]
-    return evals, evecs
+    from scqubits.backend_change import backend_dependent_vjp
+    @backend_dependent_vjp
+    def order_eigensystem_impl(evals: bc.backend.ndarray, evecs: bc.backend.ndarray)-> Tuple[bc.backend.ndarray, bc.backend.ndarray]:
+        ordered_evals_indices = evals.argsort()  # sort manually
+        evals[:] = evals[ordered_evals_indices]
+        evecs[:] = evecs[:, ordered_evals_indices]
+        return evals, evecs
+    return order_eigensystem_impl(evals,evecs)
+
+# 前向计算
+def order_eigensystem_fwd(evals, evecs):
+    ordered_evals_indices = evals.argsort()
+    sorted_evals = evals[ordered_evals_indices]
+    sorted_evecs = evecs[:, ordered_evals_indices]
+    return (sorted_evals, sorted_evecs), ordered_evals_indices
+
+# 反向传播
+def order_eigensystem_bwd(ordered_evals_indices, g):
+    grad_evals, grad_evecs = g
+    
+    grad_evals_out = bc.backend.zeros_like(grad_evals)
+    grad_evecs_out = bc.backend.zeros_like(grad_evecs)
+    
+    grad_evals_out = grad_evals[ordered_evals_indices.argsort()]
+    grad_evecs_out = grad_evecs[:, ordered_evals_indices.argsort()]
+    
+    return grad_evals_out, grad_evecs_out
+order_eigensystem = bc.backend.bind_custom_vjp(order_eigensystem_fwd, order_eigensystem_bwd, order_eigensystem)
 
 
 def extract_phase(
@@ -94,13 +147,34 @@ def extract_phase(
     position:
         position where the phase is extracted (default value = None)
     """
-    if position is None:
-        halfway_position = (complex_array.shape[0]) // 2
-        flattened_position = bc.backend.argmax(
-            bc.backend.abs(complex_array[:halfway_position])
-        )  # extract phase from element with largest amplitude modulus
-        position = bc.backend.unravel_index(flattened_position, complex_array.shape)
-    return cmath.phase(complex_array[position])
+    from scqubits.backend_change import backend_dependent_vjp
+    @backend_dependent_vjp
+    def extract_phase_impl(complex_array: bc.backend.ndarray, position: Optional[Tuple[int, ...]] = None) -> float:
+        if position is None:
+            halfway_position = (complex_array.shape[0]) // 2
+            flattened_position = bc.backend.argmax(
+                bc.backend.abs(complex_array[:halfway_position])
+            )  # extract phase from element with largest amplitude modulus
+            position = bc.backend.unravel_index(flattened_position, complex_array.shape)
+        return cmath.phase(complex_array[position])
+    return extract_phase_impl(complex_array,position)
+
+# 前向计算
+def extract_phase_fwd(complex_array, position=None):
+    phase = extract_phase(complex_array, position)
+    return phase, (complex_array, position, phase)
+
+# 反向传播
+def extract_phase_bwd(residuals, g):
+    complex_array, position, phase = residuals
+    """
+    由于相位在 −π 和 π 之间是环绕的，这意味着在某些点上，输入的微小变化可能导致输出相位发生大幅度跳跃。这种跳跃导致相位在这些点上不可微
+    """
+    grad_array = bc.backend.zeros_like(complex_array)
+    return (grad_array,)
+
+# 绑定前向和反向传播
+extract_phase= bc.backend.bind_custom_vjp(extract_phase_fwd, extract_phase_bwd,extract_phase)
 
 
 def standardize_phases(complex_array: bc.backend.ndarray) -> bc.backend.ndarray:
@@ -215,9 +289,33 @@ def closest_dressed_energy(
     -------
         element from `dressed_energy_vals` closest to `bare_energy`
     """
-    index = (bc.backend.abs(dressed_energy_vals - bare_energy)).argmin()
-    return dressed_energy_vals[index]
+    from scqubits.backend_change import backend_dependent_vjp
+    @backend_dependent_vjp
+    def closest_dressed_energy_impl(bare_energy, dressed_energy_vals):
+        index = (bc.backend.abs(dressed_energy_vals - bare_energy)).argmin()
+        return dressed_energy_vals[index]
+    return closest_dressed_energy_impl(bare_energy, dressed_energy_vals)
 
+def closest_dressed_energy_fwd(bare_energy, dressed_energy_vals):
+    closest_energy = closest_dressed_energy(bare_energy, dressed_energy_vals)
+    return closest_energy, (bare_energy, dressed_energy_vals, closest_energy)
+
+# 反向传播
+def closest_dressed_energy_bwd(residuals, g):
+    bare_energy, dressed_energy_vals, closest_energy = residuals
+    
+    # 计算梯度
+    grad_bare_energy = 0.0
+    grad_dressed_energy_vals = bc.backend.zeros_like(dressed_energy_vals)
+    
+    index = bc.backend.argmin(bc.backend.abs(dressed_energy_vals - bare_energy))
+    
+    # 传播梯度
+    grad_dressed_energy_vals = grad_dressed_energy_vals.at[index].set(g)
+    
+    return grad_bare_energy, grad_dressed_energy_vals
+
+closest_dressed_energy = bc.backend.bind_custom_vjp(closest_dressed_energy_fwd, closest_dressed_energy_bwd,closest_dressed_energy)
 
 def get_eigenstate_index_maxoverlap(
     eigenstates_qobj: "QutipEigenstates",
@@ -299,7 +397,8 @@ def convert_evecs_to_ndarray(evecs_qutip: ndarray) -> bc.backend.ndarray:
     dimension = evecs_qutip[0].shape[0]
     evecs_ndarray = bc.backend.empty((evals_count, dimension), dtype=bc.backend.complex_)
     for index, eigenstate in enumerate(evecs_qutip):
-        evecs_ndarray[index] = eigenstate.full()[:, 0]
+        # evecs_ndarray[index] = eigenstate.full()[:, 0]
+        evecs_ndarray = bc.backend.array_solve(evecs_ndarray, index, eigenstate.full()[:, 0])
     return evecs_ndarray
 
 

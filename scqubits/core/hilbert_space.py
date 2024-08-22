@@ -632,6 +632,7 @@ class HilbertSpace(
         # view when getting placed inside an outer array
         evecs_wrapped = np.empty(shape=1, dtype=object)
         evecs_wrapped[0] = evecs
+        # evecs_wrapped = backend_change.backend.stack([evecs])
 
         self._data["evals"] = NamedSlotsNdarray(backend_change.backend.array([evals]), dummy_params)
         self._data["evecs"] = NamedSlotsNdarray(evecs_wrapped, dummy_params)

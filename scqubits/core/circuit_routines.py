@@ -22,6 +22,7 @@ import qutip as qt
 import scipy as sp
 import sympy as sm
 import dill
+import jax.numpy as jnp
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -95,6 +96,7 @@ from scqubits.utils.spectrum_utils import (
 import scqubits.core.circuit as circuit
 from abc import ABC
 from scqubits import backend_change as bc
+from scqubits.backend_change import backend_dependent_vjp
 from scqubits.utils.helper import convert_to_jax_compatible, create_empty_array
 
 
@@ -184,6 +186,8 @@ class CircuitRoutines(ABC):
             return False
         return True
 
+    
+
     def _diagonalize_purely_harmonic_hamiltonian(self, return_osc_dict: bool = False):
         """
         Method used to decouple harmonic oscillators in purely harmonic Hamiltonians.
@@ -221,7 +225,7 @@ class CircuitRoutines(ABC):
                         f"θ{ext_var_indices[i]}*θ{ext_var_indices[j]}"
                     )
         # diagonalizing the matrices
-        normal_mode_freqs_sq, eig_vecs = bc.backend.linalg.eig(8 * EC @ EL)
+        normal_mode_freqs_sq, eig_vecs = diagonalize_matrix(8 * EC @ EL)
 
         self.normal_mode_freqs = normal_mode_freqs_sq**0.5
 
@@ -1683,9 +1687,7 @@ class CircuitRoutines(ABC):
             )
             if "θ" in var_sym.name:
                 diagonal = bc.backend.exp(phi_grid.make_linspace() * prefactor * 1j)
-                exp_i_theta = sparse.dia_matrix(
-                    (diagonal, [0]), shape=(phi_grid.pt_count, phi_grid.pt_count)
-                ).tocsc()
+                exp_i_theta = sparse_dia_matrix(diagonal, (phi_grid.pt_count, phi_grid.pt_count))
             elif "Q" in var_sym.name:
                 exp_i_theta = sp.linalg.expm(
                     _i_d_dphi_operator(phi_grid).toarray() * prefactor * 1j
@@ -1702,7 +1704,7 @@ class CircuitRoutines(ABC):
                     self.cutoffs_dict()[var_index],
                     prefactor=(osc_length * 2**0.5) ** -1,
                 )
-            exp_i_theta = sparse.linalg.expm(exp_argument_op * prefactor * 1j)
+            exp_i_theta = custom_expm(exp_argument_op * prefactor * 1j)
 
         return self._sparsity_adaptive(exp_i_theta)
 
@@ -2423,7 +2425,7 @@ class CircuitRoutines(ABC):
         for idx, var_index in enumerate(self.var_categories["extended"]):
             cutoff = getattr(self, f"cutoff_ext_{var_index}")
             evals = (0.5 + bc.backend.arange(0, cutoff)) * self.normal_mode_freqs[idx]
-            H_osc = sp.sparse.dia_matrix(
+            H_osc = sparse_dia_matrix_with_dtype(
                 (evals, [0]), shape=(cutoff, cutoff), dtype=bc.backend.float64
             )
             operator_for_var_index.append(self._kron_operator(H_osc, var_index))
@@ -2616,7 +2618,7 @@ class CircuitRoutines(ABC):
                 which="SA",
             )
         elif self.type_of_matrices == "dense":
-            evals = sp.linalg.eigvalsh(
+            evals = custom_eigvals(
                 hamiltonian_mat, subset_by_index=[0, evals_count - 1]
             )
         return bc.backend.sort(evals)
@@ -3850,3 +3852,146 @@ class CircuitRoutines(ABC):
             if ("ng" not in symbol.name and "Φ" not in symbol.name)
             and symbol not in self.symbolic_params
         ]
+    
+
+@backend_dependent_vjp
+def diagonalize_matrix(A):
+    """Calculate eigenvalues and eigenvectors."""
+    evals, evecs = bc.backend.linalg.eig(A)
+    return evals, evecs
+
+def diagonalize_matrix_fwd(A):
+    evals, evecs = diagonalize_matrix(A)
+    return (evals, evecs), (A, evals, evecs)
+
+def diagonalize_matrix_bwd(residuals, g):
+    A, evals, evecs = residuals
+    grad_evals, grad_evecs = g
+    
+    grad_A = jnp.zeros_like(A)
+    
+    for i in range(len(evals)):
+        for j in range(len(evals)):
+            if i != j:
+                grad_A += (
+                    grad_evecs[:, i].dot(evecs[:, j])
+                    / (evals[i] - evals[j])
+                    * (bc.backend.outer(evecs[:, j], evecs[:, i]) + bc.backend.outer(evecs[:, i], evecs[:, j]))
+                )
+    
+    return (grad_A,)
+diagonalize_matrix = bc.backend.bind_custom_vjp(diagonalize_matrix_fwd,diagonalize_matrix_bwd,diagonalize_matrix)
+
+@backend_dependent_vjp
+def sparse_dia_matrix(diagonal, shape):
+    matrix = sparse.dia_matrix((diagonal, [0]), shape=shape).tocsc()
+    return matrix
+
+def sparse_dia_matrix_fwd(diagonal, shape):
+    matrix = sparse_dia_matrix(diagonal, shape)
+    return matrix, (diagonal, shape)
+
+def sparse_dia_matrix_bwd(residuals, grad_output):
+    diagonal, shape = residuals
+    # 反向传播时计算 diagonal 的梯度
+    grad_diagonal = jnp.zeros_like(diagonal)
+    
+    # 仅计算梯度影响稀疏矩阵的对角线元素
+    if isinstance(grad_output, sparse.csc_matrix):
+        grad_output_dense = grad_output.diagonal()
+    else:
+        grad_output_dense = grad_output
+    
+    # 假设反向传播仅对 diagonal 有影响
+    grad_diagonal = grad_output_dense
+
+    return grad_diagonal, None
+
+sparse_dia_matrix= bc.backend.bind_custom_vjp(sparse_dia_matrix_fwd, sparse_dia_matrix_bwd, sparse_dia_matrix)
+
+@backend_dependent_vjp
+def custom_expm(matrix):
+    return custom_expm_fwd(matrix)
+
+def custom_expm_fwd(matrix):
+    if isinstance(matrix, sparse.csc_matrix):
+        exp_matrix = sp.sparse.linalg.expm(matrix)
+    else:
+        exp_matrix = sp.linalg.expm(matrix)
+    return exp_matrix
+
+def custom_expm_bwd(residuals, grad_output):
+    matrix = residuals
+    if isinstance(grad_output, sparse.csc_matrix):
+        grad_matrix = grad_output.toarray() 
+    else:
+        grad_matrix = grad_output
+
+    def frechet_derivative(A, E):
+        L = sp.expm_frechet(A, E, compute_expm=False)
+        return L
+    
+    grad_result = frechet_derivative(matrix, grad_matrix)
+    
+    return (grad_result,)
+
+custom_expm = bc.backend.bind_custom_vjp(custom_expm_fwd, custom_expm_bwd, custom_expm)
+
+@backend_dependent_vjp
+def sparse_dia_matrix_with_dtype(evals, shape, dtype):
+    return custom_dia_matrix_with_dtype_fwd(evals, shape, dtype)[0]
+
+def custom_dia_matrix_with_dtype_fwd(evals, shape, dtype):
+    array_part, offsets = evals
+    array_part = np.asarray(array_part)
+    H_osc = sparse.dia_matrix((array_part, offsets), shape=shape, dtype=dtype)
+    return H_osc, evals
+
+def custom_dia_matrix_with_dtype_bwd(residuals, grad_output):
+    evals = residuals
+    grad_evals = grad_output.diagonal()
+    return (grad_evals, None, None)
+
+sparse_dia_matrix_with_dtype= bc.backend.bind_custom_vjp(custom_dia_matrix_with_dtype_fwd, custom_dia_matrix_with_dtype_bwd, sparse_dia_matrix_with_dtype)
+
+
+@backend_dependent_vjp
+def custom_eigvals(matrix, subset_by_index=None):
+    # 正向计算
+    evals = jnp.linalg.eigvalsh(matrix)
+    
+    if subset_by_index is not None:
+        start, end = subset_by_index
+        evals = evals[start:end + 1]
+    
+    return evals
+
+def custom_eigvals_fwd(matrix, subset_by_index=None):
+    evals = custom_eigvals(matrix, subset_by_index)
+    return evals, (matrix, evals, subset_by_index)
+
+def custom_eigvals_bwd(residuals, grad_evals):
+    matrix, evals, subset_by_index = residuals
+    
+    # 计算梯度
+    grad_matrix = jnp.zeros_like(matrix)
+    
+    if subset_by_index is not None:
+        start, end = subset_by_index
+        grad_evals_full = jnp.zeros_like(evals)
+        grad_evals_full = grad_evals_full.at[start:end + 1].set(grad_evals)
+    else:
+        grad_evals_full = grad_evals
+    
+    for i in range(len(evals)):
+        for j in range(len(evals)):
+            if i != j:
+                grad_matrix += (
+                    (grad_evals_full[i] - grad_evals_full[j])
+                    / (evals[i] - evals[j])
+                    * (jnp.outer(evals[:, i], evals[:, j]) + jnp.outer(evals[:, j], evals[:, i]))
+                )
+    
+    return grad_matrix,
+
+custom_eigvals = bc.backend.bind_custom_vjp(custom_eigvals, custom_eigvals_fwd, custom_eigvals_bwd)
