@@ -41,6 +41,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy import ndarray
 from scipy.sparse import csc_matrix, dia_matrix
+from jax.numpy import ndarray as jax_ndarray
 
 import scqubits.core.constants as constants
 import scqubits.core.descriptors as descriptors
@@ -63,6 +64,7 @@ from scqubits.utils.spectrum_utils import (
     standardize_sign,
 )
 from scqubits import backend_change
+from scqubits.backend_change import backend_dependent_vjp
 
 if IN_IPYTHON:
     from tqdm.notebook import tqdm
@@ -458,6 +460,7 @@ class QubitBaseClass(QuantumSystem, ABC):
             specdata.filewrite(filename)
         return specdata if return_spectrumdata else (evals, evecs)
 
+    @backend_dependent_vjp
     def process_op(
         self,
         native_op: Union[ndarray, csc_matrix],
@@ -490,7 +493,38 @@ class QubitBaseClass(QuantumSystem, ABC):
             esys = energy_esys
         evectors = esys[1][:, : self.truncated_dim]
         return get_matrixelement_table(native_op, evectors)
+    
+    def process_op_fwd(
+        self,
+        native_op: Union[np.ndarray, csc_matrix],
+        energy_esys: Union[bool, Tuple[np.ndarray, np.ndarray]] = False
+    ):
+        result = self.process_op(native_op, energy_esys)
+        return result, (native_op, energy_esys, result)
 
+    def process_op_bwd(residuals, grad_output):
+        native_op, energy_esys, result = residuals
+        
+        if isinstance(native_op, csc_matrix):
+            # 将 csc_matrix 转为稠密矩阵
+            native_op_dense = native_op.toarray()
+            grad_native_op = backend_change.backend.dot(grad_output, native_op_dense.T)
+        else:
+            grad_native_op = backend_change.backend.dot(grad_output, native_op.T)
+        
+        if isinstance(energy_esys, tuple):
+            evals, evectors = energy_esys
+            grad_evals = backend_change.backend.dot(grad_output, evectors)
+            grad_evectors = backend_change.backend.dot(evals.T, grad_output)
+            grad_energy_esys = (grad_evals, grad_evectors)
+        elif isinstance(energy_esys, bool):
+            grad_energy_esys = None  
+        
+        return grad_native_op, grad_energy_esys
+    
+    process_op = backend_change.backend.bind_custom_vjp(process_op_fwd,process_op_bwd,process_op)
+
+    @backend_dependent_vjp
     def process_hamiltonian(
         self,
         native_hamiltonian: Union[ndarray, csc_matrix],
@@ -521,16 +555,48 @@ class QubitBaseClass(QuantumSystem, ABC):
         else:
             esys = energy_esys
         evals = esys[0][: self.truncated_dim]
-        if isinstance(native_hamiltonian, ndarray):
+        if isinstance(native_hamiltonian, ndarray) or isinstance(native_hamiltonian,jax_ndarray):
             return backend_change.backend.diag(evals)
         return dia_matrix(evals).tocsc()
+    
+    def process_hamiltonian_fwd(
+        self,
+        native_hamiltonian: Union[np.ndarray, csc_matrix],
+        energy_esys: Union[bool, Tuple[np.ndarray, np.ndarray]] = False
+    ):
+        result = self.process_hamiltonian(native_hamiltonian, energy_esys)
+        return result, (native_hamiltonian, energy_esys, result)
 
-    def anharmonicity(self) -> float:
+    def process_hamiltonian_bwd(residuals, grad_output):
+        native_hamiltonian, energy_esys, result = residuals
+        
+        # 计算 native_hamiltonian 的梯度
+        if isinstance(native_hamiltonian, csc_matrix):
+            native_hamiltonian_dense = native_hamiltonian.toarray()
+            grad_native_hamiltonian = backend_change.backend.dot(grad_output, native_hamiltonian_dense.T)
+            grad_native_hamiltonian = csc_matrix(grad_native_hamiltonian)  # 可选，根据需要转回稀疏矩阵
+        else:
+            grad_native_hamiltonian = backend_change.backend.dot(grad_output, native_hamiltonian.T)
+        
+        # 计算 energy_esys 的梯度
+        if isinstance(energy_esys, tuple):
+            evals, evectors = energy_esys
+            grad_evals = backend_change.backend.dot(grad_output, evectors)
+            grad_evectors = backend_change.backend.dot(evals.T, grad_output)
+            grad_energy_esys = (grad_evals, grad_evectors)
+        elif isinstance(energy_esys, bool):
+            grad_energy_esys = None 
+
+        return grad_native_hamiltonian, grad_energy_esys
+
+    process_hamiltonian = backend_change.backend.bind_custom_vjp(process_hamiltonian_fwd, process_hamiltonian_bwd,process_hamiltonian)
+
+    def anharmonicity(self) -> backend_change.backend.float_:
         """Returns the qubit's anharmonicity, (E_2 - E_1) - (E_1 - E_0)."""
         energies = self.eigenvals(evals_count=3)
         return energies[2] - 2 * energies[1] + energies[0]
 
-    def E01(self) -> float:
+    def E01(self) -> backend_change.backend.float_:
         """Returns the qubit's fundamental energy splitting, E_1 - E_0."""
         energies = self.eigenvals(evals_count=2)
         return energies[1] - energies[0]

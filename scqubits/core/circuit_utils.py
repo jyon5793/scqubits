@@ -19,7 +19,8 @@ import sympy as sm
 import qutip as qt
 from numpy import ndarray
 from scipy import sparse
-from scipy.sparse import csc_matrix
+from scipy.sparse import csc_matrix,dia_matrix
+import jax
 
 from scqubits.core import discretization as discretization
 from scqubits.utils.misc import (
@@ -30,6 +31,7 @@ from scqubits.utils.misc import (
 )
 from scqubits.core import circuit_input
 from scqubits import backend_change as bc
+from scqubits.backend_change import backend_dependent_vjp
 
 if TYPE_CHECKING:
     from scqubits.core.circuit import Subsystem
@@ -60,8 +62,8 @@ def _junction_order(branch_type: str) -> int:
     else:
         return 1
 
-
-def sawtooth_operator(x: Union[ndarray, csc_matrix]):
+@backend_dependent_vjp
+def sawtooth_operator(x: Union[bc.backend.ndarray, csc_matrix]):
     """
     Returns the operator evaluated using applying the sawtooth_potential function on the
     diagonal elements of the operator x
@@ -69,13 +71,37 @@ def sawtooth_operator(x: Union[ndarray, csc_matrix]):
     Args:
         x (Union[ndarray, csc_matrix]): argument of the sawtooth operator in the Hamiltonian
     """
-    diagonal_elements = sawtooth_potential(x.diagonal())
+    if isinstance(x, bc.backend.ndarray):
+        diagonal_elements = sawtooth_potential(bc.backend.diag(x))
+        operator = dia_matrix((diagonal_elements, 0), shape=(len(diagonal_elements), len(diagonal_elements)))
+        return csc_matrix(operator.tocsc().toarray())
+    elif isinstance(x, csc_matrix):
+        diagonal_elements = sawtooth_potential(x.diagonal())
+        operator = dia_matrix((diagonal_elements, 0), shape=(len(diagonal_elements), len(diagonal_elements)))
+        return csc_matrix(operator.tocsc().toarray())
+    else:
+        raise TypeError("Input must be either a jnp.ndarray or a csc_matrix.")
 
-    operator = sp.sparse.dia_matrix(
-        (diagonal_elements, 0), shape=(len(diagonal_elements), len(diagonal_elements))
-    )
-    return operator.tocsc()
+def sawtooth_operator_fwd(x: Union[bc.backend.ndarray, csc_matrix]):
+    result = sawtooth_operator(x)
+    return result, (x, result)
 
+def sawtooth_operator_bwd(residuals, grad_output):
+    x, result = residuals
+    diag_grad = grad_output.diagonal()
+    
+    if isinstance(x, bc.backend.ndarray.ndarray):
+        grad_diag = jax.grad(sawtooth_potential)(bc.backend.ndarray.diag(x)) * diag_grad
+        grad_matrix = dia_matrix((grad_diag, 0), shape=x.shape)
+        return csc_matrix(grad_matrix.tocsc().toarray()).toarray()
+    elif isinstance(x, csc_matrix):
+        grad_diag = jax.grad(sawtooth_potential)(x.diagonal()) * diag_grad
+        grad_matrix = dia_matrix((grad_diag, 0), shape=x.shape)
+        return csc_matrix(grad_matrix.tocsc().toarray())
+    else:
+        raise TypeError("Input must be either a jnp.ndarray or a csc_matrix.")
+    
+sawtooth_operator = bc.backend.bind_custom_vjp(sawtooth_operator_fwd, sawtooth_operator_bwd, sawtooth_operator)
 
 # def sawtooth_potential(x: float) -> float:
 #     """
