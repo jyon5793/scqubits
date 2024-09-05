@@ -10,34 +10,34 @@ from scipy.sparse import csc_matrix
 import jax
 import sympy as sm
 
-def test_identity_wrap_for_hd_jax():
-    # 切换到 JAX 后端
-    backend_change.set_backend('jax')
+# def test_identity_wrap_for_hd_jax():
+#     # 切换到 JAX 后端
+#     backend_change.set_backend('jax')
 
-    # 示例输入数据
-    jax_array = jnp.array([[1.0, 2.0], [3.0, 4.0]])  # 用于测试的 JAX 数组
-    sparse_matrix = csc_matrix(jax_array)  # 稀疏矩阵作为输入
-    child_instance = "subsystem_example"  # 模拟一个子系统实例
-    bare_esys = None  # 测试时可以选择不提供
+#     # 示例输入数据
+#     jax_array = jnp.array([[1.0, 2.0], [3.0, 4.0]])  # 用于测试的 JAX 数组
+#     sparse_matrix = csc_matrix(jax_array)  # 稀疏矩阵作为输入
+#     child_instance = "subsystem_example"  # 模拟一个子系统实例
+#     bare_esys = None  # 测试时可以选择不提供
     
-    # 创建 CircuitRoutines 实例
-    circuit_routines_instance = CircuitRoutines()
+#     # 创建 CircuitRoutines 实例
+#     circuit_routines_instance = CircuitRoutines()
     
-    # 手动设置缺失的属性
-    object.__setattr__(circuit_routines_instance, "_frozen", False)
-    circuit_routines_instance.hierarchical_diagonalization = False  # 假设为 False
-    circuit_routines_instance.subsystems = []  # 假设 subsystems 是空的
+#     # 手动设置缺失的属性
+#     object.__setattr__(circuit_routines_instance, "_frozen", False)
+#     circuit_routines_instance.hierarchical_diagonalization = False  # 假设为 False
+#     circuit_routines_instance.subsystems = []  # 假设 subsystems 是空的
 
-    # 前向传播测试
-    result = circuit_routines_instance.identity_wrap_for_hd(sparse_matrix, child_instance, bare_esys)
-    print("Forward result:", result)
+#     # 前向传播测试
+#     result = circuit_routines_instance.identity_wrap_for_hd(sparse_matrix, child_instance, bare_esys)
+#     print("Forward result:", result)
 
-    # 定义目标函数，测试反向传播
-    def func_to_differentiate(operator):
-        return jnp.sum(circuit_routines_instance.identity_wrap_for_hd(operator, child_instance, bare_esys).full())
+#     # 定义目标函数，测试反向传播
+#     def func_to_differentiate(operator):
+#         return jnp.sum(circuit_routines_instance.identity_wrap_for_hd(operator, child_instance, bare_esys).full())
 
-    # 计算梯度
-    grad_func = jax.grad(func_to_differentiate)
+#     # 计算梯度
+#     grad_func = jax.grad(func_to_differentiate)
     # grad_result = grad_func(sparse_matrix)
     
     # print("Gradient result:", grad_result)
@@ -65,12 +65,12 @@ def test_identity_wrap_for_hd_jax():
 #     bare_esys = None  # 测试时可以选择不提供
     
     # 创建 CircuitRoutines 实例
-    circuit_routines_instance = CircuitRoutines()
+    # circuit_routines_instance = CircuitRoutines()
     
-    # 手动设置缺失的属性
-    object.__setattr__(circuit_routines_instance, "_frozen", False)
-    circuit_routines_instance.hierarchical_diagonalization = False  # 假设为 False
-    circuit_routines_instance.subsystems = []  # 假设 subsystems 是空的
+    # # 手动设置缺失的属性
+    # object.__setattr__(circuit_routines_instance, "_frozen", False)
+    # circuit_routines_instance.hierarchical_diagonalization = False  # 假设为 False
+    # circuit_routines_instance.subsystems = []  # 假设 subsystems 是空的
 #     # 调用自定义的函数，传入具体数值
 #     result = circuit_routines_instance._constants_in_subsys(H_sys, constants_expr)
     
@@ -150,6 +150,8 @@ def init_object():
     circuit_routines_instance.hierarchical_diagonalization = False  # 假设为 False
     circuit_routines_instance.subsystems = []  # 假设 subsystems 是空的
     circuit_routines_instance.var_categories = {"extended": [1, 2]}
+    circuit_routines_instance._user_changed_parameter  = False
+    circuit_routines_instance.is_purely_harmonic = False
     return circuit_routines_instance
 
 def csc_matrix_test():
@@ -166,15 +168,15 @@ def csc_matrix_test():
     # 输出梯度
     print("Gradient of the Hamiltonian matrix:")
     print(grad_matrix)
-    assert(False)
+
 
 def csc_matrix_test2():
     circuit_routines_instance = init_object()
-    def jax_test_function():
+    def jax_test_function(transformation_matrix):
         return circuit_routines_instance.hamiltonian()
-
+    transformation_matrix = jnp.array([[1, 0.5], [-0.5, 1]])
     # 计算梯度
-    grad_matrix = jax.grad(jax_test_function)()
+    grad_matrix = jax.grad(jax_test_function)(transformation_matrix)
 
     # 输出梯度
     print("Gradient of the Hamiltonian matrix:")
@@ -184,3 +186,6 @@ def csc_matrix_test2():
     H_transformed = circuit_routines_instance.hamiltonian()
     print("Hamiltonian:")
     print(H_transformed)
+
+csc_matrix_test2()
+csc_matrix_test()
