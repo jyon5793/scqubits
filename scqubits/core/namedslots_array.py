@@ -501,6 +501,20 @@ class NamedSlotsNdarray(backend_change.backend.ndarray, Serializable):
 
     parameters: Parameters
 
+    # def __new__(
+    #     cls, input_array: backend_change.backend.ndarray, values_by_name: Dict[str, ndarray]
+    # ) -> "NamedSlotsNdarray":
+    #     implied_shape = tuple(len(values) for values in values_by_name.values())
+    #     if input_array.shape[0 : len(values_by_name)] != implied_shape:
+    #         raise ValueError(
+    #             "Given input array {} with shape {} not compatible with "
+    #             "provided dict calling for shape {}. values_by_name: {}".format(
+    #                 input_array, input_array.shape, implied_shape, values_by_name
+    #             )
+    #         )
+    #     obj = backend_change.backend.asarray(input_array).view(cls)
+    #     obj._parameters = Parameters(values_by_name)
+    #     return obj
     def __new__(
         cls, input_array: backend_change.backend.ndarray, values_by_name: Dict[str, ndarray]
     ) -> "NamedSlotsNdarray":
@@ -512,7 +526,13 @@ class NamedSlotsNdarray(backend_change.backend.ndarray, Serializable):
                     input_array, input_array.shape, implied_shape, values_by_name
                 )
             )
-        obj = backend_change.backend.asarray(input_array).view(cls)
+        # 手动创建一个新的 NamedSlotsNdarray 对象
+        obj = super(NamedSlotsNdarray, cls).__new__(cls, input_array.shape, dtype=input_array.dtype)
+
+        # 复制数据到新的对象
+        np.copyto(obj, input_array)
+
+        # 设置自定义属性
         obj._parameters = Parameters(values_by_name)
         return obj
 

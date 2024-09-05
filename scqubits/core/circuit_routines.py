@@ -30,6 +30,7 @@ from numpy import ndarray
 from scipy import sparse
 from scipy.sparse import csc_matrix
 from sympy import latex
+from functools import partial
 
 try:
     from IPython.display import display, Latex
@@ -267,6 +268,7 @@ class CircuitRoutines(ABC):
             }
             return osc_dict
 
+    @backend_dependent_vjp
     def _transform_hamiltonian(
         self,
         hamiltonian: sm.Expr,
@@ -301,6 +303,26 @@ class CircuitRoutines(ABC):
             )
 
         return hamiltonian
+
+    # 前向传播
+    def _transform_hamiltonian_fwd(self,hamiltonian, transformation_matrix, return_transformed_exprs=False):
+        result = self._transform_hamiltonian(hamiltonian, transformation_matrix, return_transformed_exprs)
+
+        # 使用 sympy.lambdify 将符号表达式转换为可计算的数值形式
+        Q1, Q2, θ1, θ2 = sm.symbols('Q1 Q2 θ1 θ2')
+        hamiltonian_lambdified = sm.lambdify([Q1, Q2, θ1, θ2], hamiltonian, modules="numpy")
+
+        return result, (hamiltonian_lambdified, transformation_matrix)
+
+    # 反向传播
+    def _transform_hamiltonian_bwd(residuals, g):
+        hamiltonian_lambdified, transformation_matrix = residuals
+
+        # 用 lambdified 计算前向传播中的梯度
+        grad_matrix = hamiltonian_lambdified(*g)
+
+        return grad_matrix, None
+    bc.backend.bind_custom_vjp(_transform_hamiltonian,_transform_hamiltonian_fwd,_transform_hamiltonian_bwd)
 
     def offset_charge_transformation(self) -> None:
         """
@@ -865,7 +887,30 @@ class CircuitRoutines(ABC):
             if set(term.free_symbols) & subsys_free_symbols == set(term.free_symbols):
                 constant_expr += term
         return constant_expr
+    
+    def _constants_in_subsys_fwd(self, H_sys, constants_expr):
+        result = self._constants_in_subsys(H_sys, constants_expr)
+        
+        # 将 SymPy 表达式转换为数值形式，用于反向传播
+        H_sys_lambdified = sm.lambdify(list(H_sys.free_symbols), H_sys, modules="numpy")
+        constants_expr_lambdified = sm.lambdify(list(constants_expr.free_symbols), constants_expr, modules="numpy")
+        
+        # 保存 lambdified 表达式用于反向传播
+        return result, (H_sys_lambdified, constants_expr_lambdified)
 
+    # 定义反向传播
+    def _constants_in_subsys_bwd(residuals, g):
+        H_sys_lambdified, constants_expr_lambdified = residuals
+
+        # 对常数表达式的梯度可以通过 lambdified 表达式求得
+        H_sys_grad = jnp.array(H_sys_lambdified(*g))
+        constants_expr_grad = jnp.array(constants_expr_lambdified(*g)) 
+        
+        return H_sys_grad, constants_expr_grad
+    
+    bc.backend.bind_custom_vjp(_constants_in_subsys_fwd, _constants_in_subsys_bwd, _constants_in_subsys)
+
+    @backend_dependent_vjp
     def _list_of_constants_from_expr(self, expr: sm.Expr) -> List[sm.Expr]:
         ordered_terms = expr.as_ordered_terms()
         constants = [
@@ -884,6 +929,25 @@ class CircuitRoutines(ABC):
             == set(term.free_symbols)
         ]
         return constants
+    
+    def _list_of_constants_from_expr_fwd(self, expr: sm.Expr):
+        result = self._list_of_constants_from_expr(expr)
+        
+        # 使用 lambdify 将 SymPy 表达式转换为数值计算函数
+        lambdified_expr = sm.lambdify(list(expr.free_symbols), expr, modules="numpy")
+        
+        return result, lambdified_expr
+
+    # 反向传播
+    def _list_of_constants_from_expr_bwd(residuals, g):
+        lambdified_expr = residuals
+        
+        # 在反向传播中，计算表达式相对于符号变量的梯度
+        grad_expr = jnp.array(lambdified_expr(*g))  # 计算数值梯度
+        
+        return grad_expr
+
+    bc.backend.bind_custom_vjp(_list_of_constants_from_expr_fwd,_list_of_constants_from_expr_bwd,_list_of_constants_from_expr)
 
     def _check_truncation_indices(self):
         """
@@ -916,6 +980,7 @@ class CircuitRoutines(ABC):
                     "Truncated dimension must be a positive integer."
                 )
 
+    @backend_dependent_vjp
     def _sym_hamiltonian_for_var_indices(
         self, hamiltonian_expr: sm.Expr, subsys_index_list: List[int]
     ) -> sm.Expr:
@@ -968,6 +1033,27 @@ class CircuitRoutines(ABC):
                 H_int += term
 
         return H_sys + self._constants_in_subsys(H_sys, constants), H_int
+    
+    def _sym_hamiltonian_for_var_indices_fwd(self, hamiltonian_expr: sm.Expr, subsys_index_list: List[int]):
+        H_sys, H_int = self._sym_hamiltonian_for_var_indices(hamiltonian_expr, subsys_index_list)
+
+        # 使用 lambdify 将符号表达式转换为数值形式
+        H_sys_lambdified = sm.lambdify(list(hamiltonian_expr.free_symbols), H_sys, modules="numpy")
+        H_int_lambdified = sm.lambdify(list(hamiltonian_expr.free_symbols), H_int, modules="numpy")
+
+        return (H_sys, H_int), (H_sys_lambdified, H_int_lambdified, hamiltonian_expr)
+
+    # 反向传播
+    def _sym_hamiltonian_for_var_indices_bwd(residuals, g):
+        H_sys_lambdified, H_int_lambdified, hamiltonian_expr = residuals
+
+        # 使用 lambdified 表达式计算梯度
+        H_sys_grad = jnp.array(H_sys_lambdified(*g))  # H_sys 的梯度
+        H_int_grad = jnp.array(H_int_lambdified(*g))  # H_int 的梯度
+
+        return H_sys_grad, H_int_grad
+    
+    bc.backend.bind_custom_vjp(_sym_hamiltonian_for_var_indices,_sym_hamiltonian_for_var_indices_fwd,_sym_hamiltonian_for_var_indices_bwd)
 
     def generate_subsystems(self, only_update_subsystems: bool = False):
         """
@@ -1607,9 +1693,10 @@ class CircuitRoutines(ABC):
         else:
             return self._sparsity_adaptive(operator)
 
+    @backend_dependent_vjp
     def _sparsity_adaptive(
         self, matrix: Union[csc_matrix, ndarray]
-    ) -> Union[csc_matrix, ndarray]:
+    ) -> Union[csc_matrix, ndarray]: 
         """
         Changes the type of matrix depending on the attribute
         type_of_matrices
@@ -1633,6 +1720,22 @@ class CircuitRoutines(ABC):
         if self.type_of_matrices == "sparse":
             return sparse.csc_matrix(matrix)
         return matrix
+    
+    @staticmethod
+    def sparsity_adaptive_fwd(matrix: Union[sparse.csc_matrix, jnp.ndarray], type_of_matrices: str):
+        result = matrix if type_of_matrices == "sparse" else matrix.toarray()
+        return result, (matrix, type_of_matrices)  # 返回结果和残差
+
+    # 定义反向传播
+    @staticmethod
+    def sparsity_adaptive_bwd(residuals, g):
+        matrix, type_of_matrices = residuals
+        if sparse.issparse(matrix):
+            grad_matrix = g if type_of_matrices == "dense" else sparse.csc_matrix(g)
+        else:
+            grad_matrix = g
+        
+        return grad_matrix, None
 
     def _identity_qobj(self):
         """
@@ -1686,8 +1789,10 @@ class CircuitRoutines(ABC):
                 self.cutoffs_dict()[var_index],
             )
             if "θ" in var_sym.name:
-                diagonal = bc.backend.exp(phi_grid.make_linspace() * prefactor * 1j)
-                exp_i_theta = sparse_dia_matrix(diagonal, (phi_grid.pt_count, phi_grid.pt_count))
+                diagonal = np.exp(phi_grid.make_linspace() * prefactor * 1j)
+                exp_i_theta = sparse.dia_matrix(
+                    (diagonal, [0]), shape=(phi_grid.pt_count, phi_grid.pt_count)
+                ).tocsc()
             elif "Q" in var_sym.name:
                 exp_i_theta = sp.linalg.expm(
                     _i_d_dphi_operator(phi_grid).toarray() * prefactor * 1j
@@ -1704,7 +1809,7 @@ class CircuitRoutines(ABC):
                     self.cutoffs_dict()[var_index],
                     prefactor=(osc_length * 2**0.5) ** -1,
                 )
-            exp_i_theta = custom_expm(exp_argument_op * prefactor * 1j)
+            exp_i_theta = sparse.linalg.expm(exp_argument_op * prefactor * 1j)
 
         return self._sparsity_adaptive(exp_i_theta)
 
@@ -2093,6 +2198,30 @@ class CircuitRoutines(ABC):
                 else subsystem.get_eigenstates()
             ),
         )
+    
+    def identity_wrap_for_hd_fwd(self, operator, child_instance, bare_esys=None):
+        if isinstance(operator,csc_matrix):
+            operator = operator
+
+        result = self.identity_wrap_for_hd(operator, child_instance, bare_esys)
+        return result, (operator, bare_esys, child_instance)
+    
+    def identity_wrap_for_hd_bwd(self, residuals, g):
+        operator, bare_esys, child_instance = residuals
+
+        # 处理稀疏矩阵的梯度计算
+        if isinstance(operator,csc_matrix):
+            # 对 operator 的梯度使用外积来保持稀疏性
+            grad_operator = csc_matrix(g @ operator.T)  # 使用转置计算外积
+
+            # 对输入向量 x 的梯度，通过 operator 的转置计算
+            grad_x = operator.T @ g
+        else:
+            # 对于稠密矩阵，直接返回梯度
+            grad_operator = g
+            grad_x = operator.T @ g
+        return grad_operator, grad_x, None
+    bc.backend.bind_custom_vjp(identity_wrap_for_hd_fwd,identity_wrap_for_hd_bwd,identity_wrap_for_hd)
 
     @check_sync_status_circuit
     def get_operator_by_name(
@@ -2354,6 +2483,7 @@ class CircuitRoutines(ABC):
         else:
             return junction_potential_matrix
 
+    @backend_dependent_vjp
     def _evaluate_hamiltonian(self) -> csc_matrix:
         hamiltonian = self._hamiltonian_sym_for_numerics
         hamiltonian = hamiltonian.subs(
@@ -2370,7 +2500,24 @@ class CircuitRoutines(ABC):
         return self._sparsity_adaptive(
             Qobj_to_scipy_csc_matrix(self._evaluate_symbolic_expr(hamiltonian))
         )
+    
+    # 前向传播
+    def _evaluate_hamiltonian_fwd(self):
+        hamiltonian_csc = self._evaluate_hamiltonian()
+        return hamiltonian_csc, hamiltonian_csc  
 
+    # 反向传播
+    def _evaluate_hamiltonian_bwd(residuals, g):
+        hamiltonian_csc = residuals
+
+        # 通过矩阵转置计算梯度
+        grad_hamiltonian = hamiltonian_csc.T @ g
+
+        return grad_hamiltonian,
+
+    bc.backend.bind_custom_vjp(_evaluate_hamiltonian_fwd,_evaluate_hamiltonian_bwd,_evaluate_hamiltonian)
+
+    @backend_dependent_vjp
     @check_sync_status_circuit
     def _hamiltonian_for_purely_harmonic(
         self, return_unsorted: bool = False
@@ -2410,6 +2557,21 @@ class CircuitRoutines(ABC):
         return self._sparsity_adaptive(
             Qobj_to_scipy_csc_matrix(eval(str(hamiltonian), operator_dict))
         )
+    
+    def _hamiltonian_for_purely_harmonic_fwd(self, return_unsorted: bool = False):
+        hamiltonian_csc = self._hamiltonian_for_purely_harmonic(return_unsorted)
+        return hamiltonian_csc, hamiltonian_csc  # 返回计算结果和残差
+
+    # 反向传播
+    def _hamiltonian_for_purely_harmonic_bwd(residuals, g):
+        hamiltonian_csc = residuals
+
+        # 使用矩阵转置计算梯度
+        grad_hamiltonian = hamiltonian_csc.T @ g
+
+        return grad_hamiltonian,
+
+    bc.backend.bind_custom_vjp(_hamiltonian_for_purely_harmonic_fwd,_hamiltonian_for_purely_harmonic_bwd,_hamiltonian_for_purely_harmonic)
 
     def _eigenvals_for_purely_harmonic(self, evals_count: int):
         """
@@ -2424,14 +2586,14 @@ class CircuitRoutines(ABC):
         operator_for_var_index = []
         for idx, var_index in enumerate(self.var_categories["extended"]):
             cutoff = getattr(self, f"cutoff_ext_{var_index}")
-            evals = (0.5 + bc.backend.arange(0, cutoff)) * self.normal_mode_freqs[idx]
-            H_osc = sparse_dia_matrix_with_dtype(
-                (evals, [0]), shape=(cutoff, cutoff), dtype=bc.backend.float64
+            evals = (0.5 + np.arange(0, cutoff)) * self.normal_mode_freqs[idx]
+            H_osc = sp.sparse.dia_matrix(
+                (evals, [0]), shape=(cutoff, cutoff), dtype=np.float_
             )
             operator_for_var_index.append(self._kron_operator(H_osc, var_index))
         H = sum(operator_for_var_index)
         unsorted_eigs = H.diagonal()
-        dressed_indices = bc.backend.argsort(unsorted_eigs)[:evals_count]
+        dressed_indices = np.argsort(unsorted_eigs)[:evals_count]
         return unsorted_eigs[dressed_indices]
 
     @check_sync_status_circuit
@@ -3882,116 +4044,8 @@ def diagonalize_matrix_bwd(residuals, g):
     return (grad_A,)
 diagonalize_matrix = bc.backend.bind_custom_vjp(diagonalize_matrix_fwd,diagonalize_matrix_bwd,diagonalize_matrix)
 
-@backend_dependent_vjp
-def sparse_dia_matrix(diagonal, shape):
-    matrix = sparse.dia_matrix((diagonal, [0]), shape=shape).tocsc()
-    return matrix
-
-def sparse_dia_matrix_fwd(diagonal, shape):
-    matrix = sparse_dia_matrix(diagonal, shape)
-    return matrix, (diagonal, shape)
-
-def sparse_dia_matrix_bwd(residuals, grad_output):
-    diagonal, shape = residuals
-    # 反向传播时计算 diagonal 的梯度
-    grad_diagonal = jnp.zeros_like(diagonal)
-    
-    # 仅计算梯度影响稀疏矩阵的对角线元素
-    if isinstance(grad_output, sparse.csc_matrix):
-        grad_output_dense = grad_output.diagonal()
-    else:
-        grad_output_dense = grad_output
-    
-    # 假设反向传播仅对 diagonal 有影响
-    grad_diagonal = grad_output_dense
-
-    return grad_diagonal, None
-
-sparse_dia_matrix= bc.backend.bind_custom_vjp(sparse_dia_matrix_fwd, sparse_dia_matrix_bwd, sparse_dia_matrix)
-
-@backend_dependent_vjp
-def custom_expm(matrix):
-    return custom_expm_fwd(matrix)
-
-def custom_expm_fwd(matrix):
-    if isinstance(matrix, sparse.csc_matrix):
-        exp_matrix = sp.sparse.linalg.expm(matrix)
-    else:
-        exp_matrix = sp.linalg.expm(matrix)
-    return exp_matrix
-
-def custom_expm_bwd(residuals, grad_output):
-    matrix = residuals
-    if isinstance(grad_output, sparse.csc_matrix):
-        grad_matrix = grad_output.toarray() 
-    else:
-        grad_matrix = grad_output
-
-    def frechet_derivative(A, E):
-        L = sp.expm_frechet(A, E, compute_expm=False)
-        return L
-    
-    grad_result = frechet_derivative(matrix, grad_matrix)
-    
-    return (grad_result,)
-
-custom_expm = bc.backend.bind_custom_vjp(custom_expm_fwd, custom_expm_bwd, custom_expm)
-
-@backend_dependent_vjp
-def sparse_dia_matrix_with_dtype(evals, shape, dtype):
-    return custom_dia_matrix_with_dtype_fwd(evals, shape, dtype)[0]
-
-def custom_dia_matrix_with_dtype_fwd(evals, shape, dtype):
-    array_part, offsets = evals
-    array_part = np.asarray(array_part)
-    H_osc = sparse.dia_matrix((array_part, offsets), shape=shape, dtype=dtype)
-    return H_osc, evals
-
-def custom_dia_matrix_with_dtype_bwd(residuals, grad_output):
-    evals = residuals
-    grad_evals = grad_output.diagonal()
-    return (grad_evals, None, None)
-
-sparse_dia_matrix_with_dtype= bc.backend.bind_custom_vjp(custom_dia_matrix_with_dtype_fwd, custom_dia_matrix_with_dtype_bwd, sparse_dia_matrix_with_dtype)
-
-
-@backend_dependent_vjp
-def custom_eigvals(matrix, subset_by_index=None):
-    # 正向计算
-    evals = jnp.linalg.eigvalsh(matrix)
-    
-    if subset_by_index is not None:
-        start, end = subset_by_index
-        evals = evals[start:end + 1]
-    
-    return evals
-
-def custom_eigvals_fwd(matrix, subset_by_index=None):
-    evals = custom_eigvals(matrix, subset_by_index)
-    return evals, (matrix, evals, subset_by_index)
-
-def custom_eigvals_bwd(residuals, grad_evals):
-    matrix, evals, subset_by_index = residuals
-    
-    # 计算梯度
-    grad_matrix = jnp.zeros_like(matrix)
-    
-    if subset_by_index is not None:
-        start, end = subset_by_index
-        grad_evals_full = jnp.zeros_like(evals)
-        grad_evals_full = grad_evals_full.at[start:end + 1].set(grad_evals)
-    else:
-        grad_evals_full = grad_evals
-    
-    for i in range(len(evals)):
-        for j in range(len(evals)):
-            if i != j:
-                grad_matrix += (
-                    (grad_evals_full[i] - grad_evals_full[j])
-                    / (evals[i] - evals[j])
-                    * (jnp.outer(evals[:, i], evals[:, j]) + jnp.outer(evals[:, j], evals[:, i]))
-                )
-    
-    return grad_matrix,
-
-custom_eigvals = bc.backend.bind_custom_vjp(custom_eigvals, custom_eigvals_fwd, custom_eigvals_bwd)
+bc.backend.bind_custom_vjp(
+    partial(CircuitRoutines.sparsity_adaptive_fwd),
+    partial(CircuitRoutines.sparsity_adaptive_bwd),
+    CircuitRoutines._sparsity_adaptive
+)

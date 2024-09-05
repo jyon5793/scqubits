@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import scipy as sp
-import jax.numpy as jnp
+import jax
 
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -1974,19 +1974,10 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
             and is returned as an ndarray.
 
         """
-        ng_matrix = self.ng * sp.sparse.eye(self.n_theta_operator().shape[0], format='coo')
         native = (
             4 * self.dCJ * self._disordered_ecj() * self.n_phi_operator()
             - 4
             * self._disordered_ecj()
-            * (self.n_theta_operator() - ng_matrix - self.n_zeta_operator())
+            * (self.n_theta_operator() - self.ng - self.n_zeta_operator())
         )
-        result = self.process_op(native_op=native, energy_esys=energy_esys)
-        print("in method result type : " + str(type(result)))
-        if isinstance(result, csc_matrix) or isinstance(result, sp.sparse._csr.csr_matrix):
-            print("Try to transfer cscMatrix")
-            if backend_change.backend.__name__ == "jax":
-                result_dense = jnp.array(result.toarray())
-                return result_dense
-                
-        return result
+        return self.process_op(native_op=native, energy_esys=energy_esys)
