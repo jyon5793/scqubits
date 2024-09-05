@@ -167,3 +167,20 @@ def csc_matrix_test():
     print("Gradient of the Hamiltonian matrix:")
     print(grad_matrix)
     assert(False)
+
+def csc_matrix_test2():
+    circuit_routines_instance = init_object()
+    def jax_test_function():
+        return circuit_routines_instance.hamiltonian()
+
+    # 计算梯度
+    grad_matrix = jax.grad(jax_test_function)()
+
+    # 输出梯度
+    print("Gradient of the Hamiltonian matrix:")
+    print(grad_matrix)
+
+    # 测试前向传播结果
+    H_transformed = circuit_routines_instance.hamiltonian()
+    print("Hamiltonian:")
+    print(H_transformed)

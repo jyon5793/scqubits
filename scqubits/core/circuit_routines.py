@@ -2597,6 +2597,7 @@ class CircuitRoutines(ABC):
         return unsorted_eigs[dressed_indices]
 
     @check_sync_status_circuit
+    @backend_dependent_vjp
     def hamiltonian(self) -> Union[csc_matrix, ndarray]:
         """
         Returns the Hamiltonian of the Circuit.
@@ -2620,6 +2621,36 @@ class CircuitRoutines(ABC):
                 return hamiltonian.full()
             if self.type_of_matrices == "sparse":
                 return Qobj_to_scipy_csc_matrix(hamiltonian)
+            
+    def hamiltonian_fwd(self):
+        hamiltonian = self.hamiltonian()
+
+        # 检查返回类型，并保存类型信息
+        if isinstance(hamiltonian, csc_matrix):
+            matrix_type = "sparse"
+        elif isinstance(hamiltonian, np.ndarray):
+            matrix_type = "dense"
+        else:
+            raise TypeError("Unsupported matrix type returned by hamiltonian.")
+
+        return hamiltonian, (hamiltonian, matrix_type)
+
+    # 反向传播
+    def hamiltonian_bwd(residuals, g):
+        hamiltonian, matrix_type = residuals
+
+        if matrix_type == "sparse":
+            # 使用转置计算稀疏矩阵的梯度
+            grad_hamiltonian = hamiltonian.T @ g
+        elif matrix_type == "dense":
+            # 使用转置计算稠密矩阵的梯度
+            grad_hamiltonian = jnp.transpose(hamiltonian) @ g
+        else:
+            raise TypeError("Unsupported matrix type in backward pass.")
+
+        return grad_hamiltonian,
+
+    bc.backend.bind_custom_vjp(hamiltonian_fwd,hamiltonian_bwd,hamiltonian)
 
     @check_sync_status_circuit
     def hamiltonian_for_qutip_dynamics(
