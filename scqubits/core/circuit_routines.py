@@ -1549,7 +1549,8 @@ class CircuitRoutines(ABC):
                 .subs(sm.symbols("I"), 1 / (2 * bc.backend.pi))
             )
         return potential_symbolic
-
+    
+    @backend_dependent_vjp
     def generate_hamiltonian_sym_for_numerics(
         self,
         hamiltonian: Optional[sm.Expr] = None,
@@ -1591,6 +1592,30 @@ class CircuitRoutines(ABC):
             return hamiltonian, cos_terms
         setattr(self, "_hamiltonian_sym_for_numerics", hamiltonian)
         setattr(self, "junction_potential", cos_terms)
+
+    def generate_hamiltonian_sym_for_numerics_fwd(self, hamiltonian: Optional[sm.Expr] = None, return_exprs=False):
+        result = self.generate_hamiltonian_sym_for_numerics(self, hamiltonian, return_exprs)
+        return result, (self, hamiltonian, result)
+
+    # 反向传播
+    def generate_hamiltonian_sym_for_numerics_bwd(residuals, g):
+        self, hamiltonian, result = residuals
+
+        # 初始化梯度
+        grad_external_fluxes = jnp.zeros_like(self.external_fluxes)
+        grad_offset_charges = jnp.zeros_like(self.offset_charges)
+        grad_free_charges = jnp.zeros_like(self.free_charges)
+
+        # 计算 external_fluxes 的梯度
+        for idx, ext_flux in enumerate(self.external_fluxes):
+            grad_external_fluxes[idx] = jnp.sum(jnp.conjugate(g) * sm.diff(result, ext_flux))
+
+        # 计算 offset_charges 和 free_charges 的梯度
+        for idx, charge_var in enumerate(self.offset_charges + self.free_charges):
+            grad_offset_charges[idx] = jnp.sum(jnp.conjugate(g) * sm.diff(result, charge_var))
+
+        return None, None, grad_external_fluxes, grad_offset_charges, grad_free_charges
+    bc.backend.bind_custom_vjp(generate_hamiltonian_sym_for_numerics_fwd,generate_hamiltonian_sym_for_numerics_bwd,generate_hamiltonian_sym_for_numerics)
 
     # #################################################################
     # ############## Functions to construct the operators #############
@@ -1770,6 +1795,7 @@ class CircuitRoutines(ABC):
         elif self.type_of_matrices == "dense":
             return bc.backend.identity(dim)
 
+    @backend_dependent_vjp
     def exp_i_operator(
         self, var_sym: sm.Symbol, prefactor: float
     # ) -> Union[csc_matrix, ndarray]:
@@ -1804,7 +1830,6 @@ class CircuitRoutines(ABC):
                 exp_i_theta = sp.linalg.expm(
                     _i_d_dphi_operator(phi_grid).toarray() * prefactor * 1j
                 )
-                exp_i_theta = convert_sp_matrix_to_jax(exp_i_theta)
         elif var_basis == "harmonic":
             osc_length = self.get_osc_param(var_index, which_param="length")
             if "θ" in var_sym.name:
@@ -1820,6 +1845,25 @@ class CircuitRoutines(ABC):
             exp_i_theta = sparse.linalg.expm(exp_argument_op * prefactor * 1j)
 
         return convert_sp_matrix_to_jax(self._sparsity_adaptive(exp_i_theta))
+    # 前向传播
+    def exp_i_operator_fwd(self, var_sym: sm.Symbol, prefactor: float):
+        result = self.exp_i_operator(self, var_sym, prefactor)
+        return result, (self, var_sym, prefactor, result)
+
+    # 反向传播
+    def exp_i_operator_bwd(residuals, g):
+        self, var_sym, prefactor, result = residuals
+
+        # 计算梯度，假设对 prefactor 求导
+        if "θ" in var_sym.name or "Q" in var_sym.name:
+            grad_A = 1j * result
+            grad_prefactor = jnp.sum(jnp.conjugate(g) * grad_A).real
+        else:
+            grad_prefactor = jnp.zeros_like(prefactor)  # 如果不涉及 θ 或 Q 的变量，则不计算梯度
+
+        return None, grad_prefactor
+
+    bc.backend.bind_custom_vjp(exp_i_operator_fwd, exp_i_operator_bwd,exp_i_operator)
 
     def _evaluate_matrix_sawtooth_terms(
         self, saw_expr: sm.Expr, bare_esys=None
@@ -2400,6 +2444,7 @@ class CircuitRoutines(ABC):
                 )
         return H_string
 
+    @backend_dependent_vjp
     def _hamiltonian_for_harmonic_extended_vars(self) -> Union[jsp.BCOO, ndarray]:
         hamiltonian = self._hamiltonian_sym_for_numerics
         # substitute all parameter values
@@ -2496,6 +2541,26 @@ class CircuitRoutines(ABC):
             return eval(H_LC_str, replacement_dict) + junction_potential_matrix
         else:
             return junction_potential_matrix
+        
+    def _hamiltonian_for_harmonic_extended_vars_fwd(self):
+        result = self._hamiltonian_for_harmonic_extended_vars(self)
+        return result, (self, result)
+
+    # 反向传播
+    def _hamiltonian_for_harmonic_extended_vars_bwd(residuals, g):
+        self, result = residuals
+
+        # 初始化梯度
+        grad_all_sym_parameters = jnp.zeros_like([getattr(self, param.name) for param in self.symbolic_params.keys()])
+
+        # 对每个 extended 变量，推导梯度
+        for idx, var_index in enumerate(self.var_categories["extended"]):
+            # 通过矩阵指数、以及相关操作的反向传播计算梯度
+            grad_param = 1j * jnp.dot(jnp.conjugate(g), result)
+            grad_all_sym_parameters[idx] += grad_param.real
+
+        return None, grad_all_sym_parameters
+    bc.backend.bind_custom_vjp(_hamiltonian_for_harmonic_extended_vars_fwd, _hamiltonian_for_harmonic_extended_vars_bwd, _hamiltonian_for_harmonic_extended_vars)
 
     def _evaluate_hamiltonian(self) -> jsp.BCOO:
         hamiltonian = self._hamiltonian_sym_for_numerics

@@ -134,7 +134,7 @@ order_eigensystem = bc.backend.bind_custom_vjp(order_eigensystem_fwd, order_eige
 
 def extract_phase(
     complex_array: bc.backend.ndarray, position: Optional[Tuple[int, ...]] = None
-) -> float:
+) -> bc.backend.float_:
     """Extracts global phase from `complex_array` at given `position`. If position is
     not specified, the `position` is set as follows. Find the maximum between the
     leftmost point and the halfway point of the wavefunction. The position of that
@@ -274,7 +274,7 @@ def get_matrixelement_table(
 
 def closest_dressed_energy(
     bare_energy: float, dressed_energy_vals: bc.backend.ndarray
-) -> float:
+) -> bc.backend.float_:
     """For a given bare energy value, this returns the closest lying dressed energy
     value from an array.
 

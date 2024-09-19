@@ -25,6 +25,7 @@ from scqubits.core.circuit_utils import get_trailing_number, keep_terms_for_subs
 from scqubits.utils.misc import is_string_float, Qobj_to_scipy_csc_matrix
 import scqubits.core.units as units
 from scqubits import backend_change
+from scqubits.backend_change import backend_dependent_vjp
 
 from types import MethodType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -99,7 +100,7 @@ class NoisyCircuit(NoisySystem, ABC):
 
                 return Q_func
             else:
-                return float(Q_str)
+                return backend_change.backend.float_(Q_str)
         return None
 
     def generate_methods_d_hamiltonian_d(self):
@@ -379,7 +380,7 @@ class NoisyCircuit(NoisySystem, ABC):
                 get_rate: bool = False,
                 noise_op_func=noise_op_func,
                 **kwargs,
-            ) -> float:
+            ) ->  backend_change.backend.float_:
                 r"""
                 1/f Dephasing Time (or Rate) Calculator
                 ---------------------------------------
@@ -489,7 +490,7 @@ class NoisyCircuit(NoisySystem, ABC):
             esys: Tuple[ndarray, ndarray] = None,
             get_rate: bool = False,
             **kwargs,
-        ) -> float:
+        ) ->  backend_change.backend.float_:
             tphi_times = []
             for branch in [brnch for brnch in self.branches if "JJ" in brnch.type]:
                 tphi_times.append(
@@ -553,7 +554,7 @@ class NoisyCircuit(NoisySystem, ABC):
             esys: Tuple[ndarray, ndarray] = None,
             get_rate: bool = False,
             **kwargs,
-        ) -> float:
+        ) ->  backend_change.backend.float_:
             tphi_times = []
             for flux_sym in self.external_fluxes:
                 tphi_times.append(
@@ -620,7 +621,7 @@ class NoisyCircuit(NoisySystem, ABC):
             esys: Tuple[ndarray, ndarray] = None,
             get_rate: bool = False,
             **kwargs,
-        ) -> float:
+        ) ->  backend_change.backend.float_:
             tphi_times = []
             for flux_sym in self.offset_charges:
                 tphi_times.append(
@@ -797,7 +798,7 @@ class NoisyCircuit(NoisySystem, ABC):
             total: bool = True,
             esys: Tuple[ndarray, ndarray] = None,
             get_rate: bool = False,
-        ) -> float:
+        ) ->  backend_change.backend.float_:
             """
             T1 Coherence Time Calculator due to Quasiparticle Tunneling Noise
             -----------------------------------------------------------------
@@ -852,6 +853,7 @@ class NoisyCircuit(NoisySystem, ABC):
 
         return t1_quasiparticle_tunneling
 
+    @backend_dependent_vjp
     def wrapper_t1_charge_impedance(self, branch: Branch):
         def t1_charge_impedance(
             self,
@@ -863,7 +865,7 @@ class NoisyCircuit(NoisySystem, ABC):
             esys: Tuple[ndarray, ndarray] = None,
             get_rate: bool = False,
             branch=branch,
-        ) -> float:
+        ) ->  backend_change.backend.float_:
             """
             T1 Coherence Time Calculator due to Charge Impedance Noise
             ----------------------------------------------------------
@@ -941,6 +943,27 @@ class NoisyCircuit(NoisySystem, ABC):
             )
 
         return t1_charge_impedance
+    # 前向传播
+    def t1_charge_impedance_fwd(self, i, j, Z, T, total, esys, get_rate, branch):
+        result = self.t1_charge_impedance(self, i, j, Z, T, total, esys, get_rate, branch)
+        return result, (self, i, j, Z, T, total, esys, get_rate, branch, result)
+
+    # 反向传播
+    def t1_charge_impedance_bwd(residuals, g):
+        self, i, j, Z, T, total, esys, get_rate, branch, result = residuals
+
+        # 初始化输入参数的梯度
+        grad_Z = backend_change.backend.zeros_like(Z) if Z is not None else None
+        grad_T = backend_change.backend.zeros_like(T) if T is not None else None
+
+        # 计算 Z 和 T 的梯度
+        if Z is not None:
+            grad_Z = backend_change.backend.sum(backend_change.backend.conjugate(g) * result)
+        if T is not None:
+            grad_T = backend_change.backend.sum(backend_change.backend.conjugate(g) * result)
+
+        return (None, None, grad_Z, grad_T, None, None, None, None)
+
 
     def wrapper_t1_inductive_capacitive(
         self,
@@ -979,7 +1002,7 @@ class NoisyCircuit(NoisySystem, ABC):
         This function does not modify the current instance; it returns a new method for calculating the T1 time.
         """
         if branch.type != "L":
-
+            @backend_dependent_vjp
             def t1_method(
                 self,
                 i: int = 1,
@@ -990,7 +1013,7 @@ class NoisyCircuit(NoisySystem, ABC):
                 esys: Tuple[ndarray, ndarray] = None,
                 get_rate: bool = False,
                 branch: Branch = branch,
-            ) -> float:
+            ) ->  backend_change.backend.float_:
                 """
                 T1 Coherence Time Calculator due to Capacitive Noise
                 ----------------------------------------------------
@@ -1064,9 +1087,32 @@ class NoisyCircuit(NoisySystem, ABC):
                     noise_op=parent_circuit._evaluate_symbolic_expr(branch_charge_expr),
                     branch_params=branch_param,
                 )
+            # 前向传播
+            def t1_method_fwd(self, i, j, Q_cap, T, total, esys, get_rate, branch):
+                result = t1_method(self, i, j, Q_cap, T, total, esys, get_rate, branch)
+                # 保存计算结果以及中间值用于反向传播
+                return result, (self, i, j, Q_cap, T, total, esys, get_rate, branch, result)
+
+            # 反向传播
+            def t1_method_bwd(residuals, g):
+                self, i, j, Q_cap, T, total, esys, get_rate, branch, result = residuals
+
+                # 初始化输入参数的梯度
+                grad_Q_cap = backend_change.backend.zeros_like(Q_cap) if Q_cap is not None else None
+                grad_T = backend_change.backend.zeros_like(T) if T is not None else None
+
+                # 使用链式法则计算各个输入的梯度
+                if Q_cap is not None:
+                    grad_Q_cap = backend_change.backend.sum(backend_change.backend.conjugate(g) * result)
+
+                if T is not None:
+                    grad_T = backend_change.backend.sum(backend_change.backend.conjugate(g) * result)
+
+                return (None, None, grad_Q_cap, grad_T, None, None, None, None)
+            backend_change.backend.bind_custom_vjp(t1_method_fwd, t1_method_bwd, t1_method)
 
         else:
-
+            @backend_dependent_vjp
             def t1_method(
                 self,
                 i: int = 1,
@@ -1077,7 +1123,7 @@ class NoisyCircuit(NoisySystem, ABC):
                 esys: Tuple[ndarray, ndarray] = None,
                 get_rate: bool = False,
                 branch: Branch = branch,
-            ) -> float:
+            ) ->  backend_change.backend.float_:
                 """
                 T1 Coherence Time Calculator due to Inductive Noise
                 ---------------------------------------------------
@@ -1148,6 +1194,29 @@ class NoisyCircuit(NoisySystem, ABC):
                     noise_op=parent_circuit._evaluate_symbolic_expr(branch_var_expr),
                     branch_params=branch_param,
                 )
+            # 前向传播
+            def t1_method_fwd(self, i, j, Q_ind, T, total, esys, get_rate, branch):
+                result = t1_method(self, i, j, Q_ind, T, total, esys, get_rate, branch)
+                # 返回计算结果以及中间值，供反向传播使用
+                return result, (self, i, j, Q_ind, T, total, esys, get_rate, branch, result)
+
+            # 反向传播
+            def t1_method_bwd(residuals, g):
+                self, i, j, Q_ind, T, total, esys, get_rate, branch, result = residuals
+
+                # 初始化输入参数的梯度
+                grad_Q_ind = backend_change.backend.zeros_like(Q_ind) if Q_ind is not None else None
+                grad_T = backend_change.backend.zeros_like(T) if T is not None else None
+
+                # 使用链式法则计算各个输入的梯度
+                if Q_ind is not None:
+                    grad_Q_ind = backend_change.backend.sum(backend_change.backend.conjugate(g) * result)
+
+                if T is not None:
+                    grad_T = backend_change.backend.sum(backend_change.backend.conjugate(g) * result)
+
+                return (None, None, grad_Q_ind, grad_T, None, None, None, None)
+            backend_change.backend.bind_custom_vjp(t1_method_fwd, t1_method_bwd, t1_method)
 
         return t1_method
 
@@ -1206,7 +1275,7 @@ class NoisyCircuit(NoisySystem, ABC):
             total: bool = True,
             esys: Tuple[ndarray, ndarray] = None,
             get_rate: bool = False,
-        ) -> float:
+        ) ->  backend_change.backend.float_:
             """
             T1 Coherence Time Calculator due to Quasiparticle Tunneling
             ------------------------------------------------------------
@@ -1326,7 +1395,7 @@ class NoisyCircuit(NoisySystem, ABC):
             total: bool = True,
             esys: Tuple[ndarray, ndarray] = None,
             get_rate: bool = False,
-        ) -> float:
+        ) ->  backend_change.backend.float_:
             """
             T1 Coherence Time Calculator due to Inductive Noise
             ---------------------------------------------------
@@ -1433,7 +1502,7 @@ class NoisyCircuit(NoisySystem, ABC):
             total: bool = True,
             esys: Tuple[ndarray, ndarray] = None,
             get_rate: bool = False,
-        ) -> float:
+        ) ->  backend_change.backend.float_:
             """
             T1 Coherence Time Calculation Due to Capacitive Noise
             ----------------------------------------------------
@@ -1540,7 +1609,7 @@ class NoisyCircuit(NoisySystem, ABC):
             total: bool = True,
             esys: Tuple[ndarray, ndarray] = None,
             get_rate: bool = False,
-        ) -> float:
+        ) ->  backend_change.backend.float_:
             """
             T1 Coherence Time Calculation Due to Charge Impedance Noise
             -----------------------------------------------------------
@@ -1648,7 +1717,7 @@ class NoisyCircuit(NoisySystem, ABC):
             total: bool = True,
             esys: Tuple[ndarray, ndarray] = None,
             get_rate: bool = False,
-        ) -> float:
+        ) ->  backend_change.backend.float_:
             """
             T1 Coherence Time Calculation Due to Flux Bias Line Noise
             --------------------------------------------------------
