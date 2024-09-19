@@ -25,8 +25,12 @@ import numpy as np
 import qutip as qt
 import scipy as sp
 from matplotlib import get_backend as get_matplotlib_backend
+import scipy as sp
+import jax.experimental.sparse as jsparse
+import jax.numpy as jnp
 
 import scqubits.settings
+import scqubits.backend_change as bc
 from scqubits.settings import IN_IPYTHON
 
 if IN_IPYTHON:
@@ -511,6 +515,34 @@ def inspect_public_API(
 
     return public_names
 
+def convert_sparse_csc_to_jax(input: sp.sparse.csc_matrix):
+    return jsparse.BCSR.from_scipy_sparse(input)
 
 MATPLOTLIB_WIDGET_BACKEND = "module://ipympl.backend_nbagg"
 _HAS_WIDGET_BACKEND = get_matplotlib_backend() == MATPLOTLIB_WIDGET_BACKEND
+
+
+def convert_sp_matrix_to_jax(input_matrix):
+    if isinstance(input_matrix, sp.spmatrix):
+        if bc.backend.__name__ == "jax":
+            # Convert the SciPy sparse matrix to COO format
+            coo = input_matrix.tocoo()
+
+            # Extract data and indices
+            data = jnp.array(coo.data)
+            row = jnp.array(coo.row)
+            col = jnp.array(coo.col)
+            indices = jnp.stack([row, col], axis=1)
+
+            # Get the shape of the matrix
+            shape = coo.shape
+
+            # Create a JAX sparse BCOO matrix
+            bcoo = jsparse.BCOO((data, indices), shape=shape)
+
+            return bcoo
+        elif bc.backend.__name__ == "numpy":
+            return input_matrix
+    else:
+        # If not a SciPy sparse matrix, return the object as is
+        return input_matrix

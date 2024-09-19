@@ -4,6 +4,7 @@ from functools import wraps
 from scipy import sparse
 from jax import custom_vjp
 from scipy.special import pbdv
+import scipy
 
 
 class Backend(object):
@@ -105,6 +106,8 @@ class NumpyBackend(Backend):
     allclose = staticmethod(np.allclose)
     ndenumerate = staticmethod(np.ndenumerate)
     stack = staticmethod(np.stack)
+    eigvalsh = staticmethod(scipy.linalg.eigvalsh)
+    eigh = staticmethod(scipy.linalg.eigh)
 
     @staticmethod
     def convert_to_array(obj_list):
@@ -121,6 +124,11 @@ class NumpyBackend(Backend):
     @staticmethod
     def bind_custom_vjp(fwd_func, bwd_func, func):
         return func
+    
+    @staticmethod
+    def solve_pure_callback(method, matrix_shape, dtype=np.float_):
+        return method()
+
 
 class JaxBackend(Backend):
     __name__ = 'jax'
@@ -204,6 +212,7 @@ class JaxBackend(Backend):
     grad = staticmethod(jax.grad)
     value_and_grad = staticmethod(jax.value_and_grad)
     eigh = staticmethod(jax.scipy.linalg.eigh)
+    eigvalsh = staticmethod(jax.scipy.linalg.eigh)
 
     @staticmethod
     def convert_to_array(obj_list):
@@ -227,6 +236,30 @@ class JaxBackend(Backend):
         custom_vjp_func = custom_vjp(func)
         custom_vjp_func.defvjp(fwd_func, bwd_func)
         return custom_vjp_func
+    
+    @staticmethod
+    def solve_pure_callback(method, matrix_shape, dtype=jax.numpy.float_):
+        """
+        通用的纯回调函数，用于处理 JAX 的 pure_callback 或直接返回 NumPy 后端结果。
+
+        Parameters
+        ----------
+        method: callable
+            一个方法或函数，执行需要包装的逻辑（例如 SciPy 转换操作）。
+        matrix_shape: tuple
+            矩阵的形状。
+        dtype: jnp.dtype, optional
+            返回矩阵的类型，默认是 jnp.float_。
+
+        Returns
+        -------
+        result: jax.BCOO 或 ndarray
+            处理后的矩阵，稀疏矩阵或稠密矩阵，取决于后端。
+        """
+        return jax.pure_callback(
+                method, 
+                jax.ShapeDtypeStruct(matrix_shape, dtype)
+            )
 
 
 @custom_vjp

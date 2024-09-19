@@ -23,6 +23,7 @@ import scipy as sp
 import sympy as sm
 import dill
 import jax.numpy as jnp
+import jax.experimental.sparse as jsp
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -94,6 +95,7 @@ from scqubits.utils.spectrum_utils import (
     identity_wrap,
     order_eigensystem,
 )
+from scqubits.utils.misc import convert_sp_matrix_to_jax
 import scqubits.core.circuit as circuit
 from abc import ABC
 from scqubits import backend_change as bc
@@ -1636,8 +1638,8 @@ class CircuitRoutines(ABC):
 
     # helper functions
     def _kron_operator(
-        self, operator: Union[csc_matrix, ndarray], var_index: int
-    ) -> Union[csc_matrix, ndarray]:
+        self, operator: Union[jsp.BCOO, ndarray], var_index: int
+    ) -> Union[jsp.BCOO, ndarray]:
         """
         Identity wraps the operator with identities generated for all the other variable
         indices present in the current Subsystem.
@@ -1681,22 +1683,22 @@ class CircuitRoutines(ABC):
                 )
 
             if var_index == dynamic_var_indices[0]:
-                return sparse.kron(operator, identity_right, format=matrix_format)
+                return convert_sp_matrix_to_jax(sparse.kron(operator, identity_right, format=matrix_format))
             elif var_index == dynamic_var_indices[-1]:
-                return sparse.kron(identity_left, operator, format=matrix_format)
+                return convert_sp_matrix_to_jax(sparse.kron(identity_left, operator, format=matrix_format))
             else:
-                return sparse.kron(
+                return convert_sp_matrix_to_jax(sparse.kron(
                     sparse.kron(identity_left, operator, format=matrix_format),
                     identity_right,
                     format=matrix_format,
-                )
+                ))
         else:
-            return self._sparsity_adaptive(operator)
+            return convert_sp_matrix_to_jax(self._sparsity_adaptive(operator))
 
     @backend_dependent_vjp
     def _sparsity_adaptive(
-        self, matrix: Union[csc_matrix, ndarray]
-    ) -> Union[csc_matrix, ndarray]: 
+        self, matrix: Union[jsp.BCOO, ndarray]
+    ) -> Union[jsp.BCOO, ndarray]: 
         """
         Changes the type of matrix depending on the attribute
         type_of_matrices
@@ -1712,30 +1714,34 @@ class CircuitRoutines(ABC):
             matrices used.
         """
         #  all of this can be simplified.
-        if sparse.issparse(matrix):
+        if isinstance(matrix, jsp.BCOO):
             if self.type_of_matrices == "sparse":
-                return matrix
-            return matrix.toarray()
+                return matrix 
+            return matrix.todense() 
 
+        # 如果输入是稠密矩阵
         if self.type_of_matrices == "sparse":
-            return sparse.csc_matrix(matrix)
+            return jsp.BCOO.fromdense(matrix)
         return matrix
     
     @staticmethod
-    def sparsity_adaptive_fwd(matrix: Union[sparse.csc_matrix, jnp.ndarray], type_of_matrices: str):
-        result = matrix if type_of_matrices == "sparse" else matrix.toarray()
-        return result, (matrix, type_of_matrices)  # 返回结果和残差
-
-    # 定义反向传播
-    @staticmethod
-    def sparsity_adaptive_bwd(residuals, g):
-        matrix, type_of_matrices = residuals
-        if sparse.issparse(matrix):
-            grad_matrix = g if type_of_matrices == "dense" else sparse.csc_matrix(g)
+    def sparsity_adaptive_fwd(matrix: Union[jsp.BCOO, jnp.ndarray], type_of_matrices: str):
+        if isinstance(matrix, jsp.BCOO):
+            result = matrix if type_of_matrices == "sparse" else matrix.todense()
         else:
-            grad_matrix = g
-        
-        return grad_matrix, None
+            result = jsp.BCOO.fromdense(matrix) if type_of_matrices == "sparse" else matrix
+        return result, (matrix, type_of_matrices)
+
+    @staticmethod
+    def sparsity_adaptive_bwd(residuals, grad_output):
+        matrix, type_of_matrices = residuals
+        if isinstance(matrix, jsp.BCOO):
+            if type_of_matrices == "sparse":
+                return jsp.BCOO.fromdense(grad_output), None
+            return grad_output, None
+        if type_of_matrices == "sparse":
+            return jsp.BCOO.fromdense(grad_output), None
+        return grad_output, None
 
     def _identity_qobj(self):
         """
@@ -1766,7 +1772,8 @@ class CircuitRoutines(ABC):
 
     def exp_i_operator(
         self, var_sym: sm.Symbol, prefactor: float
-    ) -> Union[csc_matrix, ndarray]:
+    # ) -> Union[csc_matrix, ndarray]:
+    ) -> Union[jsp.BCOO, ndarray]:
         """
         Returns the bare operator exp(i*\theta*prefactor), without the kron product.
         Needs the oscillator lengths to be set in the attribute, `osc_lengths`,
@@ -1797,6 +1804,7 @@ class CircuitRoutines(ABC):
                 exp_i_theta = sp.linalg.expm(
                     _i_d_dphi_operator(phi_grid).toarray() * prefactor * 1j
                 )
+                exp_i_theta = convert_sp_matrix_to_jax(exp_i_theta)
         elif var_basis == "harmonic":
             osc_length = self.get_osc_param(var_index, which_param="length")
             if "θ" in var_sym.name:
@@ -1811,7 +1819,7 @@ class CircuitRoutines(ABC):
                 )
             exp_i_theta = sparse.linalg.expm(exp_argument_op * prefactor * 1j)
 
-        return self._sparsity_adaptive(exp_i_theta)
+        return convert_sp_matrix_to_jax(self._sparsity_adaptive(exp_i_theta))
 
     def _evaluate_matrix_sawtooth_terms(
         self, saw_expr: sm.Expr, bare_esys=None
@@ -2142,9 +2150,10 @@ class CircuitRoutines(ABC):
             return True
         return False
 
+    @backend_dependent_vjp
     def identity_wrap_for_hd(
         self,
-        operator: Optional[Union[csc_matrix, ndarray]],
+        operator: Optional[Union[jsp.BCOO, ndarray]],
         child_instance,
         bare_esys: Optional[Dict[int, Tuple]] = None,
     ) -> qt.Qobj:
@@ -2199,28 +2208,24 @@ class CircuitRoutines(ABC):
             ),
         )
     
-    def identity_wrap_for_hd_fwd(self, operator, child_instance, bare_esys=None):
-        if isinstance(operator,csc_matrix):
-            operator = operator
+    def identity_wrap_for_hd_fwd(
+        self,
+        operator: Optional[Union[jsp.BCOO, jnp.ndarray]],
+        child_instance,
+        bare_esys: Optional[Dict[int, Tuple]] = None,
+        type_of_matrices: str = "dense"
+    ):
+        result = self.identity_wrap_for_hd(operator, child_instance, bare_esys, type_of_matrices)
+        return result, (operator, child_instance, bare_esys, type_of_matrices)
 
-        result = self.identity_wrap_for_hd(operator, child_instance, bare_esys)
-        return result, (operator, bare_esys, child_instance)
-    
-    def identity_wrap_for_hd_bwd(self, residuals, g):
-        operator, bare_esys, child_instance = residuals
-
-        # 处理稀疏矩阵的梯度计算
-        if isinstance(operator,csc_matrix):
-            # 对 operator 的梯度使用外积来保持稀疏性
-            grad_operator = csc_matrix(g @ operator.T)  # 使用转置计算外积
-
-            # 对输入向量 x 的梯度，通过 operator 的转置计算
-            grad_x = operator.T @ g
+    def identity_wrap_for_hd_bwd(residuals, grad_output):
+        operator, child_instance, bare_esys, type_of_matrices = residuals
+        if isinstance(operator, jsp.BCOO):
+            grad_operator = jsp.BCOO.fromdense(grad_output)
         else:
-            # 对于稠密矩阵，直接返回梯度
-            grad_operator = g
-            grad_x = operator.T @ g
-        return grad_operator, grad_x, None
+            grad_operator = grad_output
+
+        return grad_operator, None, None, None
     bc.backend.bind_custom_vjp(identity_wrap_for_hd_fwd,identity_wrap_for_hd_bwd,identity_wrap_for_hd)
 
     @check_sync_status_circuit
@@ -2275,7 +2280,12 @@ class CircuitRoutines(ABC):
         )
 
         if isinstance(operator, qt.Qobj):
-            operator = Qobj_to_scipy_csc_matrix(operator)
+            def convert_operator():
+                return convert_sp_matrix_to_jax(Qobj_to_scipy_csc_matrix(operator))
+            operator = bc.backend.solve_pure_callback(
+                method=convert_operator,
+                matrix_shape=operator.shape
+            )
 
         operator = convert_matrix_to_qobj(
             operator,
@@ -2390,7 +2400,7 @@ class CircuitRoutines(ABC):
                 )
         return H_string
 
-    def _hamiltonian_for_harmonic_extended_vars(self) -> Union[csc_matrix, ndarray]:
+    def _hamiltonian_for_harmonic_extended_vars(self) -> Union[jsp.BCOO, ndarray]:
         hamiltonian = self._hamiltonian_sym_for_numerics
         # substitute all parameter values
         all_sym_parameters = (
@@ -2476,15 +2486,18 @@ class CircuitRoutines(ABC):
         junction_potential_matrix = self._evaluate_matrix_cosine_terms(
             junction_potential
         )
-        junction_potential_matrix = Qobj_to_scipy_csc_matrix(junction_potential_matrix)
-
+        def convert_junction_potential_matrix():
+            return convert_sp_matrix_to_jax(Qobj_to_scipy_csc_matrix(junction_potential_matrix))
+        junction_potential_matrix = bc.backend.solve_pure_callback(
+            method=convert_junction_potential_matrix,
+            matrix_shape=junction_potential_matrix.shape
+        )
         if H_LC_str:
             return eval(H_LC_str, replacement_dict) + junction_potential_matrix
         else:
             return junction_potential_matrix
 
-    @backend_dependent_vjp
-    def _evaluate_hamiltonian(self) -> csc_matrix:
+    def _evaluate_hamiltonian(self) -> jsp.BCOO:
         hamiltonian = self._hamiltonian_sym_for_numerics
         hamiltonian = hamiltonian.subs(
             [
@@ -2497,26 +2510,16 @@ class CircuitRoutines(ABC):
         )
         hamiltonian = hamiltonian.subs("I", 1)
 
-        return self._sparsity_adaptive(
-            Qobj_to_scipy_csc_matrix(self._evaluate_symbolic_expr(hamiltonian))
-        )
-    
-    # 前向传播
-    def _evaluate_hamiltonian_fwd(self):
-        hamiltonian_csc = self._evaluate_hamiltonian()
-        return hamiltonian_csc, hamiltonian_csc  
+        # 调用 SciPy 操作，将其包装在 jax.pure_callback 中
+        def scipy_to_jax():
+            return convert_sp_matrix_to_jax(self._sparsity_adaptive(
+                Qobj_to_scipy_csc_matrix(self._evaluate_symbolic_expr(hamiltonian))
+            ))
 
-    # 反向传播
-    def _evaluate_hamiltonian_bwd(residuals, g):
-        hamiltonian_csc = residuals
+        hamiltonian_bcoo = bc.backend.solve_pure_callback(scipy_to_jax, hamiltonian.shape)
 
-        # 通过矩阵转置计算梯度
-        grad_hamiltonian = hamiltonian_csc.T @ g
-
-        return grad_hamiltonian,
-
-    bc.backend.bind_custom_vjp(_evaluate_hamiltonian_fwd,_evaluate_hamiltonian_bwd,_evaluate_hamiltonian)
-
+        return hamiltonian_bcoo
+        
     @backend_dependent_vjp
     @check_sync_status_circuit
     def _hamiltonian_for_purely_harmonic(
@@ -2589,6 +2592,14 @@ class CircuitRoutines(ABC):
             evals = (0.5 + np.arange(0, cutoff)) * self.normal_mode_freqs[idx]
             H_osc = sp.sparse.dia_matrix(
                 (evals, [0]), shape=(cutoff, cutoff), dtype=np.float_
+            )
+            def convert_operator():
+                return convert_sp_matrix_to_jax(H_osc)
+
+            # 使用 solve_pure_callback 进行转换
+            H_osc = bc.backend.solve_pure_callback(
+                method=convert_operator,
+                matrix_shape=H_osc.shape
             )
             operator_for_var_index.append(self._kron_operator(H_osc, var_index))
         H = sum(operator_for_var_index)
@@ -2795,7 +2806,7 @@ class CircuitRoutines(ABC):
             dict((val, key) for key, val in time_dep_terms.items()),
         )
 
-    def _evals_calc(self, evals_count: int) -> ndarray:
+    def _evals_calc(self, evals_count: int) -> bc.backend.ndarray:
         # dimension of the hamiltonian
         hilbertdim = self.hilbertdim()
 
@@ -2811,7 +2822,7 @@ class CircuitRoutines(ABC):
                 which="SA",
             )
         elif self.type_of_matrices == "dense":
-            evals = custom_eigvals(
+            evals = bc.backend.eigvalsh(
                 hamiltonian_mat, subset_by_index=[0, evals_count - 1]
             )
         return bc.backend.sort(evals)
@@ -2828,7 +2839,7 @@ class CircuitRoutines(ABC):
                 which="SA",
             )
         elif self.type_of_matrices == "dense":
-            evals, evecs = sp.linalg.eigh(
+            evals, evecs = bc.backend.eigh(
                 hamiltonian_mat,
                 eigvals_only=False,
                 subset_by_index=[0, evals_count - 1],
