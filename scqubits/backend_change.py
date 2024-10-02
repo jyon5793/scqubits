@@ -1,11 +1,12 @@
 import numpy as np
 import jax
+import scipy
 from functools import wraps
 from scipy import sparse
 from jax import custom_vjp
 from scipy.special import pbdv
-import scipy
-
+import scipy as sp
+import jax.experimental.sparse as jsp
 
 class Backend(object):
     int = np.int64
@@ -108,6 +109,15 @@ class NumpyBackend(Backend):
     stack = staticmethod(np.stack)
     eigvalsh = staticmethod(scipy.linalg.eigvalsh)
     eigh = staticmethod(scipy.linalg.eigh)
+    csc_matrix = staticmethod(scipy.sparse.csc_matrix)
+    dia_matrix = staticmethod(scipy.sparse.dia_matrix)
+    coo_matrix = staticmethod(scipy.sparse.coo_matrix)
+    spidentity = staticmethod(scipy.sparse.identity)
+    spkron = staticmethod(scipy.sparse.kron)
+
+    @staticmethod
+    def solve_csc_matrix(matrix):
+        return matrix.tocsc()
 
     @staticmethod
     def convert_to_array(obj_list):
@@ -128,6 +138,23 @@ class NumpyBackend(Backend):
     @staticmethod
     def solve_pure_callback(method, matrix_shape, dtype=np.float_):
         return method()
+
+    @staticmethod
+    def is_sparse(matrix):
+        if sp.issparse(matrix):
+            return True
+        else:
+            return False
+        
+    @staticmethod
+    def to_dense(matrix):
+        if isinstance(matrix, jsp.BCOO):
+            return matrix.toarray()
+        return matrix
+        
+    @staticmethod
+    def to_sparse(matrix):
+        return sp.csc_matrix(matrix)
 
 
 class JaxBackend(Backend):
@@ -207,12 +234,51 @@ class JaxBackend(Backend):
     allclose = staticmethod(jax.numpy.allclose)
     stack = staticmethod(jax.numpy.stack)
     custom_vjp = staticmethod(jax.custom_jvp)
-
+    csc_matrix = staticmethod(jsp.BCOO)
+    coo_matrix = staticmethod(jsp.BCOO)
+    # dia_matrix = staticmethod(jsp.BCOO)
+    identy = staticmethod(jsp.eye)
     scipy = staticmethod(jax.scipy)
     grad = staticmethod(jax.grad)
     value_and_grad = staticmethod(jax.value_and_grad)
     eigh = staticmethod(jax.scipy.linalg.eigh)
     eigvalsh = staticmethod(jax.scipy.linalg.eigh)
+    
+    @staticmethod
+    def spidentity(n,format):
+         # 构造单位矩阵的非零元素（对角线上的元素全为1）
+        data = jax.numpy.ones(n)
+        indices = jax.numpy.arange(n)[:, None]  # 行和列的索引是相同的
+        indices = jax.numpy.hstack([indices, indices])  # 构造 (row, col) 索引对
+
+        # 创建 BCOO 稀疏单位矩阵
+        return jsp.BCOO((data, indices), shape=(n, n))
+
+    @staticmethod
+    def spkron(a: jsp.BCOO, b: jsp.BCOO, format):
+        a_data, a_indices = a.data, a.indices
+        b_data, b_indices = b.data, b.indices
+
+        # 获取形状
+        a_shape = a.shape
+        b_shape = b.shape
+
+        # Kronecker 积的形状
+        result_shape = (a_shape[0] * b_shape[0], a_shape[1] * b_shape[1])
+
+        # 构建 Kronecker 积的数据和索引
+        result_data = jax.numpy.kron(a_data, b_data)
+        
+        row_indices_a = a_indices[:, 0][:, None]
+        col_indices_a = a_indices[:, 1][:, None]
+        row_indices_b = b_indices[:, 0]
+        col_indices_b = b_indices[:, 1]
+
+        result_indices_row = row_indices_a * b_shape[0] + row_indices_b
+        result_indices_col = col_indices_a * b_shape[1] + col_indices_b
+        result_indices = jax.numpy.hstack([result_indices_row, result_indices_col])
+
+        return jsp.BCOO((result_data, result_indices), shape=result_shape)
 
     @staticmethod
     def convert_to_array(obj_list):
@@ -238,6 +304,24 @@ class JaxBackend(Backend):
         return custom_vjp_func
     
     @staticmethod
+    def is_sparse(matrix):
+        if isinstance(matrix, jsp.BCOO):
+            return True
+        else:
+            return False
+
+    @staticmethod
+    def to_dense(matrix):
+        if isinstance(matrix, jsp.BCOO):
+            return matrix.todense()
+        return matrix
+        
+    @staticmethod
+    def to_sparse(matrix):
+        return jsp.BCOO.fromdense(matrix)
+
+
+    @staticmethod
     def solve_pure_callback(method, matrix_shape, dtype=jax.numpy.float_):
         """
         通用的纯回调函数，用于处理 JAX 的 pure_callback 或直接返回 NumPy 后端结果。
@@ -260,6 +344,42 @@ class JaxBackend(Backend):
                 method, 
                 jax.ShapeDtypeStruct(matrix_shape, dtype)
             )
+    
+    @staticmethod
+    def dia_matrix(diagonal, shape):
+        """
+        在 JAX 中构建对角稀疏矩阵，类似于 SciPy 的 sparse.dia_matrix。
+        
+        Parameters
+        ----------
+        diagonal : array
+            对角线上非零元素的值。
+        shape : tuple
+            稀疏矩阵的形状。
+        
+        Returns
+        -------
+        BCOO 稀疏矩阵
+        """
+        # 非零元素为对角线上的元素
+        data = jax.numpy.array(diagonal)
+
+        # 对角线元素的位置 (row, col)
+        indices = jax.numpy.arange(len(diagonal))
+        indices = jax.numpy.stack([indices, indices], axis=1)  # 构造 (row, col) 索引对
+
+        # 构建稀疏 BCOO 矩阵
+        return jsp.BCOO((data, indices), shape=shape)
+    
+    @staticmethod
+    def solve_csc_matrix(matrix):
+        coo_matrix = matrix.tocoo()  # 先将其转换为 COO 格式
+        data = jax.numpy.array(coo_matrix.data)
+        row = jax.numpy.array(coo_matrix.row)
+        col = jax.numpy.array(coo_matrix.col)
+        indices = jax.numpy.stack([row, col], axis=1)
+        shape = coo_matrix.shape
+        return jsp.BCOO((data, indices), shape=shape)
 
 
 @custom_vjp

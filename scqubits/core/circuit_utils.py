@@ -73,12 +73,12 @@ def sawtooth_operator(x: Union[bc.backend.ndarray, csc_matrix]):
     """
     if isinstance(x, bc.backend.ndarray):
         diagonal_elements = sawtooth_potential(bc.backend.diag(x))
-        operator = dia_matrix((diagonal_elements, 0), shape=(len(diagonal_elements), len(diagonal_elements)))
-        return csc_matrix(operator.tocsc().toarray())
-    elif isinstance(x, csc_matrix):
+        operator = bc.backend.dia_matrix((diagonal_elements, 0), shape=(len(diagonal_elements), len(diagonal_elements)))
+        return bc.backend.csc_matrix(operator.tocsc().toarray())
+    elif isinstance(x, bc.backend.csc_matrix):
         diagonal_elements = sawtooth_potential(x.diagonal())
-        operator = dia_matrix((diagonal_elements, 0), shape=(len(diagonal_elements), len(diagonal_elements)))
-        return csc_matrix(operator.tocsc().toarray())
+        operator = bc.backend.dia_matrix((diagonal_elements, 0), shape=(len(diagonal_elements), len(diagonal_elements)))
+        return bc.backend.csc_matrix(operator.tocsc().toarray())
     else:
         raise TypeError("Input must be either a jnp.ndarray or a csc_matrix.")
 
@@ -92,12 +92,12 @@ def sawtooth_operator_bwd(residuals, grad_output):
     
     if isinstance(x, bc.backend.ndarray.ndarray):
         grad_diag = jax.grad(sawtooth_potential)(bc.backend.ndarray.diag(x)) * diag_grad
-        grad_matrix = dia_matrix((grad_diag, 0), shape=x.shape)
-        return csc_matrix(grad_matrix.tocsc().toarray()).toarray()
-    elif isinstance(x, csc_matrix):
+        grad_matrix = bc.backend.dia_matrix((grad_diag, 0), shape=x.shape)
+        return bc.backend.csc_matrix(grad_matrix.tocsc().toarray()).toarray()
+    elif isinstance(x, bc.backend.csc_matrix):
         grad_diag = jax.grad(sawtooth_potential)(x.diagonal()) * diag_grad
-        grad_matrix = dia_matrix((grad_diag, 0), shape=x.shape)
-        return csc_matrix(grad_matrix.tocsc().toarray())
+        grad_matrix = bc.backend.dia_matrix((grad_diag, 0), shape=x.shape)
+        return bc.backend.csc_matrix(grad_matrix.tocsc().toarray())
     else:
         raise TypeError("Input must be either a jnp.ndarray or a csc_matrix.")
     
@@ -226,7 +226,7 @@ def _identity_phi(grid: discretization.Grid1d) -> csc_matrix:
     return sparse.identity(pt_count, format="csc")
 
 
-def _phi_operator(grid: discretization.Grid1d) -> csc_matrix:
+def _phi_operator(grid: discretization.Grid1d) -> bc.backend.csc_matrix:
     """
     Returns phi operator in the discretized_phi basis.
 
@@ -244,10 +244,10 @@ def _phi_operator(grid: discretization.Grid1d) -> csc_matrix:
     phi_matrix = sparse.dia_matrix((pt_count, pt_count))
     diag_elements = grid.make_linspace()
     phi_matrix.setdiag(diag_elements)
-    return phi_matrix.tocsc()
+    return bc.backend.solve_csc_matrix(phi_matrix)
 
 
-def _i_d_dphi_operator(grid: discretization.Grid1d) -> csc_matrix:
+def _i_d_dphi_operator(grid: discretization.Grid1d) -> bc.backend.csc_matrix:
     """
     Returns i*d/dphi operator in the discretized_phi basis.
 
@@ -263,7 +263,7 @@ def _i_d_dphi_operator(grid: discretization.Grid1d) -> csc_matrix:
     return grid.first_derivative_matrix(prefactor=-1j)
 
 
-def _i_d2_dphi2_operator(grid: discretization.Grid1d) -> csc_matrix:
+def _i_d2_dphi2_operator(grid: discretization.Grid1d) -> bc.backend.csc_matrix:
     """
     Returns i*d2/dphi2 operator in the discretized_phi basis.
 
@@ -279,7 +279,7 @@ def _i_d2_dphi2_operator(grid: discretization.Grid1d) -> csc_matrix:
     return grid.second_derivative_matrix(prefactor=-1.0)
 
 
-def _cos_phi(grid: discretization.Grid1d) -> csc_matrix:
+def _cos_phi(grid: discretization.Grid1d) -> bc.backend.csc_matrix:
     """
     Returns cos operator in the discretized_phi basis.
 
@@ -293,14 +293,14 @@ def _cos_phi(grid: discretization.Grid1d) -> csc_matrix:
         cos operator in the discretized phi basis
     """
     pt_count = grid.pt_count
-
-    cos_op = sparse.dia_matrix((pt_count, pt_count))
+    cos_op = bc.backend.dia_matrix((pt_count, pt_count))
+    # cos_op = sparse.dia_matrix((pt_count, pt_count))
     diag_elements = bc.backend.cos(grid.make_linspace())
     cos_op.setdiag(diag_elements)
-    return cos_op.tocsc()
+    return bc.backend.solve_csc_matrix(cos_op)
 
 
-def _sin_phi(grid: discretization.Grid1d) -> csc_matrix:
+def _sin_phi(grid: discretization.Grid1d) -> bc.backend.csc_matrix:
     """
     Returns sin operator in the discretized_phi basis.
 
@@ -315,10 +315,10 @@ def _sin_phi(grid: discretization.Grid1d) -> csc_matrix:
     """
     pt_count = grid.pt_count
 
-    sin_op = sparse.dia_matrix((pt_count, pt_count))
+    sin_op = bc.backend.dia_matrix((pt_count, pt_count))
     diag_elements = bc.backend.sin(grid.make_linspace())
     sin_op.setdiag(diag_elements)
-    return sin_op.tocsc()
+    return bc.backend.solve_csc_matrix(sin_op)
 
 
 def _identity_theta(ncut: int) -> csc_matrix:

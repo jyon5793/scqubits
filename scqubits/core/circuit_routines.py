@@ -417,7 +417,7 @@ class CircuitRoutines(ABC):
         return cutoffs_dict
 
     def _set_property_and_update_param_vars(
-        self, param_name: str, value: float
+        self, param_name: str, value: bc.backend.float
     ) -> None:
         """
         Setter method to set parameter variables which are instance properties.
@@ -490,7 +490,7 @@ class CircuitRoutines(ABC):
                     setattr(subsys, param_name, value)
 
     def _set_property_and_update_ext_flux_or_charge(
-        self, param_name: str, value: float
+        self, param_name: str, value: bc.backend.float
     ) -> None:
         """
         Setter method to set external flux or offset charge variables which are instance
@@ -522,7 +522,7 @@ class CircuitRoutines(ABC):
                     self._store_updated_subsystem_index(subsys_idx)
                     setattr(subsys, param_name, value)
 
-    def _set_property_and_update_cutoffs(self, param_name: str, value: int) -> None:
+    def _set_property_and_update_cutoffs(self, param_name: str, value: bc.backend.int) -> None:
         """
         Setter method to set cutoffs which are instance properties.
 
@@ -561,7 +561,7 @@ class CircuitRoutines(ABC):
     def _make_property(
         self,
         attrib_name: str,
-        init_val: Union[int, float],
+        init_val: Union[bc.backend.int, bc.backend.float],
         property_update_type: str,
         use_central_dispatch: bool = True,
     ) -> None:
@@ -635,7 +635,7 @@ class CircuitRoutines(ABC):
             setattr(self.__class__, attrib_name, property(fget=getter, fset=setter))
 
     def set_discretized_phi_range(
-        self, var_indices: Tuple[int], phi_range: Tuple[float]
+        self, var_indices: Tuple[bc.backend.int], phi_range: Tuple[bc.backend.float]
     ) -> None:
         """
         Sets the flux range for discretized phi basis or for plotting
@@ -984,7 +984,7 @@ class CircuitRoutines(ABC):
 
     @backend_dependent_vjp
     def _sym_hamiltonian_for_var_indices(
-        self, hamiltonian_expr: sm.Expr, subsys_index_list: List[int]
+        self, hamiltonian_expr: sm.Expr, subsys_index_list: List[bc.backend.int]
     ) -> sm.Expr:
         """
         Returns the symbolic Hamiltonian and interaction terms of the subsystem corresponding to the set of variable indices in subsys_index_list
@@ -1057,6 +1057,7 @@ class CircuitRoutines(ABC):
     
     bc.backend.bind_custom_vjp(_sym_hamiltonian_for_var_indices,_sym_hamiltonian_for_var_indices_fwd,_sym_hamiltonian_for_var_indices_bwd)
 
+    @backend_dependent_vjp
     def generate_subsystems(self, only_update_subsystems: bool = False):
         """
         Generates the subsystems (child instances of Circuit) depending on the attribute
@@ -1130,14 +1131,14 @@ class CircuitRoutines(ABC):
                 ]
         else:
             # storing data in class attributes
-            self.subsystem_hamiltonians: Dict[int, sm.Expr] = dict(
+            self.subsystem_hamiltonians: Dict[bc.backend.int, sm.Expr] = dict(
                 zip(
                     range(len(self.system_hierarchy)),
                     [systems_sym[index] for index in range(len(self.system_hierarchy))],
                 )
             )
 
-            self.subsystem_interactions: Dict[int, sm.Expr] = dict(
+            self.subsystem_interactions: Dict[bc.backend.int, sm.Expr] = dict(
                 zip(
                     range(len(self.system_hierarchy)),
                     [
@@ -1190,6 +1191,27 @@ class CircuitRoutines(ABC):
                 )
 
             self.hilbert_space = HilbertSpace(self.subsystems)
+    
+    # 前向传播
+    def generate_subsystems_fwd(self, only_update_subsystems):
+        result = self.generate_subsystems(self, only_update_subsystems)
+        return result, (self, result)
+
+    # 反向传播
+    def generate_subsystems_bwd(residuals, g):
+        self, (systems_sym, interaction_sym) = residuals
+
+        # 初始化梯度
+        grad_hamiltonian_symbolic = jnp.zeros_like(self.hamiltonian_symbolic)
+
+        # 根据符号计算的结果，推导输入哈密顿量的梯度
+        for system in systems_sym:
+            grad_hamiltonian_symbolic += sm.diff(self.hamiltonian_symbolic, system) * g
+
+        return (None, grad_hamiltonian_symbolic)
+
+    # 绑定前向和反向传播
+    bc.backend.bind_custom_vjp(generate_subsystems_fwd, generate_subsystems_bwd,generate_subsystems)
 
     def get_eigenstates(self) -> ndarray:
         """
@@ -1201,7 +1223,7 @@ class CircuitRoutines(ABC):
         else:
             return self.eigensys()[1]
 
-    def get_subsystem_index(self, var_index: int) -> int:
+    def get_subsystem_index(self, var_index: bc.backend.int) -> bc.backend.int:
         """
         Returns the subsystem index for the subsystem to which the given var_index
         belongs.
@@ -1534,6 +1556,7 @@ class CircuitRoutines(ABC):
         return round_symbolic_expr(hamiltonian.expand(), 16)
         # * ##########################################################################
 
+    @backend_dependent_vjp
     def generate_sym_potential(self):
         # and bringing the potential into the same form as for the class Circuit
         potential_symbolic = 0 * sm.symbols("x")
@@ -1550,6 +1573,28 @@ class CircuitRoutines(ABC):
             )
         return potential_symbolic
     
+    # 前向传播
+    def generate_sym_potential_fwd(self):
+        result = self.generate_sym_potential(self)
+        return result, (self, result)
+
+    # 反向传播
+    def generate_sym_potential_bwd(residuals, g):
+        self, potential_symbolic = residuals
+
+        # 初始化梯度
+        grad_theta = {}
+
+        # 对于每个动态变量 θ{i}，计算其相对于势能的梯度
+        for i in self.dynamic_var_indices:
+            theta_i = sm.symbols(f"θ{i}")
+            grad_theta[f"θ{i}"] = jnp.sum(jnp.conjugate(g) * sm.diff(potential_symbolic, theta_i))
+
+        # 返回 θ{i} 的梯度
+        return (None, grad_theta)
+    bc.backend.bind_custom_vjp(generate_sym_potential_fwd, generate_sym_potential_bwd, generate_sym_potential)
+
+
     @backend_dependent_vjp
     def generate_hamiltonian_sym_for_numerics(
         self,
@@ -1662,9 +1707,10 @@ class CircuitRoutines(ABC):
         return bc.backend.prod(cutoff_values)
 
     # helper functions
+    @backend_dependent_vjp
     def _kron_operator(
-        self, operator: Union[jsp.BCOO, ndarray], var_index: int
-    ) -> Union[jsp.BCOO, ndarray]:
+        self, operator: Union[bc.backend.csc_matrix, ndarray], var_index: int
+    ) -> Union[bc.backend.csc_matrix, ndarray]:
         """
         Identity wraps the operator with identities generated for all the other variable
         indices present in the current Subsystem.
@@ -1697,33 +1743,53 @@ class CircuitRoutines(ABC):
 
         if len(dynamic_var_indices) > 1:
             if var_index_pos > 0:
-                identity_left = sparse.identity(
+                identity_left = bc.backend.spidentity(
                     bc.backend.prod(var_dim_list[:var_index_pos]),
                     format=matrix_format,
                 )
             if var_index_pos < len(dynamic_var_indices) - 1:
-                identity_right = sparse.identity(
+                identity_right = bc.backend.spidentity(
                     bc.backend.prod(var_dim_list[var_index_pos + 1 :]),
                     format=matrix_format,
                 )
 
             if var_index == dynamic_var_indices[0]:
-                return convert_sp_matrix_to_jax(sparse.kron(operator, identity_right, format=matrix_format))
+                return convert_sp_matrix_to_jax(bc.backend.spkron(operator, identity_right, format=matrix_format))
             elif var_index == dynamic_var_indices[-1]:
-                return convert_sp_matrix_to_jax(sparse.kron(identity_left, operator, format=matrix_format))
+                return convert_sp_matrix_to_jax(bc.backend.spkron(identity_left, operator, format=matrix_format))
             else:
-                return convert_sp_matrix_to_jax(sparse.kron(
-                    sparse.kron(identity_left, operator, format=matrix_format),
+                return convert_sp_matrix_to_jax(bc.backend.spkron(
+                    bc.backend.spkron(identity_left, operator, format=matrix_format),
                     identity_right,
                     format=matrix_format,
                 ))
         else:
             return convert_sp_matrix_to_jax(self._sparsity_adaptive(operator))
+        
+    # 前向传播
+    def kron_operator_fwd(self, operator, var_index):
+        result = self.kron_operator(self, operator, var_index)
+        return result, (self, operator, var_index)
 
-    @backend_dependent_vjp
+    # 反向传播
+    def kron_operator_bwd(residuals, g):
+        self, operator, var_index = residuals
+        # 初始化梯度
+        grad_operator = jnp.zeros_like(operator)
+        grad_var_index = None
+
+        # 计算输入矩阵的梯度
+        # 由于 Kronecker 积的特殊结构，梯度可以通过链式法则推导出来
+        grad_operator = jnp.sum(jnp.conjugate(g) * operator)
+
+        return (None, grad_operator, grad_var_index)
+
+    # 绑定前向和反向传播
+    bc.backend.bind_custom_vjp(kron_operator_fwd, kron_operator_bwd, _kron_operator)
+
     def _sparsity_adaptive(
-        self, matrix: Union[jsp.BCOO, ndarray]
-    ) -> Union[jsp.BCOO, ndarray]: 
+        self, matrix: Union[bc.backend.csc_matrix, ndarray]
+    ) -> Union[bc.backend.csc_matrix, ndarray]: 
         """
         Changes the type of matrix depending on the attribute
         type_of_matrices
@@ -1739,34 +1805,15 @@ class CircuitRoutines(ABC):
             matrices used.
         """
         #  all of this can be simplified.
-        if isinstance(matrix, jsp.BCOO):
+        if bc.backend.is_sparse(matrix):
             if self.type_of_matrices == "sparse":
-                return matrix 
-            return matrix.todense() 
+                return matrix
+            return bc.backend.to_dense(matrix)
 
-        # 如果输入是稠密矩阵
         if self.type_of_matrices == "sparse":
-            return jsp.BCOO.fromdense(matrix)
+            return bc.backend.to_sparse(matrix)
+        
         return matrix
-    
-    @staticmethod
-    def sparsity_adaptive_fwd(matrix: Union[jsp.BCOO, jnp.ndarray], type_of_matrices: str):
-        if isinstance(matrix, jsp.BCOO):
-            result = matrix if type_of_matrices == "sparse" else matrix.todense()
-        else:
-            result = jsp.BCOO.fromdense(matrix) if type_of_matrices == "sparse" else matrix
-        return result, (matrix, type_of_matrices)
-
-    @staticmethod
-    def sparsity_adaptive_bwd(residuals, grad_output):
-        matrix, type_of_matrices = residuals
-        if isinstance(matrix, jsp.BCOO):
-            if type_of_matrices == "sparse":
-                return jsp.BCOO.fromdense(grad_output), None
-            return grad_output, None
-        if type_of_matrices == "sparse":
-            return jsp.BCOO.fromdense(grad_output), None
-        return grad_output, None
 
     def _identity_qobj(self):
         """
@@ -1797,9 +1844,8 @@ class CircuitRoutines(ABC):
 
     @backend_dependent_vjp
     def exp_i_operator(
-        self, var_sym: sm.Symbol, prefactor: float
-    # ) -> Union[csc_matrix, ndarray]:
-    ) -> Union[jsp.BCOO, ndarray]:
+        self, var_sym: sm.Symbol, prefactor: bc.backendfloat
+    ) -> Union[bc.backend.csc_matrix, ndarray]:
         """
         Returns the bare operator exp(i*\theta*prefactor), without the kron product.
         Needs the oscillator lengths to be set in the attribute, `osc_lengths`,
@@ -1823,11 +1869,11 @@ class CircuitRoutines(ABC):
             )
             if "θ" in var_sym.name:
                 diagonal = np.exp(phi_grid.make_linspace() * prefactor * 1j)
-                exp_i_theta = sparse.dia_matrix(
+                exp_i_theta = bc.backend.dia_matrix(
                     (diagonal, [0]), shape=(phi_grid.pt_count, phi_grid.pt_count)
                 ).tocsc()
             elif "Q" in var_sym.name:
-                exp_i_theta = sp.linalg.expm(
+                exp_i_theta = bc.backend.linalg.expm(
                     _i_d_dphi_operator(phi_grid).toarray() * prefactor * 1j
                 )
         elif var_basis == "harmonic":
@@ -1842,7 +1888,7 @@ class CircuitRoutines(ABC):
                     self.cutoffs_dict()[var_index],
                     prefactor=(osc_length * 2**0.5) ** -1,
                 )
-            exp_i_theta = sparse.linalg.expm(exp_argument_op * prefactor * 1j)
+            exp_i_theta = bc.backend.expm(exp_argument_op * prefactor * 1j)
 
         return convert_sp_matrix_to_jax(self._sparsity_adaptive(exp_i_theta))
     # 前向传播
@@ -2152,7 +2198,7 @@ class CircuitRoutines(ABC):
     # #################################################################
     # ############### Functions for parameter queries #################
     # #################################################################
-    def get_params(self) -> List[float]:
+    def get_params(self) -> List[bc.backend.float]:
         """
         Method to get the circuit parameters set for all the branches.
         """
@@ -2161,7 +2207,7 @@ class CircuitRoutines(ABC):
             params.append(getattr(self, param.name))
         return params
 
-    def offset_free_charge_values(self) -> List[float]:
+    def offset_free_charge_values(self) -> List[bc.backend.float]:
         """
         Returns all the offset charges set using the circuit attributes for each of the
         periodic degree of freedom.
@@ -2197,7 +2243,7 @@ class CircuitRoutines(ABC):
     @backend_dependent_vjp
     def identity_wrap_for_hd(
         self,
-        operator: Optional[Union[jsp.BCOO, ndarray]],
+        operator: Optional[Union[bc.backend.csc_matrix, ndarray]],
         child_instance,
         bare_esys: Optional[Dict[int, Tuple]] = None,
     ) -> qt.Qobj:
@@ -2254,7 +2300,7 @@ class CircuitRoutines(ABC):
     
     def identity_wrap_for_hd_fwd(
         self,
-        operator: Optional[Union[jsp.BCOO, jnp.ndarray]],
+        operator: Optional[Union[bc.backend.csc_matrix, jnp.ndarray]],
         child_instance,
         bare_esys: Optional[Dict[int, Tuple]] = None,
         type_of_matrices: str = "dense"
@@ -2274,7 +2320,7 @@ class CircuitRoutines(ABC):
 
     @check_sync_status_circuit
     def get_operator_by_name(
-        self, operator_name: str, power: Optional[int] = None, bare_esys=None
+        self, operator_name: str, power: Optional[bc.backend.int] = None, bare_esys=None
     ) -> qt.Qobj:
         """
         Returns the operator for the given operator symbol which has the same dimension
@@ -2445,7 +2491,7 @@ class CircuitRoutines(ABC):
         return H_string
 
     @backend_dependent_vjp
-    def _hamiltonian_for_harmonic_extended_vars(self) -> Union[jsp.BCOO, ndarray]:
+    def _hamiltonian_for_harmonic_extended_vars(self) -> Union[bc.backend.csc_matrix, ndarray]:
         hamiltonian = self._hamiltonian_sym_for_numerics
         # substitute all parameter values
         all_sym_parameters = (
@@ -2562,7 +2608,7 @@ class CircuitRoutines(ABC):
         return None, grad_all_sym_parameters
     bc.backend.bind_custom_vjp(_hamiltonian_for_harmonic_extended_vars_fwd, _hamiltonian_for_harmonic_extended_vars_bwd, _hamiltonian_for_harmonic_extended_vars)
 
-    def _evaluate_hamiltonian(self) -> jsp.BCOO:
+    def _evaluate_hamiltonian(self) -> bc.backend.csc_matrix:
         hamiltonian = self._hamiltonian_sym_for_numerics
         hamiltonian = hamiltonian.subs(
             [
@@ -2575,15 +2621,9 @@ class CircuitRoutines(ABC):
         )
         hamiltonian = hamiltonian.subs("I", 1)
 
-        # 调用 SciPy 操作，将其包装在 jax.pure_callback 中
-        def scipy_to_jax():
-            return convert_sp_matrix_to_jax(self._sparsity_adaptive(
-                Qobj_to_scipy_csc_matrix(self._evaluate_symbolic_expr(hamiltonian))
-            ))
-
-        hamiltonian_bcoo = bc.backend.solve_pure_callback(scipy_to_jax, hamiltonian.shape)
-
-        return hamiltonian_bcoo
+        return self._sparsity_adaptive(
+            Qobj_to_scipy_csc_matrix(self._evaluate_symbolic_expr(hamiltonian))
+        )
         
     @backend_dependent_vjp
     @check_sync_status_circuit
@@ -2641,7 +2681,7 @@ class CircuitRoutines(ABC):
 
     bc.backend.bind_custom_vjp(_hamiltonian_for_purely_harmonic_fwd,_hamiltonian_for_purely_harmonic_bwd,_hamiltonian_for_purely_harmonic)
 
-    def _eigenvals_for_purely_harmonic(self, evals_count: int):
+    def _eigenvals_for_purely_harmonic(self, evals_count: bc.backend.int):
         """
         Returns Hamiltonian for purely harmonic circuits. Hierarchical diagonalization
         is disabled for such circuits.
@@ -2658,14 +2698,14 @@ class CircuitRoutines(ABC):
             H_osc = sp.sparse.dia_matrix(
                 (evals, [0]), shape=(cutoff, cutoff), dtype=np.float_
             )
-            def convert_operator():
-                return convert_sp_matrix_to_jax(H_osc)
+            # def convert_operator():
+            #     return convert_sp_matrix_to_jax(H_osc)
 
-            # 使用 solve_pure_callback 进行转换
-            H_osc = bc.backend.solve_pure_callback(
-                method=convert_operator,
-                matrix_shape=H_osc.shape
-            )
+            # # 使用 solve_pure_callback 进行转换
+            # H_osc = bc.backend.solve_pure_callback(
+            #     method=convert_operator,
+            #     matrix_shape=H_osc.shape
+            # )
             operator_for_var_index.append(self._kron_operator(H_osc, var_index))
         H = sum(operator_for_var_index)
         unsorted_eigs = H.diagonal()
@@ -2674,7 +2714,7 @@ class CircuitRoutines(ABC):
 
     @check_sync_status_circuit
     @backend_dependent_vjp
-    def hamiltonian(self) -> Union[csc_matrix, ndarray]:
+    def hamiltonian(self) -> Union[bc.backend.csc_matrix, ndarray]:
         """
         Returns the Hamiltonian of the Circuit.
         """
@@ -2892,7 +2932,7 @@ class CircuitRoutines(ABC):
             )
         return bc.backend.sort(evals)
 
-    def _esys_calc(self, evals_count: int) -> Tuple[ndarray, ndarray]:
+    def _esys_calc(self, evals_count: bc.backend.int) -> Tuple[ndarray, ndarray]:
         # dimension of the hamiltonian
 
         hamiltonian_mat = self.hamiltonian()

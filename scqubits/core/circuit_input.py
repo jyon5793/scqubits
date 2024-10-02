@@ -8,6 +8,7 @@ import numpy as np
 import scipy as sp
 import sympy as sm
 from scqubits import backend_change
+from scqubits.backend_change import backend_dependent_vjp
 
 # *****************************************************************
 #  OUR GRAMMAR DEFINITIONS
@@ -212,7 +213,7 @@ def parse_code_line(code_line: str, _branch_count):
 
     return branch_type, node_idx1, node_idx2, params, aux_params, _branch_count
 
-
+@backend_dependent_vjp
 def convert_value_to_GHz(val, units):
     """
     Converts a given value and units to energy in GHz. The units are given in a string in the format "pU"
@@ -255,6 +256,42 @@ def convert_value_to_GHz(val, units):
         return val * Φ0 / (2 * backend_change.backend.pi * h) * 1e-9
     else:
         raise ValueError(f"Unknown unit {unit_str}")
+    
+# 前向传播
+def convert_value_to_GHz_fwd(val, units):
+    result = convert_value_to_GHz(val, units)
+    return result, (val, units)
+
+# 反向传播
+def convert_value_to_GHz_bwd(residuals, g):
+    val, units = residuals
+
+    h = sp.h
+    e = sp.e
+    Φ0 = h / (2 * e)
+
+    unit_str = units[1]
+    
+    if unit_str == "Hz":
+        grad_val = g * 1e-9
+    elif unit_str == "J":
+        grad_val = g / h * 1e-9
+    elif unit_str == "eV":
+        grad_val = g * 1.602176634e-19 / h * 1e-9
+    elif unit_str == "F":
+        grad_val = -g * e**2 / (2 * val**2 * h) * 1e-9
+    elif unit_str == "H":
+        grad_val = -g * Φ0**2 / (val**2 * h * (2 * backend_change.backend_dependent_vjp.pi) ** 2) * 1e-9
+    elif unit_str == "A":
+        grad_val = g * Φ0 / (2 * backend_change.backend.pi * h) * 1e-9
+    else:
+        raise ValueError(f"Unknown unit {unit_str}")
+
+    # 返回的是对 val 的梯度和对 units 的梯度 (units 不可微)
+    return (grad_val, None)
+
+backend_change.backend.bind_custom_vjp(convert_value_to_GHz_fwd, convert_value_to_GHz_bwd, convert_value_to_GHz)
+
 
 
 def process_param(pattern):

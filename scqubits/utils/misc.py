@@ -32,6 +32,7 @@ import jax.numpy as jnp
 import scqubits.settings
 import scqubits.backend_change as bc
 from scqubits.settings import IN_IPYTHON
+from scqubits import backend_change as bc
 
 if IN_IPYTHON:
     from tqdm.notebook import tqdm
@@ -258,11 +259,11 @@ def qt_ket_to_ndarray(qobj_ket: qt.Qobj) -> np.ndarray:
     )
 
 
-def Qobj_to_scipy_csc_matrix(qobj_array: qt.Qobj) -> sp.sparse.csc_matrix:
+def Qobj_to_scipy_csc_matrix(qobj_array: qt.Qobj) -> bc.backend.csc_matrix:
     return (
         qobj_array.to("csr").data.as_scipy().tocsc()
         if qt.__version__ >= "5.0.0"
-        else qobj_array.data.tocsc()
+        else bc.backend.solve_csc_matrix(qobj_array.data)
     )
 
 
