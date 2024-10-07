@@ -417,7 +417,7 @@ class CircuitRoutines(ABC):
         return cutoffs_dict
 
     def _set_property_and_update_param_vars(
-        self, param_name: str, value: bc.backend.float
+        self, param_name: str, value: bc.backend.float_
     ) -> None:
         """
         Setter method to set parameter variables which are instance properties.
@@ -490,7 +490,7 @@ class CircuitRoutines(ABC):
                     setattr(subsys, param_name, value)
 
     def _set_property_and_update_ext_flux_or_charge(
-        self, param_name: str, value: bc.backend.float
+        self, param_name: str, value: bc.backend.float_
     ) -> None:
         """
         Setter method to set external flux or offset charge variables which are instance
@@ -561,7 +561,7 @@ class CircuitRoutines(ABC):
     def _make_property(
         self,
         attrib_name: str,
-        init_val: Union[bc.backend.int, bc.backend.float],
+        init_val: Union[bc.backend.int, bc.backend.float_],
         property_update_type: str,
         use_central_dispatch: bool = True,
     ) -> None:
@@ -635,7 +635,7 @@ class CircuitRoutines(ABC):
             setattr(self.__class__, attrib_name, property(fget=getter, fset=setter))
 
     def set_discretized_phi_range(
-        self, var_indices: Tuple[bc.backend.int], phi_range: Tuple[bc.backend.float]
+        self, var_indices: Tuple[bc.backend.int], phi_range: Tuple[bc.backend.float_]
     ) -> None:
         """
         Sets the flux range for discretized phi basis or for plotting
@@ -1844,7 +1844,7 @@ class CircuitRoutines(ABC):
 
     @backend_dependent_vjp
     def exp_i_operator(
-        self, var_sym: sm.Symbol, prefactor: bc.backendfloat
+        self, var_sym: sm.Symbol, prefactor: bc.backend.float_
     ) -> Union[bc.backend.csc_matrix, ndarray]:
         """
         Returns the bare operator exp(i*\theta*prefactor), without the kron product.
@@ -1873,7 +1873,7 @@ class CircuitRoutines(ABC):
                     (diagonal, [0]), shape=(phi_grid.pt_count, phi_grid.pt_count)
                 ).tocsc()
             elif "Q" in var_sym.name:
-                exp_i_theta = bc.backend.linalg.expm(
+                exp_i_theta = bc.backend.expm(
                     _i_d_dphi_operator(phi_grid).toarray() * prefactor * 1j
                 )
         elif var_basis == "harmonic":
@@ -1888,9 +1888,10 @@ class CircuitRoutines(ABC):
                     self.cutoffs_dict()[var_index],
                     prefactor=(osc_length * 2**0.5) ** -1,
                 )
-            exp_i_theta = bc.backend.expm(exp_argument_op * prefactor * 1j)
+            exp_i_theta = bc.backend.spexpm(exp_argument_op * prefactor * 1j)
 
         return convert_sp_matrix_to_jax(self._sparsity_adaptive(exp_i_theta))
+    
     # 前向传播
     def exp_i_operator_fwd(self, var_sym: sm.Symbol, prefactor: float):
         result = self.exp_i_operator(self, var_sym, prefactor)
@@ -2198,7 +2199,7 @@ class CircuitRoutines(ABC):
     # #################################################################
     # ############### Functions for parameter queries #################
     # #################################################################
-    def get_params(self) -> List[bc.backend.float]:
+    def get_params(self) -> List[bc.backend.float_]:
         """
         Method to get the circuit parameters set for all the branches.
         """
@@ -2207,7 +2208,7 @@ class CircuitRoutines(ABC):
             params.append(getattr(self, param.name))
         return params
 
-    def offset_free_charge_values(self) -> List[bc.backend.float]:
+    def offset_free_charge_values(self) -> List[bc.backend.float_]:
         """
         Returns all the offset charges set using the circuit attributes for each of the
         periodic degree of freedom.
@@ -2370,12 +2371,7 @@ class CircuitRoutines(ABC):
         )
 
         if isinstance(operator, qt.Qobj):
-            def convert_operator():
-                return convert_sp_matrix_to_jax(Qobj_to_scipy_csc_matrix(operator))
-            operator = bc.backend.solve_pure_callback(
-                method=convert_operator,
-                matrix_shape=operator.shape
-            )
+            operator = Qobj_to_scipy_csc_matrix(operator)
 
         operator = convert_matrix_to_qobj(
             operator,
@@ -2577,12 +2573,8 @@ class CircuitRoutines(ABC):
         junction_potential_matrix = self._evaluate_matrix_cosine_terms(
             junction_potential
         )
-        def convert_junction_potential_matrix():
-            return convert_sp_matrix_to_jax(Qobj_to_scipy_csc_matrix(junction_potential_matrix))
-        junction_potential_matrix = bc.backend.solve_pure_callback(
-            method=convert_junction_potential_matrix,
-            matrix_shape=junction_potential_matrix.shape
-        )
+        junction_potential_matrix = Qobj_to_scipy_csc_matrix(junction_potential_matrix)
+
         if H_LC_str:
             return eval(H_LC_str, replacement_dict) + junction_potential_matrix
         else:
@@ -2695,7 +2687,7 @@ class CircuitRoutines(ABC):
         for idx, var_index in enumerate(self.var_categories["extended"]):
             cutoff = getattr(self, f"cutoff_ext_{var_index}")
             evals = (0.5 + np.arange(0, cutoff)) * self.normal_mode_freqs[idx]
-            H_osc = sp.sparse.dia_matrix(
+            H_osc = bc.backend.dia_matrix(
                 (evals, [0]), shape=(cutoff, cutoff), dtype=np.float_
             )
             # def convert_operator():
@@ -2741,7 +2733,6 @@ class CircuitRoutines(ABC):
     def hamiltonian_fwd(self):
         hamiltonian = self.hamiltonian()
 
-        # 检查返回类型，并保存类型信息
         if isinstance(hamiltonian, csc_matrix):
             matrix_type = "sparse"
         elif isinstance(hamiltonian, np.ndarray):
@@ -4191,8 +4182,8 @@ def diagonalize_matrix_bwd(residuals, g):
     return (grad_A,)
 diagonalize_matrix = bc.backend.bind_custom_vjp(diagonalize_matrix_fwd,diagonalize_matrix_bwd,diagonalize_matrix)
 
-bc.backend.bind_custom_vjp(
-    partial(CircuitRoutines.sparsity_adaptive_fwd),
-    partial(CircuitRoutines.sparsity_adaptive_bwd),
-    CircuitRoutines._sparsity_adaptive
-)
+# bc.backend.bind_custom_vjp(
+#     partial(CircuitRoutines.sparsity_adaptive_fwd),
+#     partial(CircuitRoutines.sparsity_adaptive_bwd),
+#     CircuitRoutines._sparsity_adaptive
+# )

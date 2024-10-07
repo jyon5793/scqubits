@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from scqubits.core.circuit import Subsystem
 
 
-def _junction_order(branch_type: str) -> int:
+def _junction_order(branch_type: str) -> bc.backend.int:
     """
     Returns the order of the branch if it is a JJ branch,
     if the order is n its energy is given by cos(phi) + cos(2*phi) + ... + cos(n*phi)
@@ -58,12 +58,12 @@ def _junction_order(branch_type: str) -> int:
             branch_type[2] == "s"
         ):  # adding "JJs" which is a junction with sawtooth current phase relationship
             return 1
-        return int(branch_type[2:])
+        return bc.backend.int(branch_type[2:])
     else:
         return 1
 
 @backend_dependent_vjp
-def sawtooth_operator(x: Union[bc.backend.ndarray, csc_matrix]):
+def sawtooth_operator(x: Union[bc.backend.ndarray, bc.backend.csc_matrix]):
     """
     Returns the operator evaluated using applying the sawtooth_potential function on the
     diagonal elements of the operator x
@@ -82,7 +82,7 @@ def sawtooth_operator(x: Union[bc.backend.ndarray, csc_matrix]):
     else:
         raise TypeError("Input must be either a jnp.ndarray or a csc_matrix.")
 
-def sawtooth_operator_fwd(x: Union[bc.backend.ndarray, csc_matrix]):
+def sawtooth_operator_fwd(x: Union[bc.backend.ndarray, bc.backend.csc_matrix]):
     result = sawtooth_operator(x)
     return result, (x, result)
 
@@ -90,7 +90,7 @@ def sawtooth_operator_bwd(residuals, grad_output):
     x, result = residuals
     diag_grad = grad_output.diagonal()
     
-    if isinstance(x, bc.backend.ndarray.ndarray):
+    if isinstance(x, bc.backend.ndarray):
         grad_diag = jax.grad(sawtooth_potential)(bc.backend.ndarray.diag(x)) * diag_grad
         grad_matrix = bc.backend.dia_matrix((grad_diag, 0), shape=x.shape)
         return bc.backend.csc_matrix(grad_matrix.tocsc().toarray()).toarray()
@@ -135,7 +135,7 @@ def _capactiance_variable_for_branch(branch_type: str):
 
 
 def truncation_template(
-    system_hierarchy: list, individual_trunc_dim: int = 6, combined_trunc_dim: int = 30
+    system_hierarchy: list, individual_trunc_dim: bc.backend.int = 6, combined_trunc_dim: bc.backend.int = 30
 ) -> list:
     """
     Function to generate a template for defining the truncated dimensions for subsystems
@@ -157,7 +157,7 @@ def truncation_template(
         The template for setting the truncated dims for the Circuit instance when
         hierarchical diagonalization is used.
     """
-    trunc_dims: List[Union[int, list]] = []
+    trunc_dims: List[Union[bc.backend.int, list]] = []
     for subsystem_hierarchy in system_hierarchy:
         if subsystem_hierarchy == flatten_list_recursive(subsystem_hierarchy):
             trunc_dims.append(individual_trunc_dim)
@@ -168,7 +168,7 @@ def truncation_template(
     return trunc_dims
 
 
-def get_trailing_number(input_str: str) -> Union[int, None]:
+def get_trailing_number(input_str: str) -> Union[bc.backend.int, None]:
     """
     Returns the number trailing a string given as input. Example:
         $ get_trailing_number("a23")
@@ -184,10 +184,10 @@ def get_trailing_number(input_str: str) -> Union[int, None]:
         returns the trailing integer as int, else returns None
     """
     match = re.search(r"\d+$", input_str)
-    return int(match.group()) if match else None
+    return bc.backend.int(match.group()) if match else None
 
 
-def get_operator_number(input_str: str) -> int:
+def get_operator_number(input_str: str) -> bc.backend.int:
     """
     Returns the number inside an operator name. Example:
         $ get_operator_number("annihilation9_operator")
@@ -203,13 +203,13 @@ def get_operator_number(input_str: str) -> int:
         returns the integer as int, else returns None
     """
     match = re.search(r"(\d+)", input_str)
-    number = int(match.group())
+    number = bc.backend.int(match.group())
     if not number:
         raise Exception(f"{input_str} is not a valid operator name.")
     return number
 
 
-def _identity_phi(grid: discretization.Grid1d) -> csc_matrix:
+def _identity_phi(grid: discretization.Grid1d) -> bc.backend.csc_matrix:
     """
     Returns identity operator in the discretized_phi basis.
 
@@ -241,7 +241,7 @@ def _phi_operator(grid: discretization.Grid1d) -> bc.backend.csc_matrix:
     """
     pt_count = grid.pt_count
 
-    phi_matrix = sparse.dia_matrix((pt_count, pt_count))
+    phi_matrix = bc.backend.dia_matrix((pt_count, pt_count))
     diag_elements = grid.make_linspace()
     phi_matrix.setdiag(diag_elements)
     return bc.backend.solve_csc_matrix(phi_matrix)
@@ -321,37 +321,37 @@ def _sin_phi(grid: discretization.Grid1d) -> bc.backend.csc_matrix:
     return bc.backend.solve_csc_matrix(sin_op)
 
 
-def _identity_theta(ncut: int) -> csc_matrix:
+def _identity_theta(ncut: bc.backend.int) -> bc.backend.csc_matrix:
     """
     Returns Operator identity in the charge basis.
     """
     dim_theta = 2 * ncut + 1
-    return sparse.identity(dim_theta, format="csc")
+    return bc.backend.spidentity(dim_theta, format="csc")
 
 
-def _n_theta_operator(ncut: int) -> csc_matrix:
+def _n_theta_operator(ncut: bc.backend.int) -> bc.backend.csc_matrix:
     """
     Returns charge operator `n` in the charge basis.
     """
     dim_theta = 2 * ncut + 1
     diag_elements = bc.backend.arange(-ncut, ncut + 1)
-    n_theta_matrix = sparse.dia_matrix(
+    n_theta_matrix = bc.backend.solve_csc_matrix(bc.backend.dia_matrix(
         (diag_elements, [0]), shape=(dim_theta, dim_theta)
-    ).tocsc()
+    ))
     return n_theta_matrix
 
 
-def _exp_i_theta_operator(ncut, prefactor=1) -> csc_matrix:
+def _exp_i_theta_operator(ncut, prefactor=1) -> bc.backend.csc_matrix:
     r"""
     Operator :math:`\cos(\theta)`, acting only on the `\theta` Hilbert subspace.
     """
     # if type(prefactor) != int:
     #     raise ValueError("Prefactor must be an integer")
     dim_theta = 2 * ncut + 1
-    matrix = sparse.dia_matrix(
+    matrix = bc.backend.solve_csc_matrix(bc.backend.dia_matrix(
         (bc.backend.ones(dim_theta), [-prefactor]),
         shape=(dim_theta, dim_theta),
-    ).tocsc()
+    ))
     return matrix
 
 

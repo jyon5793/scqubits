@@ -7,6 +7,7 @@ from jax import custom_vjp
 from scipy.special import pbdv
 import scipy as sp
 import jax.experimental.sparse as jsp
+from jax import jit
 
 class Backend(object):
     int = np.int64
@@ -114,6 +115,8 @@ class NumpyBackend(Backend):
     coo_matrix = staticmethod(scipy.sparse.coo_matrix)
     spidentity = staticmethod(scipy.sparse.identity)
     spkron = staticmethod(scipy.sparse.kron)
+    expm = staticmethod(scipy.linalg.expm)
+    spexpm = staticmethod(scipy.sparse.linalg.expm)
 
     @staticmethod
     def solve_csc_matrix(matrix):
@@ -141,24 +144,25 @@ class NumpyBackend(Backend):
 
     @staticmethod
     def is_sparse(matrix):
-        if sp.issparse(matrix):
+        if sp.sparse.issparse(matrix):
             return True
         else:
             return False
         
     @staticmethod
     def to_dense(matrix):
-        if isinstance(matrix, jsp.BCOO):
+        if sp.sparse.issparse(matrix): 
             return matrix.toarray()
         return matrix
         
     @staticmethod
     def to_sparse(matrix):
-        return sp.csc_matrix(matrix)
+        return scipy.sparse.csc_matrix(matrix)
 
 
 class JaxBackend(Backend):
     __name__ = 'jax'
+    ndarray = staticmethod(jax.numpy.array)
     int = staticmethod(jax.numpy.int64)
     array = staticmethod(jax.numpy.array)
     dot = staticmethod(jax.numpy.dot)
@@ -236,13 +240,13 @@ class JaxBackend(Backend):
     custom_vjp = staticmethod(jax.custom_jvp)
     csc_matrix = staticmethod(jsp.BCOO)
     coo_matrix = staticmethod(jsp.BCOO)
-    # dia_matrix = staticmethod(jsp.BCOO)
     identy = staticmethod(jsp.eye)
     scipy = staticmethod(jax.scipy)
     grad = staticmethod(jax.grad)
     value_and_grad = staticmethod(jax.value_and_grad)
     eigh = staticmethod(jax.scipy.linalg.eigh)
     eigvalsh = staticmethod(jax.scipy.linalg.eigh)
+    expm = staticmethod(jax.scipy.linalg.expm)
     
     @staticmethod
     def spidentity(n,format):
@@ -381,6 +385,11 @@ class JaxBackend(Backend):
         shape = coo_matrix.shape
         return jsp.BCOO((data, indices), shape=shape)
 
+    @staticmethod
+    def spexpm(A):
+        v = jax.numpy.ones(A.shape[0])  # 这里使用一个全1的单位向量作为 Krylov 子空间的初始向量
+        m = 10 
+        return krylov_expm_jax(A,v,m)
 
 @custom_vjp
 def pbdv_jax(n, x):
@@ -406,6 +415,48 @@ def backend_dependent_vjp(fn):
         return jax.custom_vjp(fn)
     else:
         return fn
+
+@jit
+def krylov_expm_jax(A, v, m):
+    """
+    使用 Krylov 子空间方法在 JAX 中计算矩阵的指数函数的近似值。
+    
+    Parameters:
+    -----------
+    A : array
+        要计算指数函数的矩阵，必须是 JAX ndarray。
+    v : array
+        Krylov 子空间生成的初始向量，必须是 JAX ndarray。
+    m : int
+        Krylov 子空间的维数。
+        
+    Returns:
+    --------
+    expm_A_v : array
+        近似计算出的矩阵指数作用在向量 v 上的结果。
+    """
+    n = A.shape[0]
+    V = jax.numpy.zeros((n, m))
+    H = jax.numpy.zeros((m, m))
+    beta = jax.numpy.linalg.norm(v)
+    V = V.at[:, 0].set(v / beta)
+
+    for j in range(m - 1):
+        w = A @ V[:, j]
+        for i in range(j + 1):
+            H = H.at[i, j].set(jax.numpy.dot(V[:, i].conj(), w))
+            w -= H[i, j] * V[:, i]
+        H = H.at[j + 1, j].set(jax.numpy.linalg.norm(w))
+        if H[j + 1, j] > 1e-10:
+            V = V.at[:, j + 1].set(w / H[j + 1, j])
+
+    # 计算 H 的指数矩阵 (这里使用 jax.scipy.linalg.expm)
+    expH = jax.scipy.linalg.expm(H)
+
+    # 返回矩阵指数与向量 v 的乘积
+    return beta * (V @ expH[:, 0])
+
+
 
 
 backend = NumpyBackend()

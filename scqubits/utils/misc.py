@@ -524,7 +524,7 @@ _HAS_WIDGET_BACKEND = get_matplotlib_backend() == MATPLOTLIB_WIDGET_BACKEND
 
 
 def convert_sp_matrix_to_jax(input_matrix):
-    if isinstance(input_matrix, sp.spmatrix):
+    if isinstance(input_matrix, sp.sparse.spmatrix):
         if bc.backend.__name__ == "jax":
             # Convert the SciPy sparse matrix to COO format
             coo = input_matrix.tocoo()
