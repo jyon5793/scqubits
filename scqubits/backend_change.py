@@ -117,6 +117,7 @@ class NumpyBackend(Backend):
     spkron = staticmethod(scipy.sparse.kron)
     expm = staticmethod(scipy.linalg.expm)
     spexpm = staticmethod(scipy.sparse.linalg.expm)
+    diags = staticmethod(scipy.sparse.diags)
 
     @staticmethod
     def solve_csc_matrix(matrix):
@@ -390,6 +391,31 @@ class JaxBackend(Backend):
         v = jax.numpy.ones(A.shape[0])  # 这里使用一个全1的单位向量作为 Krylov 子空间的初始向量
         m = 10 
         return krylov_expm_jax(A,v,m)
+    
+    @staticmethod
+    def diags(diagonals, offsets, shape):
+        data = []
+        indices = []
+
+        for diag, offset in zip(diagonals, offsets):
+            n = len(diag)
+            if offset >= 0:
+                row = jax.numpy.arange(n)
+                col = row + offset
+            else:
+                col = jax.numpy.arange(n)
+                row = col - offset
+            
+            # 过滤超出矩阵大小的元素
+            valid = (row < shape[0]) & (col < shape[1])
+            data.append(jax.numpy.array(diag)[valid])
+            indices.append(jax.numpy.stack([row[valid], col[valid]], axis=1))
+
+        data = jax.numpy.concatenate(data)
+        indices = jax.numpy.concatenate(indices, axis=0)
+        
+        return jsp.BCOO((data, indices), shape=shape)
+
 
 @custom_vjp
 def pbdv_jax(n, x):

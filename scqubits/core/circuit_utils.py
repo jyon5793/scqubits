@@ -355,25 +355,25 @@ def _exp_i_theta_operator(ncut, prefactor=1) -> bc.backend.csc_matrix:
     return matrix
 
 
-def _exp_i_theta_operator_conjugate(ncut) -> csc_matrix:
+def _exp_i_theta_operator_conjugate(ncut) ->  bc.backend.csc_matrix:
     r"""
     Operator :math:`\cos(\theta)`, acting only on the `\theta` Hilbert subspace.
     """
     dim_theta = 2 * ncut + 1
-    matrix = sparse.dia_matrix(
+    matrix = bc.backend.solve_csc_matrix(bc.backend.dia_matrix(
         (bc.backend.ones(dim_theta), [1]),
         shape=(dim_theta, dim_theta),
-    ).tocsc()
+    ))
     return matrix
 
 
-def _cos_theta(ncut: int) -> csc_matrix:
+def _cos_theta(ncut: bc.backend.int) -> bc.backend.csc_matrix:
     """Returns operator :math:`\\cos \\varphi` in the charge basis"""
     cos_op = 0.5 * (_exp_i_theta_operator(ncut) + _exp_i_theta_operator_conjugate(ncut))
     return cos_op
 
 
-def _sin_theta(ncut: int) -> csc_matrix:
+def _sin_theta(ncut: bc.backend.int) -> bc.backend.csc_matrix:
     """Returns operator :math:`\\sin \\varphi` in the charge basis"""
     sin_op = (
         -1j
@@ -508,12 +508,12 @@ def compose(f: Callable, g: Callable) -> Callable:
     return g_after_f
 
 
-def _cos_dia(x: csc_matrix) -> csc_matrix:
+def _cos_dia(x: bc.backend.csc_matrix) -> bc.backend.csc_matrix:
     """
     Take the diagonal of the array x, compute its cosine, and fill the result into
     the diagonal of a sparse matrix
     """
-    return sparse.diags(bc.backend.cos(x.diagonal())).tocsc()
+    return bc.backend.solve_csc_matrix(bc.backend.diags(bc.backend.cos(x.diagonal())))
 
 
 def _sin_dia(x: csc_matrix) -> csc_matrix:
@@ -521,7 +521,7 @@ def _sin_dia(x: csc_matrix) -> csc_matrix:
     Take the diagonal of the array x, compute its sine, and fill the result into
     the diagonal of a sparse matrix.
     """
-    return sparse.diags(bc.backend.sin(x.diagonal())).tocsc()
+    return bc.backend.solve_csc_matrix(bc.backend.diags(bc.backend.sin(x.diagonal())))
 
 
 def _sin_dia_dense(x: ndarray) -> ndarray:
