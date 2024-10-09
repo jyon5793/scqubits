@@ -524,7 +524,7 @@ class QubitBaseClass(QuantumSystem, ABC):
     
     # process_op = bc.backend.bind_custom_vjp(process_op_fwd,process_op_bwd,process_op)
 
-    @backend_dependent_vjp
+    # @backend_dependent_vjp
     def process_hamiltonian(
         self,
         native_hamiltonian: Union[bc.backend.ndarray, bc.backend.csc_matrix],
@@ -605,18 +605,18 @@ class QubitBaseClass(QuantumSystem, ABC):
     def matrixelement_table(
         self,
         operator: str,
-        evecs: ndarray = None,
-        evals_count: int = 6,
+        evecs:  bc.backend.ndarray = None,
+        evals_count:  bc.backend.int_ = 6,
         filename: str = None,
         return_datastore: "Literal[False]" = False,
-    ) -> ndarray: ...
+    ) ->  bc.backend.ndarray: ...
 
     @overload
     def matrixelement_table(
         self,
         operator: str,
-        evecs: ndarray,
-        evals_count: int,
+        evecs:  bc.backend.ndarray,
+        evals_count:  bc.backend.int_,
         filename: Optional[str],
         return_datastore: "Literal[True]",
     ) -> DataStore: ...
@@ -624,11 +624,11 @@ class QubitBaseClass(QuantumSystem, ABC):
     def matrixelement_table(
         self,
         operator: str,
-        evecs: ndarray = None,
-        evals_count: int = 6,
+        evecs:  bc.backend.ndarray = None,
+        evals_count:  bc.backend.int_ = 6,
         filename: str = None,
         return_datastore: bool = False,
-    ) -> Union[DataStore, ndarray]:
+    ) -> Union[DataStore,  bc.backend.ndarray]:
         """Returns table of matrix elements for `operator` with respect to the
         eigenstates of the qubit. The operator is given as a string matching a class
         method returning an operator matrix. E.g., for an instance `trm` of Transmon,
@@ -665,16 +665,16 @@ class QubitBaseClass(QuantumSystem, ABC):
         return data_store if return_datastore else table
 
     def _esys_for_paramval(
-        self, paramval: float, param_name: str, evals_count: int
-    ) -> Tuple[ndarray, ndarray]:
+        self, paramval:  bc.backend.float_, param_name: str, evals_count:  bc.backend.int_
+    ) -> Tuple[ bc.backend.ndarray,  bc.backend.ndarray]:
         setattr(self, param_name, paramval)
         if hasattr(self, "hierarchical_diagonalization"):
             self.update()
         return self.eigensys(evals_count=evals_count)
 
     def _evals_for_paramval(
-        self, paramval: float, param_name: str, evals_count: int
-    ) -> ndarray:
+        self, paramval:  bc.backend.float_, param_name: str, evals_count:  bc.backend.int_
+    ) ->  bc.backend.ndarray:
         setattr(self, param_name, paramval)
         if hasattr(self, "hierarchical_diagonalization"):
             self.update()
@@ -683,12 +683,12 @@ class QubitBaseClass(QuantumSystem, ABC):
     def get_spectrum_vs_paramvals(
         self,
         param_name: str,
-        param_vals: ndarray,
-        evals_count: int = 6,
+        param_vals:  bc.backend.ndarray,
+        evals_count:  bc.backend.int_ = 6,
         subtract_ground: bool = False,
         get_eigenstates: bool = False,
         filename: str = None,
-        num_cpus: Optional[int] = None,
+        num_cpus: Optional[bc.backend.int_] = None,
     ) -> SpectrumData:
         """Calculates eigenvalues/eigenstates for a varying system parameter,
         given an array of parameter values. Returns a `SpectrumData` object with
@@ -788,12 +788,12 @@ class QubitBaseClass(QuantumSystem, ABC):
         self,
         dispersion_name: str,
         param_name: str,
-        param_vals: ndarray,
+        param_vals: bc.backend.ndarray,
         transitions_tuple: TransitionsTuple = ((0, 1),),
         levels_tuple: Optional[LevelsTuple] = None,
-        point_count: int = 50,
-        num_cpus: Optional[int] = None,
-    ) -> Tuple[ndarray, ndarray]:
+        point_count: bc.backend.int_ = 50,
+        num_cpus: Optional[bc.backend.int_] = None,
+    ) -> Tuple[bc.backend.ndarray, bc.backend.ndarray]:
         from scqubits import HilbertSpace, ParameterSweep
 
         hilbertspace = HilbertSpace(subsystem_list=[self])
@@ -820,7 +820,7 @@ class QubitBaseClass(QuantumSystem, ABC):
             bare_only=True,
             num_cpus=num_cpus,
         )
-        eigenenergies = sweep["bare_evals"]["subsys":0].toarray()  # type:ignore
+        eigenenergies = bc.backend.toarray(sweep["bare_evals"]["subsys":0])  # type:ignore
 
         if levels_tuple is None:
             dispersions = bc.backend.empty((len(transitions_tuple), len(param_vals)))
@@ -843,12 +843,12 @@ class QubitBaseClass(QuantumSystem, ABC):
         self,
         dispersion_name: str,
         param_name: str,
-        param_vals: ndarray,
+        param_vals: bc.backend.ndarray,
         ref_param: Optional[str] = None,
         transitions: Union[Transition, TransitionsTuple] = (0, 1),
-        levels: Optional[Union[int, LevelsTuple]] = None,
-        point_count: int = 50,
-        num_cpus: Optional[int] = None,
+        levels: Optional[Union[bc.backend.int_, LevelsTuple]] = None,
+        point_count: bc.backend.int_ = 50,
+        num_cpus: Optional[bc.backend.int_] = None,
     ) -> SpectrumData:
         """Calculates eigenvalues/eigenstates for a varying system parameter,
         given an array of parameter values. Returns a `SpectrumData` object with
@@ -883,7 +883,7 @@ class QubitBaseClass(QuantumSystem, ABC):
             (default value: settings.NUM_CPUS)
         """
         if levels is not None:
-            if isinstance(levels, int):
+            if isinstance(levels, bc.backend.int_):
                 # presence of levels argument will overwrite `transitions`;
                 # here: single level
                 levels_tuple: Optional[LevelsTuple] = (levels,)
@@ -897,7 +897,7 @@ class QubitBaseClass(QuantumSystem, ABC):
                 raise ValueError(
                     "Invalid `levels` specification: expect int or tuple " "of int"
                 )
-        elif isinstance(transitions[0], int):
+        elif isinstance(transitions[0], bc.backend.int_):
             # transitions is inferred to be of form (i, j), so only a single one
             transitions_tuple = (transitions,)  # type:ignore
             levels_tuple = None
@@ -940,9 +940,9 @@ class QubitBaseClass(QuantumSystem, ABC):
         self,
         operator: str,
         param_name: str,
-        param_vals: ndarray,
-        evals_count: int = 6,
-        num_cpus: Optional[int] = None,
+        param_vals: bc.backend.ndarray,
+        evals_count: bc.backend.int_ = 6,
+        num_cpus: Optional[bc.backend.int_] = None,
     ) -> SpectrumData:
         """Calculates matrix elements for a varying system parameter, given an array
         of parameter values. Returns a `SpectrumData` object containing matrix
@@ -1000,10 +1000,10 @@ class QubitBaseClass(QuantumSystem, ABC):
     def plot_evals_vs_paramvals(
         self,
         param_name: str,
-        param_vals: ndarray,
-        evals_count: int = 6,
+        param_vals: bc.backend.ndarray,
+        evals_count: bc.backend.int_ = 6,
         subtract_ground: bool = False,
-        num_cpus: Optional[int] = None,
+        num_cpus: Optional[bc.backend.int_] = None,
         **kwargs,
     ) -> Tuple[Figure, Axes]:
         """Generates a simple plot of a set of eigenvalues as a function of one
@@ -1043,12 +1043,12 @@ class QubitBaseClass(QuantumSystem, ABC):
         self,
         dispersion_name: str,
         param_name: str,
-        param_vals: ndarray,
+        param_vals: bc.backend.ndarray,
         ref_param: Optional[str] = None,
         transitions: Union[Transition, TransitionsTuple] = (0, 1),
-        levels: Optional[Union[int, LevelsTuple]] = None,
-        point_count: int = 50,
-        num_cpus: Optional[int] = None,
+        levels: Optional[Union[bc.backend.int_, LevelsTuple]] = None,
+        point_count: bc.backend.int_ = 50,
+        num_cpus: Optional[bc.backend.int_] = None,
         **kwargs,
     ) -> Tuple[Figure, Axes]:
         """Generates a simple plot of a set of curves representing the charge or flux
@@ -1118,8 +1118,8 @@ class QubitBaseClass(QuantumSystem, ABC):
     def plot_matrixelements(
         self,
         operator: str,
-        evecs: ndarray = None,
-        evals_count: int = 6,
+        evecs: bc.backend.ndarray = None,
+        evals_count: bc.backend.int_ = 6,
         mode: str = "abs",
         show_numbers: bool = False,
         show3d: bool = True,
@@ -1173,10 +1173,10 @@ class QubitBaseClass(QuantumSystem, ABC):
         self,
         operator: str,
         param_name: str,
-        param_vals: ndarray,
-        select_elems: Union[int, List[Tuple[int, int]]] = 4,
+        param_vals: bc.backend.ndarray,
+        select_elems: Union[bc.backend.int_, List[Tuple[bc.backend.int_, bc.backend.int_]]] = 4,
         mode: str = "abs",
-        num_cpus: Optional[int] = None,
+        num_cpus: Optional[bc.backend.int_] = None,
         **kwargs,
     ) -> Tuple[Figure, Axes]:
         """Generates a simple plot of a set of eigenvalues as a function of one
@@ -1205,7 +1205,7 @@ class QubitBaseClass(QuantumSystem, ABC):
             standard plotting option (see separate documentation)
         """
         num_cpus = num_cpus or settings.NUM_CPUS
-        if isinstance(select_elems, int):
+        if isinstance(select_elems, bc.backend.int_):
             evals_count = select_elems
         else:
             flattened_list = [index for tupl in select_elems for index in tupl]
@@ -1258,20 +1258,20 @@ class QubitBaseClass1d(QubitBaseClass):
     _default_grid: Grid1d
 
     @abstractmethod
-    def potential(self, phi: Union[float, ndarray]) -> Union[float, ndarray]:
+    def potential(self, phi: Union[bc.backend.float_, bc.backend.ndarray]) -> Union[bc.backend.float_, bc.backend.ndarray]:
         pass
 
     @abstractmethod
     def wavefunction(
         self,
-        esys: Optional[Tuple[ndarray, ndarray]],
-        which: int = 0,
+        esys: Optional[Tuple[bc.backend.ndarray, bc.backend.ndarray]],
+        which: bc.backend.int_ = 0,
         phi_grid: Grid1d = None,
     ) -> "WaveFunction":
         pass
 
     def wavefunction1d_defaults(
-        self, mode: str, evals: ndarray, wavefunc_count: int
+        self, mode: str, evals: bc.backend.ndarray, wavefunc_count: bc.backend.int_
     ) -> Dict[str, Any]:
         """Plot defaults for plotting.wavefunction1d.
 
@@ -1293,11 +1293,11 @@ class QubitBaseClass1d(QubitBaseClass):
     @mpl.rc_context(matplotlib_settings)
     def plot_wavefunction(
         self,
-        which: Union[int, Iterable[int]] = 0,
+        which: Union[bc.backend.int_, Iterable[bc.backend.int_]] = 0,
         mode: str = "real",
-        esys: Tuple[ndarray, ndarray] = None,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
         phi_grid: Grid1d = None,
-        scaling: Optional[float] = None,
+        scaling: Optional[bc.backend.float_] = None,
         **kwargs,
     ) -> Tuple[Figure, Axes]:
         """Plot 1d phase-basis wave function(s). Must be overwritten by

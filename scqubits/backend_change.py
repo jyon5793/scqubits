@@ -124,6 +124,8 @@ class NumpyBackend(Backend):
     spcosm = staticmethod(scipy.linalg.cosm)
     spsinm = staticmethod(scipy.linalg.sinm)
     speye = staticmethod(scipy.sparse.eye)
+    speigsh = staticmethod(scipy.sparse.linalg.eigsh)
+    qr = staticmethod(scipy.linalg.qr)
 
     @staticmethod
     def toarray(matrix):
@@ -267,10 +269,15 @@ class JaxBackend(Backend):
     grad = staticmethod(jax.grad)
     value_and_grad = staticmethod(jax.value_and_grad)
     eigh = staticmethod(jax.scipy.linalg.eigh)
-    eigvalsh = staticmethod(jax.scipy.linalg.eigh)
+    # eigvalsh = staticmethod(jax.scipy.linalg.eigh)
     expm = staticmethod(jax.scipy.linalg.expm)
     block_diag = staticmethod(jax.scipy.linalg.block_diag)
-
+    qr = staticmethod(jax.scipy.linalg.qr)
+    
+    @staticmethod
+    def eigvalsh(A):
+        return jax.scipy.linalg.eigh(A)[0]  # 只返回特征值部分
+    
     @staticmethod
     def spsinm(A):
         iA = 1j * A
@@ -532,7 +539,7 @@ class JaxBackend(Backend):
         raise TypeError(f"Unsupported matrix type: {type(matrix)}")
     
     @staticmethod
-    def sparse_eye(n, m=None, k=0, dtype=jax.numpy.float32):
+    def speye(n, m=None, k=0, dtype=jax.numpy.float32):
         """
         在 JAX 中创建一个稀疏单位矩阵，类似于 SciPy 的 sparse.eye。
 
@@ -576,6 +583,10 @@ class JaxBackend(Backend):
         eye_sparse = jsp.BCOO((data, indices), shape=shape)
 
         return eye_sparse
+    
+    @staticmethod
+    def speigsh(A, k=6, max_iter=100):
+        return krylov_eigsh_jax(A, k, max_iter)
 
 
 @custom_vjp
@@ -642,6 +653,56 @@ def krylov_expm_jax(A, v, m):
 
     # 返回矩阵指数与向量 v 的乘积
     return beta * (V @ expH[:, 0])
+
+@jax.jit
+def krylov_eigsh_jax(A, k=6, max_iter=100):
+    """
+    使用 Krylov 子空间方法在 JAX 中计算前 k 个特征值和特征向量。
+
+    Parameters:
+    -----------
+    A : array
+        要计算特征值和特征向量的对称矩阵，必须是 JAX ndarray。
+    k : int
+        计算前 k 个特征值和特征向量。
+    max_iter : int
+        Krylov 子空间迭代的最大次数。
+
+    Returns:
+    --------
+    evals : array
+        前 k 个特征值。
+    evecs : array
+        前 k 个特征向量。
+    """
+    n = A.shape[0]
+    V = jax.numpy.zeros((n, k))
+    H = jax.numpy.zeros((k, k))
+
+    v = jax.random.normal(jax.random.PRNGKey(0), (n,))
+    v = v / jax.linalg.norm(v)
+    beta = 0
+
+    for j in range(k):
+        w = A @ v
+        alpha = jax.numpy.dot(w, v)
+        w = w - beta * V[:, j - 1] if j > 0 else w
+        w = w - alpha * v
+        beta = jax.linalg.norm(w)
+
+        V = V.at[:, j].set(v)
+        H = H.at[j, j].set(alpha)
+
+        if j + 1 < k:
+            v = w / beta
+            H = H.at[j + 1, j].set(beta)
+            H = H.at[j, j + 1].set(beta)
+
+    # 计算 H 的特征值和特征向量
+    evals, evecs = jax.numpy.linalg.eigh(H)
+    evecs_full = V @ evecs
+
+    return evals[:k], evecs_full[:, :k]
 
 
 

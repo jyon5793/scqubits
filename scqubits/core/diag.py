@@ -16,7 +16,7 @@ from qutip import Qobj
 from scipy.sparse import csc_matrix
 from scqubits.io_utils.fileio_qutip import QutipEigenstates
 from scqubits.utils.spectrum_utils import order_eigensystem, has_degeneracy
-from scqubits import backend_change
+from scqubits import backend_change as bc
 
 import copy
 import numpy as np
@@ -67,8 +67,8 @@ def _dict_merge(
 
 
 def _cast_matrix(
-    matrix: Union[ndarray, csc_matrix, Qobj], cast_to: str, force_cast: bool = True
-) -> Union[ndarray, csc_matrix, Qobj]:
+    matrix: Union[bc.backend.ndarray, bc.backend.csc_matrix, Qobj], cast_to: str, force_cast: bool = True
+) -> Union[bc.backend.ndarray, bc.backend.csc_matrix, Qobj]:
     """
     Casts a given operator (possibly given as a `Qobj`) into a
     required form ('sparse' or 'dense' numpy array or scipy martrix) as
@@ -124,15 +124,15 @@ def _cast_matrix(
     # Next, we do casting dense or sparse (CSC) representation
     # if force_cast is True
     if force_cast:
-        if cast_to == "dense" and not isinstance(m, ndarray):
-            m = m.toarray()
+        if cast_to == "dense" and not isinstance(m, bc.backend.ndarray):
+            m = bc.backend.toarray(m)
         if cast_to == "sparse":
-            m = csc_matrix(m)
+            m = bc.backend.csc_matrix(m)
 
     return m
 
 
-def _convert_evecs_to_qobjs(evecs: backend_change.backend.ndarray, matrix_qobj, wrap: bool = False) -> Union[backend_change.backend.ndarray, list]:
+def _convert_evecs_to_qobjs(evecs: bc.backend.ndarray, matrix_qobj, wrap: bool = False) -> Union[bc.backend.ndarray, list]:
     """
     Converts an `ndarray` containing eigenvectors (that would be typically
     returned from a diagonalization routine, such as `eighs` or `eigh`),
@@ -168,15 +168,15 @@ def _convert_evecs_to_qobjs(evecs: backend_change.backend.ndarray, matrix_qobj, 
         evecs_qobj_list = evecs_qobj_list.view(QutipEigenstates)
 
     # 调用backend的convert_to_array方法
-    return backend_change.backend.convert_to_array(evecs_qobj_list)
+    return bc.backend.convert_to_array(evecs_qobj_list)
 
 
 ### scipy based routines ####
 
 
 def evals_scipy_dense(
-    matrix: Union[ndarray, csc_matrix, Qobj], evals_count: int, **kwargs
-) -> ndarray:
+    matrix: Union[bc.backend.ndarray, bc.backend.csc_matrix, Qobj], evals_count: bc.backend.int_, **kwargs
+) -> bc.backend.ndarray:
     """
     Diagonalization based on scipy's (dense) `eigh` function.
     Only evals are returned.
@@ -197,7 +197,7 @@ def evals_scipy_dense(
     """
     m = _cast_matrix(matrix, "dense")
 
-    evals = sp.linalg.eigh(
+    evals = bc.backend.eigh(
         m, subset_by_index=(0, evals_count - 1), eigvals_only=True, **kwargs
     )
     return evals
@@ -205,7 +205,7 @@ def evals_scipy_dense(
 
 def esys_scipy_dense(
     matrix, evals_count, **kwargs
-) -> Union[Tuple[ndarray, ndarray], Tuple[ndarray, QutipEigenstates]]:
+) -> Union[Tuple[bc.backend.ndarray, bc.backend.ndarray], Tuple[bc.backend.ndarray, QutipEigenstates]]:
     """
     Diagonalization based on scipy's (dense) eigh function.
     Both evals and evecs are returned.
@@ -226,7 +226,7 @@ def esys_scipy_dense(
     """
     m = _cast_matrix(matrix, "dense")
 
-    evals, evecs = sp.linalg.eigh(m, subset_by_index=(0, evals_count - 1), **kwargs)
+    evals, evecs = bc.backend.eigh(m, subset_by_index=(0, evals_count - 1), **kwargs)
 
     evecs = (
         _convert_evecs_to_qobjs(evecs, matrix) if isinstance(matrix, Qobj) else evecs
@@ -236,8 +236,8 @@ def esys_scipy_dense(
 
 
 def evals_scipy_sparse(
-    matrix: Union[ndarray, csc_matrix, Qobj], evals_count: int, **kwargs
-) -> ndarray:
+    matrix: Union[bc.backend.ndarray, bc.backend.csc_matrix, Qobj], evals_count: bc.backend.int_, **kwargs
+) -> bc.backend.ndarray:
     """
     Diagonalization based on scipy's (sparse) `eigsh` function.
     Only evals are returned.
@@ -322,10 +322,10 @@ def esys_scipy_sparse(
         kwargs,
         overwrite=True,
     )
-    evals, evecs = sp.sparse.linalg.eigsh(m, k=evals_count, **options)
+    evals, evecs = bc.backend.eigsh(m, k=evals_count, **options)
 
     if has_degeneracy(evals):
-        evecs, _ = sp.linalg.qr(evecs, mode="economic")
+        evecs, _ =bc.backend.qr(evecs, mode="economic")
 
     evecs = (
         _convert_evecs_to_qobjs(evecs, matrix) if isinstance(matrix, Qobj) else evecs
@@ -338,8 +338,8 @@ def esys_scipy_sparse(
 
 
 def evals_primme_sparse(
-    matrix: Union[ndarray, csc_matrix, Qobj], evals_count: int, **kwargs
-) -> ndarray:
+    matrix: Union[bc.backend.ndarray, bc.backend.csc_matrix, Qobj], evals_count: bc.backend.int_, **kwargs
+) -> bc.backend.ndarray:
     """
     Diagonalization based on primme's (sparse) `eigsh` function.
     Only evals are returned.
@@ -382,8 +382,8 @@ def evals_primme_sparse(
 
 
 def esys_primme_sparse(
-    matrix: Union[ndarray, csc_matrix, Qobj], evals_count: int, **kwargs
-) -> Union[Tuple[ndarray, ndarray], Tuple[ndarray, QutipEigenstates]]:
+    matrix: Union[bc.backend.ndarray, bc.backend.csc_matrix, Qobj], evals_count: bc.backend.int_, **kwargs
+) -> Union[Tuple[bc.backend.ndarray, bc.backend.ndarray], Tuple[bc.backend.ndarray, QutipEigenstates]]:
     """
     Diagonalization based on primme's (sparse) `eigsh` function.
     Both evals and evecs are returned.
@@ -432,8 +432,8 @@ def esys_primme_sparse(
 
 
 def evals_cupy_dense(
-    matrix: Union[ndarray, csc_matrix, Qobj], evals_count: int, **kwargs
-) -> ndarray:
+    matrix: Union[bc.backend.ndarray, bc.backend.csc_matrix, Qobj], evals_count: bc.backend.int_, **kwargs
+) -> bc.backend.ndarray:
     """
     Diagonalization based on cupy's (dense) `eighvalsh` function
     Only evals are returned.
@@ -609,7 +609,7 @@ def esys_cupy_sparse(
 
 def evals_jax_dense(
     matrix, evals_count, **kwargs
-) -> Union[Tuple[backend_change.backend.ndarray, backend_change.backend.ndarray], Tuple[backend_change.backend.ndarray, Qobj]]:
+) -> Union[Tuple[bc.backend.ndarray, bc.backend.ndarray], Tuple[bc.backend.ndarray, Qobj]]:
     """
     Diagonalization based on jax's (dense) jax.scipy.linalg.eigh function.
     Only eigenvalues are returned.
@@ -643,7 +643,7 @@ def evals_jax_dense(
     m = _cast_matrix(matrix, "dense")
 
     # 使用动态后端的array方法将矩阵转换为适当的数组类型
-    m_array = backend_change.backend.array(m)
+    m_array = bc.backend.array(m)
 
     evals = jax.scipy.linalg.eigh(m_array, eigvals_only=True, **kwargs)
 
@@ -663,7 +663,7 @@ def _cast_matrix(matrix, matrix_type):
 
 def esys_jax_dense(
     matrix, evals_count, **kwargs
-) -> Union[Tuple[backend_change.backend.ndarray, backend_change.backend.ndarray], Tuple[backend_change.backend.ndarray, list]]:
+) -> Union[Tuple[bc.backend.ndarray, bc.backend.ndarray], Tuple[bc.backend.ndarray, list]]:
     """
     Diagonalization based on jax's (dense) jax.scipy.linalg.eigh function.
     Both evals and evecs are returned.
@@ -699,7 +699,7 @@ def esys_jax_dense(
     evals, evecs = jax.scipy.linalg.eigh(m, eigvals_only=False, **kwargs)
 
     # We explicitly cast to appropriate backend arrays
-    evals, evecs = backend_change.backend.array(evals), backend_change.backend.array(evecs)
+    evals, evecs = bc.backend.array(evals), bc.backend.array(evecs)
 
     if isinstance(matrix, Qobj):
         evecs = _convert_evecs_to_qobjs(evecs, matrix)
