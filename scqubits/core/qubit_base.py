@@ -63,7 +63,7 @@ from scqubits.utils.spectrum_utils import (
     recast_esys_mapdata,
     standardize_sign,
 )
-from scqubits import backend_change
+from scqubits import backend_change as bc
 from scqubits.backend_change import backend_dependent_vjp
 
 if IN_IPYTHON:
@@ -197,7 +197,7 @@ class QuantumSystem(DispatchClient, ABC):
         return initdata
 
     @abstractmethod
-    def hilbertdim(self) -> int:
+    def hilbertdim(self) -> bc.backend.int_:
         """Returns dimension of Hilbert space"""
 
     @classmethod
@@ -307,7 +307,7 @@ class QubitBaseClass(QuantumSystem, ABC):
     def hamiltonian(self):
         """Returns the Hamiltonian"""
 
-    def _evals_calc(self, evals_count: int) -> ndarray:
+    def _evals_calc(self, evals_count: bc.backend.int_) -> bc.backend.ndarray:
         hamiltonian_mat = self.hamiltonian()
         evals = sp.linalg.eigh(
             hamiltonian_mat,
@@ -315,9 +315,9 @@ class QubitBaseClass(QuantumSystem, ABC):
             subset_by_index=(0, evals_count - 1),
             check_finite=False,
         )
-        return backend_change.backend.sort(evals)
+        return bc.backend.sort(evals)
 
-    def _esys_calc(self, evals_count: int) -> Tuple[ndarray, ndarray]:
+    def _esys_calc(self, evals_count: bc.backend.int_) -> Tuple[bc.backend.ndarray, bc.backend.ndarray]:
         hamiltonian_mat = self.hamiltonian()
         evals, evecs = sp.linalg.eigh(
             hamiltonian_mat,
@@ -331,22 +331,22 @@ class QubitBaseClass(QuantumSystem, ABC):
     @overload
     def eigenvals(
         self,
-        evals_count: int = 6,
+        evals_count: bc.backend.int_ = 6,
         filename: Optional[str] = None,
         return_spectrumdata: "Literal[False]" = False,
-    ) -> ndarray: ...
+    ) -> bc.backend.ndarray: ...
 
     @overload
     def eigenvals(
         self,
-        evals_count: int,
+        evals_count: bc.backend.int_,
         filename: str,
         return_spectrumdata: "Literal[True]",
     ) -> SpectrumData: ...
 
     def eigenvals(
         self,
-        evals_count: int = 6,
+        evals_count: bc.backend.int_ = 6,
         filename: Optional[str] = None,
         return_spectrumdata: bool = False,
     ) -> Union[SpectrumData, ndarray]:
@@ -396,15 +396,15 @@ class QubitBaseClass(QuantumSystem, ABC):
     @overload
     def eigensys(
         self,
-        evals_count: int = 6,
+        evals_count: bc.backend.int_ = 6,
         filename: Optional[str] = None,
         return_spectrumdata: "Literal[False]" = False,
-    ) -> Tuple[ndarray, ndarray]: ...
+    ) -> Tuple[bc.backend.ndarray, bc.backend.ndarray]: ...
 
     @overload
     def eigensys(
         self,
-        evals_count: int,
+        evals_count: bc.backend.int_,
         filename: Optional[str],
         return_spectrumdata: "Literal[True]",
     ) -> SpectrumData: ...
@@ -414,7 +414,7 @@ class QubitBaseClass(QuantumSystem, ABC):
         evals_count: int = 6,
         filename: Optional[str] = None,
         return_spectrumdata: bool = False,
-    ) -> Union[Tuple[ndarray, ndarray], SpectrumData]:
+    ) -> Union[Tuple[bc.backend.ndarray, bc.backend.ndarray], SpectrumData]:
         """Calculates eigenvalues and corresponding eigenvectors using
         `scipy.linalg.eigh`. Returns two numpy arrays containing the eigenvalues and
         eigenvectors, respectively.
@@ -450,8 +450,8 @@ class QubitBaseClass(QuantumSystem, ABC):
             )
             evals, evecs = diagonalizer(self.hamiltonian(), evals_count, **options)
         # Ensure evals and evecs are converted to the correct backend array type
-        evals = backend_change.backend.array(evals)
-        evecs = backend_change.backend.array(evecs)
+        evals = bc.backend.array(evals)
+        evecs = bc.backend.array(evecs)
         if filename or return_spectrumdata:
             specdata = SpectrumData(
                 energy_table=evals, system_params=self.get_initdata(), state_table=evecs
@@ -460,12 +460,12 @@ class QubitBaseClass(QuantumSystem, ABC):
             specdata.filewrite(filename)
         return specdata if return_spectrumdata else (evals, evecs)
 
-    @backend_dependent_vjp
+    # @backend_dependent_vjp
     def process_op(
         self,
-        native_op: Union[ndarray, csc_matrix],
-        energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False,
-    ) -> Union[ndarray, csc_matrix]:
+        native_op: Union[bc.backend.ndarray, bc.backend.csc_matrix],
+        energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False,
+    ) -> Union[bc.backend.ndarray, bc.backend.csc_matrix]:
         """Processes the operator `native_op`: either hand back `native_op` unchanged, or transform it into the
         energy eigenbasis. (Native basis refers to the basis used internally by each qubit, e.g., charge basis in the
         case of `Transmon`.
@@ -494,42 +494,42 @@ class QubitBaseClass(QuantumSystem, ABC):
         evectors = esys[1][:, : self.truncated_dim]
         return get_matrixelement_table(native_op, evectors)
     
-    def process_op_fwd(
-        self,
-        native_op: Union[np.ndarray, csc_matrix],
-        energy_esys: Union[bool, Tuple[np.ndarray, np.ndarray]] = False
-    ):
-        result = self.process_op(native_op, energy_esys)
-        return result, (native_op, energy_esys, result)
+    # def process_op_fwd(
+    #     self,
+    #     native_op: Union[bc.backend.ndarray, bc.backend.csc_matrix],
+    #     energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    # ):
+    #     result = self.process_op(native_op, energy_esys)
+    #     return result, (native_op, energy_esys, result)
 
-    def process_op_bwd(residuals, grad_output):
-        native_op, energy_esys, result = residuals
+    # def process_op_bwd(residuals, grad_output):
+    #     native_op, energy_esys, result = residuals
         
-        if isinstance(native_op, csc_matrix):
-            # 将 csc_matrix 转为稠密矩阵
-            native_op_dense = native_op.toarray()
-            grad_native_op = backend_change.backend.dot(grad_output, native_op_dense.T)
-        else:
-            grad_native_op = backend_change.backend.dot(grad_output, native_op.T)
+    #     if isinstance(native_op, csc_matrix):
+    #         # 将 csc_matrix 转为稠密矩阵
+    #         native_op_dense = native_op.toarray()
+    #         grad_native_op = bc.backend.dot(grad_output, native_op_dense.T)
+    #     else:
+    #         grad_native_op = bc.backend.dot(grad_output, native_op.T)
         
-        if isinstance(energy_esys, tuple):
-            evals, evectors = energy_esys
-            grad_evals = backend_change.backend.dot(grad_output, evectors)
-            grad_evectors = backend_change.backend.dot(evals.T, grad_output)
-            grad_energy_esys = (grad_evals, grad_evectors)
-        elif isinstance(energy_esys, bool):
-            grad_energy_esys = None  
+    #     if isinstance(energy_esys, tuple):
+    #         evals, evectors = energy_esys
+    #         grad_evals = bc.backend.dot(grad_output, evectors)
+    #         grad_evectors = bc.backend.dot(evals.T, grad_output)
+    #         grad_energy_esys = (grad_evals, grad_evectors)
+    #     elif isinstance(energy_esys, bool):
+    #         grad_energy_esys = None  
         
-        return grad_native_op, grad_energy_esys
+    #     return grad_native_op, grad_energy_esys
     
-    process_op = backend_change.backend.bind_custom_vjp(process_op_fwd,process_op_bwd,process_op)
+    # process_op = bc.backend.bind_custom_vjp(process_op_fwd,process_op_bwd,process_op)
 
     @backend_dependent_vjp
     def process_hamiltonian(
         self,
-        native_hamiltonian: Union[ndarray, csc_matrix],
-        energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False,
-    ) -> Union[ndarray, csc_matrix]:
+        native_hamiltonian: Union[bc.backend.ndarray, bc.backend.csc_matrix],
+        energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False,
+    ) -> Union[bc.backend.ndarray, bc.backend.csc_matrix]:
         """Return qubit Hamiltonian in chosen basis: either return unchanged (i.e., in native basis) or transform
         into eigenenergy basis
 
@@ -555,48 +555,48 @@ class QubitBaseClass(QuantumSystem, ABC):
         else:
             esys = energy_esys
         evals = esys[0][: self.truncated_dim]
-        if isinstance(native_hamiltonian, ndarray) or isinstance(native_hamiltonian,jax_ndarray):
-            return backend_change.backend.diag(evals)
-        return dia_matrix(evals).tocsc()
+        if isinstance(native_hamiltonian, bc.backend.ndarray):
+            return bc.backend.diag(evals)
+        return bc.backend.solve_csc_matrix(bc.backend.dia_matrix(evals))
     
-    def process_hamiltonian_fwd(
-        self,
-        native_hamiltonian: Union[np.ndarray, csc_matrix],
-        energy_esys: Union[bool, Tuple[np.ndarray, np.ndarray]] = False
-    ):
-        result = self.process_hamiltonian(native_hamiltonian, energy_esys)
-        return result, (native_hamiltonian, energy_esys, result)
+    # def process_hamiltonian_fwd(
+    #     self,
+    #     native_hamiltonian: Union[np.ndarray, csc_matrix],
+    #     energy_esys: Union[bool, Tuple[np.ndarray, np.ndarray]] = False
+    # ):
+    #     result = self.process_hamiltonian(native_hamiltonian, energy_esys)
+    #     return result, (native_hamiltonian, energy_esys, result)
 
-    def process_hamiltonian_bwd(residuals, grad_output):
-        native_hamiltonian, energy_esys, result = residuals
+    # def process_hamiltonian_bwd(residuals, grad_output):
+    #     native_hamiltonian, energy_esys, result = residuals
         
-        # 计算 native_hamiltonian 的梯度
-        if isinstance(native_hamiltonian, csc_matrix):
-            native_hamiltonian_dense = native_hamiltonian.toarray()
-            grad_native_hamiltonian = backend_change.backend.dot(grad_output, native_hamiltonian_dense.T)
-            grad_native_hamiltonian = csc_matrix(grad_native_hamiltonian)  # 可选，根据需要转回稀疏矩阵
-        else:
-            grad_native_hamiltonian = backend_change.backend.dot(grad_output, native_hamiltonian.T)
+    #     # 计算 native_hamiltonian 的梯度
+    #     if isinstance(native_hamiltonian, csc_matrix):
+    #         native_hamiltonian_dense = native_hamiltonian.toarray()
+    #         grad_native_hamiltonian = bc.backend.dot(grad_output, native_hamiltonian_dense.T)
+    #         grad_native_hamiltonian = csc_matrix(grad_native_hamiltonian)  # 可选，根据需要转回稀疏矩阵
+    #     else:
+    #         grad_native_hamiltonian = bc.backend.dot(grad_output, native_hamiltonian.T)
         
-        # 计算 energy_esys 的梯度
-        if isinstance(energy_esys, tuple):
-            evals, evectors = energy_esys
-            grad_evals = backend_change.backend.dot(grad_output, evectors)
-            grad_evectors = backend_change.backend.dot(evals.T, grad_output)
-            grad_energy_esys = (grad_evals, grad_evectors)
-        elif isinstance(energy_esys, bool):
-            grad_energy_esys = None 
+    #     # 计算 energy_esys 的梯度
+    #     if isinstance(energy_esys, tuple):
+    #         evals, evectors = energy_esys
+    #         grad_evals = bc.backend.dot(grad_output, evectors)
+    #         grad_evectors = bc.backend.dot(evals.T, grad_output)
+    #         grad_energy_esys = (grad_evals, grad_evectors)
+    #     elif isinstance(energy_esys, bool):
+    #         grad_energy_esys = None 
 
-        return grad_native_hamiltonian, grad_energy_esys
+    #     return grad_native_hamiltonian, grad_energy_esys
 
-    process_hamiltonian = backend_change.backend.bind_custom_vjp(process_hamiltonian_fwd, process_hamiltonian_bwd,process_hamiltonian)
+    # process_hamiltonian = bc.backend.bind_custom_vjp(process_hamiltonian_fwd, process_hamiltonian_bwd,process_hamiltonian)
 
-    def anharmonicity(self) -> backend_change.backend.float_:
+    def anharmonicity(self) -> bc.backend.float_:
         """Returns the qubit's anharmonicity, (E_2 - E_1) - (E_1 - E_0)."""
         energies = self.eigenvals(evals_count=3)
         return energies[2] - 2 * energies[1] + energies[0]
 
-    def E01(self) -> backend_change.backend.float_:
+    def E01(self) -> bc.backend.float_:
         """Returns the qubit's fundamental energy splitting, E_1 - E_0."""
         energies = self.eigenvals(evals_count=2)
         return energies[1] - energies[0]
@@ -728,7 +728,7 @@ class QubitBaseClass(QuantumSystem, ABC):
                 "Parallel computation of eigensystems [num_cpus={}]".format(num_cpus),
                 num_cpus,
             ):
-                eigenvalue_table = backend_change.backend.asarray(
+                eigenvalue_table = bc.backend.asarray(
                     list(
                         target_map(
                             func_evals,
@@ -799,7 +799,7 @@ class QubitBaseClass(QuantumSystem, ABC):
         hilbertspace = HilbertSpace(subsystem_list=[self])
 
         paramvals_by_name = {
-            dispersion_name: backend_change.backend.linspace(0.0, 1.0, point_count),
+            dispersion_name: bc.backend.linspace(0.0, 1.0, point_count),
             param_name: param_vals,
         }
 
@@ -810,7 +810,7 @@ class QubitBaseClass(QuantumSystem, ABC):
         previous_dispval = getattr(self, dispersion_name)
         previous_paramval = getattr(self, param_name)
         max_level = (
-            backend_change.backend.max(transitions_tuple) if not levels_tuple else backend_change.backend.max(levels_tuple)
+            bc.backend.max(transitions_tuple) if not levels_tuple else bc.backend.max(levels_tuple)
         )
         sweep = ParameterSweep(
             hilbertspace,
@@ -823,17 +823,17 @@ class QubitBaseClass(QuantumSystem, ABC):
         eigenenergies = sweep["bare_evals"]["subsys":0].toarray()  # type:ignore
 
         if levels_tuple is None:
-            dispersions = backend_change.backend.empty((len(transitions_tuple), len(param_vals)))
+            dispersions = bc.backend.empty((len(transitions_tuple), len(param_vals)))
             for index, (i, j) in enumerate(transitions_tuple):
                 energy_ij = eigenenergies[:, :, i] - eigenenergies[:, :, j]
-                dispersions[index] = backend_change.backend.max(energy_ij, axis=0) - backend_change.backend.min(
+                dispersions[index] = bc.backend.max(energy_ij, axis=0) - bc.backend.min(
                     energy_ij, axis=0
                 )
         else:
-            dispersions = backend_change.backend.empty((len(levels_tuple), len(param_vals)))
+            dispersions = bc.backend.empty((len(levels_tuple), len(param_vals)))
             for index, j in enumerate(levels_tuple):
                 energy_j = eigenenergies[:, :, j]
-                dispersions[index] = backend_change.backend.max(energy_j, axis=0) - backend_change.backend.min(energy_j, axis=0)
+                dispersions[index] = bc.backend.max(energy_j, axis=0) - bc.backend.min(energy_j, axis=0)
 
         setattr(self, param_name, previous_paramval)
         setattr(self, dispersion_name, previous_dispval)
@@ -972,8 +972,8 @@ class QubitBaseClass(QuantumSystem, ABC):
             num_cpus=num_cpus,
         )
         paramvals_count = len(param_vals)
-        matelem_table = backend_change.backend.empty(
-            shape=(paramvals_count, evals_count, evals_count), dtype=backend_change.backend.complex_
+        matelem_table = bc.backend.empty(
+            shape=(paramvals_count, evals_count, evals_count), dtype=bc.backend.complex_
         )
 
         paramval_before = getattr(self, param_name)
@@ -981,13 +981,13 @@ class QubitBaseClass(QuantumSystem, ABC):
         for index, paramval in enumerate(param_vals):
             evecs = spectrumdata.state_table[index]
             setattr(self, param_name, paramval)
-            # if backend_change.backend.__name__ == "jax":
+            # if bc.backend.__name__ == "jax":
             #     matelem_table = matelem_table.at[index].set(self.matrixelement_table(
             #         operator, evecs=evecs, evals_count=evals_count
             #     ))
-            matelem_table = backend_change.backend.array_solve(matelem_table,index,self.matrixelement_table(
+            matelem_table = bc.backend.array_solve(matelem_table,index,self.matrixelement_table(
                     operator, evecs=evecs, evals_count=evals_count))
-            # elif backend_change.backend.__name__ == "numpy":
+            # elif bc.backend.__name__ == "numpy":
             #     matelem_table[index] = self.matrixelement_table(
             #         operator, evecs=evecs, evals_count=evals_count
             #     )
@@ -1153,7 +1153,7 @@ class QubitBaseClass(QuantumSystem, ABC):
             standard plotting option (see separate documentation)
         """
         matrixelem_array = self.matrixelement_table(operator, evecs, evals_count)
-        assert isinstance(matrixelem_array, backend_change.backend.ndarray)
+        assert isinstance(matrixelem_array, bc.backend.ndarray)
         if not show3d:
             return plot.matrix2d(
                 matrixelem_array,

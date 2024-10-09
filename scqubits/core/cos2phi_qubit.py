@@ -1325,8 +1325,8 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
         )
 
     def hamiltonian(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> csc_matrix:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.csc_matrix:
         r"""
         Returns Hamiltonian in basis obtained by employing harmonic basis for
         :math:`\\phi, \\zeta` and charge basis for :math:`\\theta` or in the eigenenerg basis.
@@ -1426,12 +1426,12 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
             + disorder_j
             + disorder_c
         )
-        native = hamiltonian_mat.tocsc()
+        native = bc.backend.solve_csc_matrix(hamiltonian_mat)
         return self.process_hamiltonian(
             native_hamiltonian=native, energy_esys=energy_esys
         )
 
-    def _evals_calc(self, evals_count) -> ndarray:
+    def _evals_calc(self, evals_count) -> bc.backend.ndarray:
         r"""
         Evaluvates the hamiltonian, and returns the safe eigensvalues.
 
@@ -1457,7 +1457,7 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
         )
         return bc.backend.sort(evals)
 
-    def _esys_calc(self, evals_count) -> Tuple[ndarray, ndarray]:
+    def _esys_calc(self, evals_count) -> Tuple[bc.backend.ndarray, bc.backend.ndarray]:
         r"""
         Evaluvates the Hamiltonian and returns the eigenvalues and
         eigenvectors.
@@ -1485,7 +1485,7 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
         evals, evecs = utils.order_eigensystem(evals, evecs)
         return evals, evecs
 
-    def potential(self, phi, zeta, theta) -> float:
+    def potential(self, phi, zeta, theta) -> bc.backend.float_:
         r"""
         Returns full potential evaluated at :math:`\\phi, \\zeta, \\theta`
 
@@ -1510,7 +1510,7 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
             + 2 * self.dEJ * self.EJ * bc.backend.sin(phi + bc.backend.pi * self.flux) * bc.backend.sin(theta)
         )
 
-    def reduced_potential(self, phi, theta) -> float:
+    def reduced_potential(self, phi, theta) -> bc.backend.float_:
         r"""
         Returns reduced potential by setting :math:`zeta = 0`.
 
@@ -1723,8 +1723,8 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
         )
 
     def phi_1_operator(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> Union[ndarray, csc_matrix]:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> Union[bc.backend.ndarray, bc.backend.csc_matrix]:
         r"""
         Returns operator representing the phase across inductor 1 in harmonic
         oscillator or eigenenergy basis.
@@ -1753,8 +1753,8 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def phi_2_operator(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> Union[ndarray, csc_matrix]:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> Union[bc.backend.ndarray, bc.backend.csc_matrix]:
         r"""
         Returns operator representing the phase across inductor 2 in harmonic
         oscillator or eigenenergy basis.
@@ -1783,8 +1783,8 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def n_1_operator(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> Union[ndarray, csc_matrix]:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> Union[bc.backend.ndarray, bc.backend.csc_matrix]:
         r"""
         Returns operator representing the charge difference across junction 1 in native
         or eigenenergy basis.
@@ -1815,8 +1815,8 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def n_2_operator(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> Union[ndarray, csc_matrix]:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> Union[bc.backend.ndarray, bc.backend.csc_matrix]:
         r"""
         Returns operator representing the charge difference across junction 2 in native
         or eigenenergy basis.
@@ -1847,8 +1847,8 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def d_hamiltonian_d_flux(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> Union[ndarray, csc_matrix]:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> Union[bc.backend.ndarray, bc.backend.csc_matrix]:
         r"""
         Returns operator representing a derivative of the Hamiltonian with respect to
         flux in the native or eigenenergy basis.
@@ -1901,8 +1901,8 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def d_hamiltonian_d_EJ(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> Union[ndarray, csc_matrix]:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> Union[bc.backend.ndarray, bc.backend.csc_matrix]:
         r"""
         Returns operator representing a derivative of the Hamiltonian with respect to
         EJ in the native or eigenenergy basis.
@@ -1948,8 +1948,8 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def d_hamiltonian_d_ng(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> Union[ndarray, csc_matrix]:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> Union[bc.backend.ndarray, bc.backend.csc_matrix]:
         r"""
         Returns operator representing a derivative of the Hamiltonian with respect to
         ng in the native or eigenenergy basis.
