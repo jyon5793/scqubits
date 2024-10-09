@@ -89,7 +89,7 @@ class Subsystem(
         ext_basis: Union[str, List],
         system_hierarchy: Optional[List] = None,
         subsystem_trunc_dims: Optional[List] = None,
-        truncated_dim: Optional[int] = 10,
+        truncated_dim: Optional[bc.backend.int] = 10,
         evals_method: Union[Callable, str, None] = None,
         evals_method_options: Union[dict, None] = None,
         esys_method: Union[Callable, str, None] = None,
@@ -129,15 +129,15 @@ class Subsystem(
         self.ext_basis = ext_basis
         self._find_and_set_sym_attrs()
 
-        self.dynamic_var_indices: List[int] = flatten_list_recursive(
+        self.dynamic_var_indices: List[bc.backend.int_] = flatten_list_recursive(
             [self.system_hierarchy]
         )
         parent_cutoffs_dict = self.parent.cutoffs_dict()
-        cutoffs: List[int] = [
+        cutoffs: List[bc.backend.int_] = [
             parent_cutoffs_dict[var_index] for var_index in self.dynamic_var_indices
         ]
 
-        self.var_categories: Dict[str, List[int]] = {}
+        self.var_categories: Dict[str, List[bc.backend.int_]] = {}
         for var_type in self.parent.var_categories:
             self.var_categories[var_type] = [
                 var_index
@@ -154,7 +154,7 @@ class Subsystem(
                 for var_index in self.var_categories["extended"]:
                     self.cutoff_names.append(f"cutoff_ext_{var_index}")
 
-        self.discretized_phi_range: Dict[int, Tuple[float]] = {
+        self.discretized_phi_range: Dict[int, Tuple[bc.backend.float_]] = {
             idx: self.parent.discretized_phi_range[idx]
             for idx in self.parent.discretized_phi_range
             if idx in self.dynamic_var_indices
@@ -327,8 +327,8 @@ class Circuit(
         use_dynamic_flux_grouping: bool = False,
         generate_noise_methods: bool = False,
         initiate_sym_calc: bool = True,
-        truncated_dim: int = 10,
-        symbolic_param_dict: Dict[str, float] = None,
+        truncated_dim: bc.backend.int_ = 10,
+        symbolic_param_dict: Dict[str, bc.backend.float_] = None,
         symbolic_hamiltonian: sm.Expr = None,
         evals_method: Union[Callable, str, None] = None,
         evals_method_options: Union[dict, None] = None,
@@ -377,9 +377,9 @@ class Circuit(
     def from_symbolic_hamiltonian(
         self,
         symbolic_hamiltonian: sm.Expr,
-        symbolic_param_dict: Dict[str, float],
+        symbolic_param_dict: Dict[str, bc.backend.float_],
         initiate_sym_calc: bool,
-        truncated_dim: int,
+        truncated_dim: bc.backend.int_,
         ext_basis: str,
     ):
         self.hamiltonian_symbolic = symbolic_hamiltonian
@@ -394,12 +394,12 @@ class Circuit(
         self.is_child = False
 
         self.ext_basis = ext_basis
-        self.truncated_dim: int = truncated_dim
+        self.truncated_dim: bc.backend.int_ = truncated_dim
         self.system_hierarchy: list = None
         self.subsystem_trunc_dims: list = None
         self.operators_by_name = None
 
-        self.discretized_phi_range: Dict[int, Tuple[float, float]] = {}
+        self.discretized_phi_range: Dict[bc.backend.int_, Tuple[bc.backend.float_, bc.backend.float_]] = {}
         self.cutoff_names: List[str] = []
 
         # setting default grids for plotting
@@ -435,7 +435,7 @@ class Circuit(
         use_dynamic_flux_grouping: bool = False,
         generate_noise_methods: bool = False,
         initiate_sym_calc: bool = True,
-        truncated_dim: int = None,
+        truncated_dim: bc.backend.int_ = None,
     ):
         """
         Wrapper to Circuit __init__ to create a class instance. This is deprecated and
@@ -487,12 +487,12 @@ class Circuit(
 
         self.ext_basis = ext_basis
         self.hierarchical_diagonalization: bool = False
-        self.truncated_dim: int = truncated_dim
+        self.truncated_dim: bc.backend.int_ = truncated_dim
         self.system_hierarchy: list = None
         self.subsystem_trunc_dims: list = None
         self.operators_by_name = None
 
-        self.discretized_phi_range: Dict[int, Tuple[float, float]] = {}
+        self.discretized_phi_range: Dict[bc.backend.int_, Tuple[bc.backend.float_, bc.backend.float_]] = {}
         self.cutoff_names: List[str] = []
 
         # setting default grids for plotting
@@ -544,7 +544,7 @@ class Circuit(
         dispatch.CENTRAL_DISPATCH.register("CIRCUIT_UPDATE", self)
 
     def _find_branch(
-        self, node_id_1: int, node_id_2: int, branch_type: str, branch_params: dict
+        self, node_id_1: bc.backend.int_, node_id_2: bc.backend.int_, branch_type: str, branch_params: dict
     ):
         for branch in self.symbolic_circuit.branches:
             branch_node_ids = [node.index for node in branch.nodes]
@@ -591,7 +591,7 @@ class Circuit(
 
     def configure(
         self,
-        transformation_matrix: Optional[ndarray] = None,
+        transformation_matrix: Optional[bc.backend.ndarray] = None,
         system_hierarchy: Optional[list] = None,
         subsystem_trunc_dims: Optional[list] = None,
         closure_branches: Optional[List[Branch]] = None,
@@ -879,7 +879,7 @@ class Circuit(
 
     def _configure(
         self,
-        transformation_matrix: Optional[ndarray] = None,
+        transformation_matrix: Optional[bc.backend.ndarray] = None,
         system_hierarchy: Optional[list] = None,
         subsystem_trunc_dims: Optional[list] = None,
         closure_branches: Optional[List[Branch]] = None,
@@ -1245,7 +1245,7 @@ class Circuit(
             for ibranch in range(len(self.external_fluxes))
         }
 
-    def oscillator_list(self, osc_index_list: List[int]):
+    def oscillator_list(self, osc_index_list: List[bc.backend.int_]):
         """
         If hierarchical diagonalization is used, specify subsystems that corresponds to
         single-mode oscillators, if there is any. The attributes `_osc_subsys_list` and
@@ -1274,7 +1274,7 @@ class Circuit(
                 osc_subsys_list.append(subsystem)
         self.hilbert_space._osc_subsys_list = osc_subsys_list
 
-    def qubit_list(self, qbt_index_list: List[int]):
+    def qubit_list(self, qbt_index_list: List[bc.backend.int_]):
         """
         If hierarchical diagonalization is used, specify subsystems that corresponds to
         single-mode oscillators, if there is any. The attributes `_osc_subsys_list` and

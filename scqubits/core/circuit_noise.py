@@ -373,10 +373,10 @@ class NoisyCircuit(NoisySystem, ABC):
 
             def tphi_1_over_f_func(
                 self=self,
-                A_noise: float = NOISE_PARAMS[f"A_{noise_type}"],
-                i: int = 0,
-                j: int = 1,
-                esys: Tuple[ndarray, ndarray] = None,
+                A_noise: backend_change.backend.float_  = NOISE_PARAMS[f"A_{noise_type}"],
+                i: backend_change.backend.int_ = 0,
+                j: backend_change.backend.int_ = 1,
+                esys: Tuple[backend_change.backend.ndarray, backend_change.backend.ndarray] = None,
                 get_rate: bool = False,
                 noise_op_func=noise_op_func,
                 **kwargs,
@@ -484,10 +484,10 @@ class NoisyCircuit(NoisySystem, ABC):
 
         def tphi_1_over_f_cc(
             self=self,
-            A_noise: float = NOISE_PARAMS["A_cc"],
-            i: int = 0,
-            j: int = 1,
-            esys: Tuple[ndarray, ndarray] = None,
+            A_noise: backend_change.backend.float_  = NOISE_PARAMS["A_cc"],
+            i: backend_change.backend.int_ = 0,
+            j: backend_change.backend.int_ = 1,
+            esys: Tuple[backend_change.backend.ndarray, backend_change.backend.ndarray] = None,
             get_rate: bool = False,
             **kwargs,
         ) ->  backend_change.backend.float_:
@@ -548,10 +548,10 @@ class NoisyCircuit(NoisySystem, ABC):
 
         def tphi_1_over_f_flux(
             self=self,
-            A_noise: float = NOISE_PARAMS["A_flux"],
-            i: int = 0,
-            j: int = 1,
-            esys: Tuple[ndarray, ndarray] = None,
+            A_noise: backend_change.backend.float_  = NOISE_PARAMS["A_flux"],
+            i: backend_change.backend.int_ = 0,
+            j: backend_change.backend.int_ = 1,
+            esys: Tuple[backend_change.backend.ndarray, backend_change.backend.ndarray] = None,
             get_rate: bool = False,
             **kwargs,
         ) ->  backend_change.backend.float_:
@@ -615,10 +615,10 @@ class NoisyCircuit(NoisySystem, ABC):
 
         def tphi_1_over_f_ng(
             self=self,
-            A_noise: float = NOISE_PARAMS["A_ng"],
-            i: int = 0,
-            j: int = 1,
-            esys: Tuple[ndarray, ndarray] = None,
+            A_noise: backend_change.backend.float_ = NOISE_PARAMS["A_ng"],
+            i: backend_change.backend.int_ = 0,
+            j: backend_change.backend.int_ = 1,
+            esys: Tuple[backend_change.backend.ndarray, backend_change.backend.ndarray] = None,
             get_rate: bool = False,
             **kwargs,
         ) ->  backend_change.backend.float_:
@@ -690,13 +690,13 @@ class NoisyCircuit(NoisySystem, ABC):
 
             def flux_bias_noise(
                 self=self,
-                i: int = 1,
-                j: int = 0,
-                M: float = NOISE_PARAMS["M"],
-                Z: Union[complex, float, Callable] = NOISE_PARAMS["R_0"],
-                T: float = NOISE_PARAMS["T"],
+                i: backend_change.backend.int_ = 1,
+                j: backend_change.backend.int_ = 0,
+                M: backend_change.backend.float_ = NOISE_PARAMS["M"],
+                Z: Union[backend_change.backend.complex_, backend_change.backend.float_, Callable] = NOISE_PARAMS["R_0"],
+                T: backend_change.backend.float_ = NOISE_PARAMS["T"],
                 total: bool = True,
-                esys: Tuple[ndarray, ndarray] = None,
+                esys: Tuple[backend_change.backend.ndarray, backend_change.backend.ndarray] = None,
                 get_rate: bool = False,
                 noise_op_method=noise_op_method,
             ):
@@ -789,14 +789,14 @@ class NoisyCircuit(NoisySystem, ABC):
     def wrapper_t1_quasiparticle_tunneling(self, branch: Branch):
         def t1_quasiparticle_tunneling(
             self=self,
-            i: int = 1,
-            j: int = 0,
-            Y_qp: Union[float, Callable] = None,
-            x_qp: float = NOISE_PARAMS["x_qp"],
-            T: float = NOISE_PARAMS["T"],
-            Delta: float = NOISE_PARAMS["Delta"],
+            i: backend_change.backend.int_ = 1,
+            j: backend_change.backend.int_ = 0,
+            Y_qp: Union[backend_change.backend.float_, Callable] = None,
+            x_qp: backend_change.backend.float_ = NOISE_PARAMS["x_qp"],
+            T: backend_change.backend.float_ = NOISE_PARAMS["T"],
+            Delta: backend_change.backend.float_ = NOISE_PARAMS["Delta"],
             total: bool = True,
-            esys: Tuple[ndarray, ndarray] = None,
+            esys: Tuple[backend_change.backend.ndarray, backend_change.backend.ndarray] = None,
             get_rate: bool = False,
         ) ->  backend_change.backend.float_:
             """
@@ -857,12 +857,12 @@ class NoisyCircuit(NoisySystem, ABC):
     def wrapper_t1_charge_impedance(self, branch: Branch):
         def t1_charge_impedance(
             self,
-            i: int = 1,
-            j: int = 0,
-            Z: Union[float, Callable] = NOISE_PARAMS["R_0"],
-            T: float = NOISE_PARAMS["T"],
+            i: backend_change.backend.int_ = 1,
+            j: backend_change.backend.int_ = 0,
+            Z: Union[backend_change.backend.float_, Callable] = NOISE_PARAMS["R_0"],
+            T: backend_change.backend.float_ = NOISE_PARAMS["T"],
             total: bool = True,
-            esys: Tuple[ndarray, ndarray] = None,
+            esys: Tuple[backend_change.backend.ndarray, backend_change.backend.ndarray] = None,
             get_rate: bool = False,
             branch=branch,
         ) ->  backend_change.backend.float_:
@@ -1005,12 +1005,12 @@ class NoisyCircuit(NoisySystem, ABC):
             @backend_dependent_vjp
             def t1_method(
                 self,
-                i: int = 1,
-                j: int = 0,
-                Q_cap: Union[float, Callable] = None,
-                T: float = NOISE_PARAMS["T"],
+                i: backend_change.backend.int_ = 1,
+                j: backend_change.backend.int_ = 0,
+                Q_cap: Union[backend_change.backend.float_, Callable] = None,
+                T: backend_change.backend.float_ = NOISE_PARAMS["T"],
                 total: bool = True,
-                esys: Tuple[ndarray, ndarray] = None,
+                esys: Tuple[backend_change.backend.ndarray, backend_change.backend.ndarray] = None,
                 get_rate: bool = False,
                 branch: Branch = branch,
             ) ->  backend_change.backend.float_:
@@ -1115,12 +1115,12 @@ class NoisyCircuit(NoisySystem, ABC):
             @backend_dependent_vjp
             def t1_method(
                 self,
-                i: int = 1,
-                j: int = 0,
-                Q_ind: Union[float, Callable] = None,
-                T: float = NOISE_PARAMS["T"],
+                i: backend_change.backend.int_ = 1,
+                j: backend_change.backend.int_ = 0,
+                Q_ind: Union[backend_change.backend.float_, Callable] = None,
+                T: backend_change.backend.float_ = NOISE_PARAMS["T"],
                 total: bool = True,
-                esys: Tuple[ndarray, ndarray] = None,
+                esys: Tuple[backend_change.backend.ndarray, backend_change.backend.ndarray] = None,
                 get_rate: bool = False,
                 branch: Branch = branch,
             ) ->  backend_change.backend.float_:
@@ -1266,14 +1266,14 @@ class NoisyCircuit(NoisySystem, ABC):
 
         def t1_quasiparticle_tunneling(
             self=self,
-            i: int = 1,
-            j: int = 0,
-            Y_qp: Union[float, Callable] = None,
-            x_qp: float = NOISE_PARAMS["x_qp"],
-            T: float = NOISE_PARAMS["T"],
-            Delta: float = NOISE_PARAMS["Delta"],
+            i: backend_change.backend.int_ = 1,
+            j: backend_change.backend.int_ = 0,
+            Y_qp: Union[backend_change.backend.float_, Callable] = None,
+            x_qp: backend_change.backend.float_ = NOISE_PARAMS["x_qp"],
+            T: backend_change.backend.float_ = NOISE_PARAMS["T"],
+            Delta: backend_change.backend.float_ = NOISE_PARAMS["Delta"],
             total: bool = True,
-            esys: Tuple[ndarray, ndarray] = None,
+            esys: Tuple[backend_change.backend.ndarray, backend_change.backend.ndarray] = None,
             get_rate: bool = False,
         ) ->  backend_change.backend.float_:
             """
@@ -1388,12 +1388,12 @@ class NoisyCircuit(NoisySystem, ABC):
 
         def t1_method(
             self,
-            i: int = 1,
-            j: int = 0,
-            Q_ind: Union[float, Callable] = None,
-            T: float = NOISE_PARAMS["T"],
+            i: backend_change.backend.int_ = 1,
+            j: backend_change.backend.int_ = 0,
+            Q_ind: Union[backend_change.backend.float_, Callable] = None,
+            T: backend_change.backend.float_ = NOISE_PARAMS["T"],
             total: bool = True,
-            esys: Tuple[ndarray, ndarray] = None,
+            esys: Tuple[backend_change.backend.ndarray, backend_change.backend.ndarray] = None,
             get_rate: bool = False,
         ) ->  backend_change.backend.float_:
             """
@@ -1495,12 +1495,12 @@ class NoisyCircuit(NoisySystem, ABC):
 
         def t1_method(
             self,
-            i: int = 1,
-            j: int = 0,
-            Q_cap: Union[float, Callable] = None,
-            T: float = NOISE_PARAMS["T"],
+            i: backend_change.backend.int_ = 1,
+            j: backend_change.backend.int_ = 0,
+            Q_cap: Union[backend_change.backend.float_, Callable] = None,
+            T: backend_change.backend.float_ = NOISE_PARAMS["T"],
             total: bool = True,
-            esys: Tuple[ndarray, ndarray] = None,
+            esys: Tuple[backend_change.backend.ndarray, backend_change.backend.ndarray] = None,
             get_rate: bool = False,
         ) ->  backend_change.backend.float_:
             """
@@ -1602,12 +1602,12 @@ class NoisyCircuit(NoisySystem, ABC):
 
         def t1_method(
             self=self,
-            i: int = 1,
-            j: int = 0,
-            Z: Union[float, Callable] = NOISE_PARAMS["R_0"],
-            T: float = NOISE_PARAMS["T"],
+            i: backend_change.backend.int_ = 1,
+            j: backend_change.backend.int_ = 0,
+            Z: Union[backend_change.backend.float_, Callable] = NOISE_PARAMS["R_0"],
+            T: backend_change.backend.float_ = NOISE_PARAMS["T"],
             total: bool = True,
-            esys: Tuple[ndarray, ndarray] = None,
+            esys: Tuple[backend_change.backend.ndarray, backend_change.backend.ndarray] = None,
             get_rate: bool = False,
         ) ->  backend_change.backend.float_:
             """
@@ -1709,13 +1709,13 @@ class NoisyCircuit(NoisySystem, ABC):
 
         def t1_flux_bias_line(
             self=self,
-            i: int = 1,
-            j: int = 0,
-            M: float = NOISE_PARAMS["M"],
-            Z: Union[complex, float, Callable] = NOISE_PARAMS["R_0"],
-            T: float = NOISE_PARAMS["T"],
+            i: backend_change.backend.int_ = 1,
+            j: backend_change.backend.int_ = 0,
+            M: backend_change.backend.float_ = NOISE_PARAMS["M"],
+            Z: Union[backend_change.backend.complex_, backend_change.backend.float_, Callable] = NOISE_PARAMS["R_0"],
+            T: backend_change.backend.float_ = NOISE_PARAMS["T"],
             total: bool = True,
-            esys: Tuple[ndarray, ndarray] = None,
+            esys: Tuple[backend_change.backend.ndarray, backend_change.backend.ndarray] = None,
             get_rate: bool = False,
         ) ->  backend_change.backend.float_:
             """

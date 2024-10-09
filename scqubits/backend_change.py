@@ -113,15 +113,37 @@ class NumpyBackend(Backend):
     csc_matrix = staticmethod(scipy.sparse.csc_matrix)
     dia_matrix = staticmethod(scipy.sparse.dia_matrix)
     coo_matrix = staticmethod(scipy.sparse.coo_matrix)
+    dok_matrix = staticmethod(scipy.sparse.dok_matrix)
     spidentity = staticmethod(scipy.sparse.identity)
     spkron = staticmethod(scipy.sparse.kron)
     expm = staticmethod(scipy.linalg.expm)
     spexpm = staticmethod(scipy.sparse.linalg.expm)
     diags = staticmethod(scipy.sparse.diags)
+    block_diag = staticmethod(scipy.linalg.block_diag)
+    special_kv = staticmethod(scipy.special.kv)
+    spcosm = staticmethod(scipy.linalg.cosm)
+    spsinm = staticmethod(scipy.linalg.sinm)
+    speye = staticmethod(scipy.sparse.eye)
 
     @staticmethod
+    def toarray(matrix):
+        return matrix.toarray()
+
+    @staticmethod
+    def asformat(matrix, format):
+        return matrix.asformat(format)
+    
+    @staticmethod
     def solve_csc_matrix(matrix):
-        return matrix.tocsc()
+        # 如果输入是稠密矩阵或其他类型，转换为 CSC 格式
+        if isinstance(matrix, np.ndarray):
+            return sparse.csc_matrix(matrix)
+        # 如果输入是稀疏矩阵，调用 .tocsc() 方法转换为 CSC 格式
+        elif sparse.issparse(matrix):
+            return matrix.tocsc()
+        # 处理其他情况，如果输入既不是稠密矩阵，也不是稀疏矩阵
+        else:
+            raise TypeError(f"Unsupported matrix type: {type(matrix)}. Expected a dense matrix or a sparse matrix.")
 
     @staticmethod
     def convert_to_array(obj_list):
@@ -241,13 +263,33 @@ class JaxBackend(Backend):
     custom_vjp = staticmethod(jax.custom_jvp)
     csc_matrix = staticmethod(jsp.BCOO)
     coo_matrix = staticmethod(jsp.BCOO)
-    identy = staticmethod(jsp.eye)
     scipy = staticmethod(jax.scipy)
     grad = staticmethod(jax.grad)
     value_and_grad = staticmethod(jax.value_and_grad)
     eigh = staticmethod(jax.scipy.linalg.eigh)
     eigvalsh = staticmethod(jax.scipy.linalg.eigh)
     expm = staticmethod(jax.scipy.linalg.expm)
+    block_diag = staticmethod(jax.scipy.linalg.block_diag)
+
+    @staticmethod
+    def spsinm(A):
+        iA = 1j * A
+        exp_iA = jax.scipy.linalg.expm(iA)
+        exp_neg_iA = jax.scipy.linalg.expm(-iA)
+        return (exp_iA - exp_neg_iA) / (2.0 * 1j)
+
+    @staticmethod
+    def spcosm(A):
+        iA = 1j * A
+        exp_iA = jax.scipy.linalg.expm(iA)
+        exp_neg_iA = jax.scipy.linalg.expm(-iA)
+        return (exp_iA + exp_neg_iA) / 2.0
+
+    @staticmethod
+    def toarray(matrix):
+        if isinstance(matrix, jsp.BCOO):
+            return matrix.todense()
+        return matrix
     
     @staticmethod
     def spidentity(n,format):
@@ -260,7 +302,7 @@ class JaxBackend(Backend):
         return jsp.BCOO((data, indices), shape=(n, n))
 
     @staticmethod
-    def spkron(a: jsp.BCOO, b: jsp.BCOO, format):
+    def spkron(a: jsp.BCOO, b: jsp.BCOO, format=None):
         a_data, a_indices = a.data, a.indices
         b_data, b_indices = b.data, b.indices
 
@@ -288,6 +330,7 @@ class JaxBackend(Backend):
     @staticmethod
     def convert_to_array(obj_list):
         return obj_list  # 对于JAX，不转换为数组
+    
     @staticmethod
     def eye(N, dtype=None):
         return jax.numpy.eye(N, dtype=dtype)
@@ -351,40 +394,74 @@ class JaxBackend(Backend):
             )
     
     @staticmethod
-    def dia_matrix(diagonal, shape):
+    def dia_matrix(diagonal, shape, dtype=None): 
         """
         在 JAX 中构建对角稀疏矩阵，类似于 SciPy 的 sparse.dia_matrix。
-        
+
         Parameters
         ----------
         diagonal : array
             对角线上非零元素的值。
         shape : tuple
             稀疏矩阵的形状。
-        
+        dtype : data-type, optional
+            数据类型。如果未指定，将使用默认的 JAX 数据类型。
+
         Returns
         -------
         BCOO 稀疏矩阵
         """
-        # 非零元素为对角线上的元素
-        data = jax.numpy.array(diagonal)
+        # 非零元素为对角线上的元素，应用 dtype
+        data = jax.numpy.array(diagonal, dtype=dtype)
 
         # 对角线元素的位置 (row, col)
-        indices = jax.numpy.arange(len(diagonal))
+        indices = jax.numpy.arange(len(diagonal), dtype=jax.numpy.int32)
         indices = jax.numpy.stack([indices, indices], axis=1)  # 构造 (row, col) 索引对
 
         # 构建稀疏 BCOO 矩阵
         return jsp.BCOO((data, indices), shape=shape)
     
     @staticmethod
-    def solve_csc_matrix(matrix):
-        coo_matrix = matrix.tocoo()  # 先将其转换为 COO 格式
-        data = jax.numpy.array(coo_matrix.data)
-        row = jax.numpy.array(coo_matrix.row)
-        col = jax.numpy.array(coo_matrix.col)
-        indices = jax.numpy.stack([row, col], axis=1)
-        shape = coo_matrix.shape
+    def dok_matrix(shape, dtype=None):
+        """Create a sparse BCOO matrix with zeros in JAX, similar to a DOK matrix."""
+        data = jax.numpy.array([], dtype=dtype or jax.numpy.float64)
+        indices = jax.numpy.empty((0, 2), dtype=jax.numpy.int32)
         return jsp.BCOO((data, indices), shape=shape)
+    
+    @staticmethod
+    def solve_csc_matrix(matrix):
+        if isinstance(matrix, scipy.sparse.csc_matrix):
+            # Extract data, indices, and indptr from the CSC matrix
+            data = matrix.data
+            indices = matrix.indices
+            indptr = matrix.indptr
+            shape = matrix.shape
+
+            # Convert CSC to COO
+            rows = []
+            for col in range(len(indptr) - 1):
+                start_idx = indptr[col]
+                end_idx = indptr[col + 1]
+                rows.extend([col] * (end_idx - start_idx))
+            
+            # Stack row and column indices
+            rows = jax.numpy.array(rows)
+            cols = jax.numpy.array(indices)
+            coo_indices = jax.numpy.stack([rows, cols], axis=1)
+
+            # Create BCOO sparse matrix in JAX
+            data = jax.numpy.array(data)
+            bcoo_matrix = jsp.BCOO((data, coo_indices), shape=shape)
+
+            return bcoo_matrix
+
+        elif isinstance(matrix, jsp.BCOO):
+            # If it's already a BCOO matrix, return it as-is
+            return matrix
+        
+        else:
+            # If input is not a recognized sparse type, raise an error
+            raise TypeError("Input matrix must be either a scipy.sparse.csc_matrix or a JAX BCOO matrix.")
 
     @staticmethod
     def spexpm(A):
@@ -415,6 +492,90 @@ class JaxBackend(Backend):
         indices = jax.numpy.concatenate(indices, axis=0)
         
         return jsp.BCOO((data, indices), shape=shape)
+    
+    @staticmethod
+    def special_kv(v, z):
+        eps = 1e-10
+        result = jax.numpy.exp(-z) * (1 + v / (2 * z + eps))
+        return result
+    
+    @staticmethod
+    def asformat(matrix, format):
+        """
+        Converts a sparse matrix to a desired format.
+
+        If the input is a scipy sparse matrix (e.g., 'csc', 'csr'), returns the input matrix itself.
+        If the input is a JAX BCOO matrix, processes it according to the specified format.
+        
+        Parameters
+        ----------
+        matrix : scipy sparse matrix or jsp.BCOO
+            The input sparse matrix.
+        format : str
+            Desired sparse format ('dense', 'bcoo').
+        
+        Returns
+        -------
+        Processed matrix in the desired format.
+        """
+        if isinstance(matrix, (scipy.sparse.csc_matrix, scipy.sparse.coo_matrix, scipy.sparse.dia_matrix,  scipy.sparse.dok_matrix)):
+            return matrix
+        if isinstance(matrix, jsp.BCOO):
+            if format == 'dense':
+                return matrix.todense()
+            elif format == 'bcoo':
+                return matrix
+            else:
+                raise ValueError(f"JAX backend does not support format '{format}'. Only 'dense' and 'bcoo' are supported.")
+        
+        # If the input type is unexpected, raise an error
+        raise TypeError(f"Unsupported matrix type: {type(matrix)}")
+    
+    @staticmethod
+    def sparse_eye(n, m=None, k=0, dtype=jax.numpy.float32):
+        """
+        在 JAX 中创建一个稀疏单位矩阵，类似于 SciPy 的 sparse.eye。
+
+        Parameters
+        ----------
+        n : int
+            矩阵的行数。
+        m : int, optional
+            矩阵的列数，如果未指定，默认为 n (生成方阵)。
+        k : int, optional
+            主对角线的偏移量，默认为 0。
+        dtype : data-type, optional
+            数据类型，默认为 jax.numpy.float32。
+
+        Returns
+        -------
+        BCOO 稀疏矩阵
+            返回一个 n x m 的稀疏单位矩阵。
+        """
+        if m is None:
+            m = n
+
+        # 确定对角线元素的数量
+        if k >= 0:
+            diag_size = min(n, m - k)
+            row_indices = jax.numpy.arange(diag_size)
+            col_indices = row_indices + k
+        else:
+            diag_size = min(n + k, m)
+            row_indices = jax.numpy.arange(diag_size) - k
+            col_indices = jax.numpy.arange(diag_size)
+
+        # 构造对角线上非零元素
+        data = jax.numpy.ones(diag_size, dtype=dtype)
+
+        # 构造 COO 格式的索引
+        indices = jax.numpy.stack([row_indices, col_indices], axis=1)
+
+        # 创建稀疏矩阵
+        shape = (n, m)
+        eye_sparse = jsp.BCOO((data, indices), shape=shape)
+
+        return eye_sparse
 
 
 @custom_vjp

@@ -17,31 +17,31 @@ import scipy as sp
 
 from numpy import ndarray
 from scipy.sparse import csc_matrix
-from scqubits import backend_change
+from scqubits import backend_change as bc
 
-def annihilation(dimension: int) -> ndarray:
+def annihilation(dimension: bc.backend.int_) -> bc.backend.ndarray:
     """
     Returns a dense matrix of size dimension x dimension representing the annihilation
     operator in number basis.
     """
-    middle_variable = backend_change.backend.array(range(1, dimension))
-    offdiag_elements = backend_change.backend.sqrt(middle_variable)
-    return backend_change.backend.diagflat(offdiag_elements, 1)
+    middle_variable = bc.backend.array(range(1, dimension))
+    offdiag_elements = bc.backend.sqrt(middle_variable)
+    return bc.backend.diagflat(offdiag_elements, 1)
 
 
-def annihilation_sparse(dimension: int) -> csc_matrix:
+def annihilation_sparse(dimension: bc.backend.int) ->bc.backend.csc_matrix:
     """Returns a matrix of size dimension x dimension representing the annihilation
     operator in the format of a scipy sparse.csc_matrix.
     """
 
-    offdiag_elements = backend_change.backend.sqrt(backend_change.backend.arange(dimension))
+    offdiag_elements = bc.backend.sqrt(bc.backend.arange(dimension))
         
-    return sp.sparse.dia_matrix(
+    return bc.backend.solve_csc_matrix(bc.backend.dia_matrix(
         (offdiag_elements, [1]), shape=(dimension, dimension)
-    ).tocsc()
+    ))
 
 
-def creation(dimension: int) -> ndarray:
+def creation(dimension: bc.backend.int_) -> bc.backend.ndarray:
     """
     Returns a dense matrix of size dimension x dimension representing the creation
     operator in number basis.
@@ -49,14 +49,14 @@ def creation(dimension: int) -> ndarray:
     return annihilation(dimension).T
 
 
-def creation_sparse(dimension: int) -> csc_matrix:
+def creation_sparse(dimension: bc.backend.int_) -> bc.backend.csc_matrix:
     """Returns a matrix of size dimension x dimension representing the creation operator
     in the format of a scipy sparse.csc_matrix
     """
-    return annihilation_sparse(dimension).transpose().tocsc()
+    return bc.backend.solve_csc_matrix(annihilation_sparse(dimension).transpose())
 
 
-def hubbard_sparse(j1: int, j2: int, dimension: int) -> csc_matrix:
+def hubbard_sparse(j1: bc.backend.int_, j2: bc.backend.int_, dimension: bc.backend.int_) -> bc.backend.csc_matrix:
     """The Hubbard operator :math:`|j1\\rangle>\\langle j2|` is returned as a matrix of
     linear size dimension.
 
@@ -70,14 +70,14 @@ def hubbard_sparse(j1: int, j2: int, dimension: int) -> csc_matrix:
     -------
         sparse number operator matrix, size dimension x dimension
     """
-    hubbardmat = sp.sparse.dok_matrix((dimension, dimension), dtype=backend_change.backend.float_)
+    hubbardmat = bc.backend.dok_matrix((dimension, dimension), dtype=bc.backend.float_)
     hubbardmat[j1, j2] = 1.0
-    return hubbardmat.asformat("csc")
+    return bc.backend.asformat(hubbardmat, "csc")
 
 
 def number(
-    dimension: int, prefactor: Optional[Union[float, complex]] = None
-) -> ndarray:
+    dimension: bc.backend.int_, prefactor: Optional[Union[bc.backend.float_, bc.backend.complex_]] = None
+) -> bc.backend.ndarray:
     """Number operator matrix of size dimension x dimension in sparse matrix
     representation. An additional prefactor can be directly included in the
     generation of the matrix by supplying 'prefactor'.
@@ -94,15 +94,15 @@ def number(
     -------
         number operator matrix, size dimension x dimension
     """
-    diag_elements = backend_change.backend.arange(dimension, dtype=backend_change.backend.float_)
+    diag_elements = bc.backend.arange(dimension, dtype=bc.backend.float_)
     if prefactor:
         diag_elements *= prefactor
-    return backend_change.backend.diagflat(diag_elements)
+    return bc.backend.diagflat(diag_elements)
 
 
 def number_sparse(
-    dimension: int, prefactor: Optional[Union[float, complex]] = None
-) -> csc_matrix:
+    dimension: bc.backend.int_, prefactor: Optional[Union[bc.backend.float_, bc.backend.complex_]] = None
+) -> bc.backend.csc_matrix:
     """Number operator matrix of size dimension x dimension in sparse matrix
     representation. An additional prefactor can be directly included in the
     generation of the matrix by supplying 'prefactor'.
@@ -118,17 +118,17 @@ def number_sparse(
     -------
         sparse number operator matrix, size dimension x dimension
     """
-    diag_elements = backend_change.backend.arange(dimension, dtype=backend_change.backend.float_)
+    diag_elements = bc.backend.arange(dimension, dtype=bc.backend.float_)
     if prefactor:
         diag_elements *= prefactor
-    return sp.sparse.dia_matrix(
-        (diag_elements, [0]), shape=(dimension, dimension), dtype=backend_change.backend.float_
-    ).tocsc()
+    return bc.backend.solve_csc_matrix(bc.backend.dia_matrix(
+        (diag_elements, [0]), shape=(dimension, dimension), dtype=bc.backend.float_
+    ))
 
 
 def a_plus_adag_sparse(
-    dimension: int, prefactor: Union[float, complex, None] = None
-) -> csc_matrix:
+    dimension: bc.backend.int_, prefactor: Union[bc.backend.float_, bc.backend.complex_, None] = None
+) -> bc.backend.csc_matrix:
     """Operator matrix for prefactor(a+a^dag) of size dimension x dimension in
     sparse matrix representation.
 
@@ -149,8 +149,8 @@ def a_plus_adag_sparse(
 
 
 def a_plus_adag(
-    dimension: int, prefactor: Union[float, complex, None] = None
-) -> ndarray:
+    dimension: bc.backend.int_, prefactor: Union[bc.backend.float_, bc.backend.complex_, None] = None
+) -> bc.backend.ndarray:
     """Operator matrix for prefactor(a+a^dag) of size dimension x dimension in
     sparse matrix representation.
 
@@ -166,12 +166,12 @@ def a_plus_adag(
     -------
         prefactor (a + a^dag) as ndarray, size dimension x dimension
     """
-    return a_plus_adag_sparse(dimension, prefactor=prefactor).toarray()
+    return bc.backend.toarray(a_plus_adag_sparse(dimension, prefactor=prefactor))
 
 
 def cos_theta_harmonic(
-    dimension: int, prefactor: Union[float, complex, None] = None
-) -> ndarray:
+    dimension: bc.backend.int_, prefactor: Union[bc.backend.float_, bc.backend.complex_, None] = None
+) -> bc.backend.ndarray:
     """Operator matrix for cos(prefactor(a+a^dag)) of size dimension x dimension in
     sparse matrix representation.
 
@@ -187,12 +187,12 @@ def cos_theta_harmonic(
     -------
         prefactor (a + a^dag) as ndarray, size dimension x dimension
     """
-    return sp.linalg.cosm(a_plus_adag_sparse(dimension, prefactor=prefactor).toarray())
+    return bc.backend.spcosm(bc.backend.toarray(a_plus_adag_sparse(dimension, prefactor=prefactor)))
 
 
 def sin_theta_harmonic(
-    dimension: int, prefactor: Union[float, complex, None] = None
-) -> ndarray:
+    dimension: bc.backend.int_, prefactor: Union[bc.backend.float_, bc.backend.complex_, None] = None
+) -> bc.backend.ndarray:
     """Operator matrix for sin(prefactor(a+a^dag)) of size dimension x dimension in
     sparse matrix representation.
 
@@ -208,12 +208,12 @@ def sin_theta_harmonic(
     -------
         prefactor (a + a^dag) as ndarray, size dimension x dimension
     """
-    return sp.linalg.sinm(a_plus_adag_sparse(dimension, prefactor=prefactor).toarray())
+    return bc.backend.spsinm(a_plus_adag_sparse(dimension, prefactor=prefactor).toarray())
 
 
 def iadag_minus_ia_sparse(
-    dimension: int, prefactor: Union[float, complex, None] = None
-) -> csc_matrix:
+    dimension: bc.backend.int_, prefactor: Union[bc.backend.float_, bc.backend.complex_, None] = None
+) -> bc.backend.csc_matrix:
     """Operator matrix for prefactor(ia-ia^dag) of size dimension x dimension as
     ndarray
 
@@ -236,8 +236,8 @@ def iadag_minus_ia_sparse(
 
 
 def iadag_minus_ia(
-    dimension: int, prefactor: Union[float, complex, None] = None
-) -> ndarray:
+    dimension: bc.backend.int_, prefactor: Union[bc.backend.float_, bc.backend.complex_, None] = None
+) -> bc.backend.ndarray:
     """Operator matrix for prefactor(ia-ia^dag) of size dimension x dimension as
     ndarray
 
@@ -253,24 +253,24 @@ def iadag_minus_ia(
     -------
         prefactor  (ia - ia^dag) as ndarray, size dimension x dimension
     """
-    return iadag_minus_ia_sparse(dimension, prefactor=prefactor).toarray()
+    return bc.backend.toarray(iadag_minus_ia_sparse(dimension, prefactor=prefactor))
 
 
-def sigma_minus() -> backend_change.backend.ndarray:
+def sigma_minus() -> bc.backend.ndarray:
     return sigma_plus().T
 
 
-def sigma_plus() -> backend_change.backend.ndarray:
-    return backend_change.backend.asarray([[0.0, 1.0], [0.0, 0.0]])
+def sigma_plus() -> bc.backend.ndarray:
+    return bc.backend.asarray([[0.0, 1.0], [0.0, 0.0]])
 
 
-def sigma_x() -> backend_change.backend.ndarray:
-    return backend_change.backend.asarray([[0.0, 1.0], [1.0, 0.0]])
+def sigma_x() -> bc.backend.ndarray:
+    return bc.backend.asarray([[0.0, 1.0], [1.0, 0.0]])
 
 
-def sigma_y() -> backend_change.backend.ndarray:
-    return backend_change.backend.asarray([[0.0, -1j], [1j, 0.0]])
+def sigma_y() -> bc.backend.ndarray:
+    return bc.backend.asarray([[0.0, -1j], [1j, 0.0]])
 
 
-def sigma_z() -> backend_change.backend.ndarray:
-    return backend_change.backend.asarray([[1.0, 0.0], [0.0, -1.0]])
+def sigma_z() -> bc.backend.ndarray:
+    return bc.backend.asarray([[1.0, 0.0], [0.0, -1.0]])

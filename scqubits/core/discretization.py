@@ -23,17 +23,17 @@ import scqubits.core.descriptors as descriptors
 import scqubits.io_utils.fileio_serializers as serializers
 import scqubits.settings as settings
 import scqubits.utils.misc as utils
-from scqubits import backend_change
+from scqubits import backend_change as bc
 
 
-FIRST_STENCIL_COEFFS: Dict[int, List[float]] = {
+FIRST_STENCIL_COEFFS: Dict[bc.backend.int, List[bc.backend.float]] = {
     3: [-1 / 2, 0.0, 1 / 2],
     5: [1 / 12, -2 / 3, 0.0, 2 / 3, -1 / 12],
     7: [-1 / 60, 3 / 20, -3 / 4, 0.0, 3 / 4, -3 / 20, 1 / 60],
     9: [1 / 280, -4 / 105, 1 / 5, -4 / 5, 0.0, 4 / 5, -1 / 5, 4 / 105, -1 / 280],
 }
 
-SECOND_STENCIL_COEFFS: Dict[int, List[float]] = {
+SECOND_STENCIL_COEFFS: Dict[bc.backend.int, List[bc.backend.float]] = {
     3: [1, -2, 1],
     5: [-1 / 12, 4 / 3, -5 / 2, 4 / 3, -1 / 12],
     7: [1 / 90, -3 / 20, 3 / 2, -49 / 18, 3 / 2, -3 / 20, 1 / 90],
@@ -42,12 +42,12 @@ SECOND_STENCIL_COEFFS: Dict[int, List[float]] = {
 
 
 def band_matrix(
-    band_coeffs: Union[List[float], List[complex], ndarray],
-    band_offsets: Union[List[int], ndarray],
-    dim: int,
+    band_coeffs: Union[List[bc.backend.float], List[bc.backend.complex], bc.backend.ndarray],
+    band_offsets: Union[List[bc.backend.int], bc.backend.ndarray],
+    dim: bc.backend.int,
     dtype: Any = None,
     has_corners: bool = False,
-) -> csc_matrix:
+) -> bc.backend.csc_matrix:
     """
     Returns a dim x dim sparse matrix with constant diagonals of values `band_coeffs[
     0]`, `band_coeffs[1]`, ... along the (off-)diagonals specified by the offsets
@@ -72,11 +72,11 @@ def band_matrix(
         if set to True, the off diagonals are wrapped into the opposing corners of
         the matrix
     """
-    ones_vector = backend_change.backend.ones(dim)
+    ones_vector = bc.backend.ones(dim)
     vectors = [ones_vector * number for number in band_coeffs]
-    matrix = sparse.dia_matrix((vectors, band_offsets), shape=(dim, dim), dtype=dtype)
+    matrix = bc.backend.dia_matrix((vectors, band_offsets), shape=(dim, dim), dtype=dtype)
     if not has_corners:
-        return matrix.tocsc()
+        return bc.backend.solve_csc_matrix(matrix)
     for index, offset in enumerate(band_offsets):
         if offset < 0:
             corner_offset = dim + offset
@@ -89,7 +89,7 @@ def band_matrix(
         else:  # when offset == 0
             continue
         matrix.setdiag(corner_band, k=corner_offset)
-    return matrix.tocsc()
+    return bc.backend.solve_csc_matrix(matrix)
 
 
 class Grid1d(dispatch.DispatchClient, serializers.Serializable):
@@ -110,7 +110,7 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
     max_val = descriptors.WatchedProperty(float, "GRID_UPDATE")
     pt_count = descriptors.WatchedProperty(int, "GRID_UPDATE")
 
-    def __init__(self, min_val: float, max_val: float, pt_count: int) -> None:
+    def __init__(self, min_val: bc.backend.float, max_val: bc.backend.float, pt_count: bc.backend.int) -> None:
         self.min_val = min_val
         self.max_val = max_val
         self.pt_count = pt_count
@@ -144,7 +144,7 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
         """
         return self.__dict__
 
-    def grid_spacing(self) -> float:
+    def grid_spacing(self) -> bc.backend.float:
         """
         Returns
         -------
@@ -152,17 +152,17 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
         """
         return (self.max_val - self.min_val) / (self.pt_count - 1)
 
-    def make_linspace(self) -> ndarray:
+    def make_linspace(self) -> bc.backend.ndarray:
         """Returns a numpy array of the grid points
         Returns
         -------
         ndarray
         """
-        return backend_change.backend.linspace(self.min_val, self.max_val, self.pt_count)
+        return bc.backend.linspace(self.min_val, self.max_val, self.pt_count)
 
     def first_derivative_matrix(
-        self, prefactor: Union[float, complex] = 1.0, periodic: bool = False
-    ) -> csc_matrix:
+        self, prefactor: Union[bc.backend.float, bc.backend.complex] = 1.0, periodic: bool = False
+    ) -> bc.backend.csc_matrix:
         """Generate sparse matrix for first derivative of the form
         :math:`\\partial_{x_i}`. Uses STENCIL setting to construct the matrix with a
         multi-point stencil.
@@ -179,9 +179,9 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
             sparse matrix in `dia` format
         """
         if isinstance(prefactor, complex):
-            dtp = backend_change.backend.complex_
+            dtp = bc.backend.complex_
         else:
-            dtp = backend_change.backend.float_
+            dtp = bc.backend.float_
 
         delta_x = self.grid_spacing()
         matrix_diagonals = [
@@ -192,11 +192,11 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
         derivative_matrix = band_matrix(
             matrix_diagonals, offset, self.pt_count, dtype=dtp, has_corners=periodic
         )
-        return derivative_matrix.tocsc()
+        return bc.backend.solve_csc_matrix(derivative_matrix)
 
     def second_derivative_matrix(
-        self, prefactor: Union[float, complex] = 1.0, periodic: bool = False
-    ) -> csc_matrix:
+        self, prefactor: Union[bc.backend.float, bc.backend.complex] = 1.0, periodic: bool = False
+    ) -> bc.backend.csc_matrix:
         """Generate sparse matrix for second derivative of the form
         :math:`\\partial^2_{x_i}`. Uses STENCIL setting to construct the matrix with
         a multi-point stencil.
@@ -212,10 +212,10 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
         -------
             sparse matrix in `dia` format
         """
-        if isinstance(prefactor, complex):
-            dtp = backend_change.backend.complex_
+        if isinstance(prefactor, bc.backend.complex):
+            dtp = bc.backend.complex_
         else:
-            dtp = backend_change.backend.float_
+            dtp = bc.backend.float_
 
         delta_x = self.grid_spacing()
         matrix_diagonals = [
@@ -226,7 +226,7 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
         derivative_matrix = band_matrix(
             matrix_diagonals, offset, self.pt_count, dtype=dtp, has_corners=periodic
         )
-        return derivative_matrix.tocsc()
+        return bc.backend.solve_csc_matrix(derivative_matrix)
 
 
 class GridSpec(dispatch.DispatchClient, serializers.Serializable):

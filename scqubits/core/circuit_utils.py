@@ -516,7 +516,7 @@ def _cos_dia(x: bc.backend.csc_matrix) -> bc.backend.csc_matrix:
     return bc.backend.solve_csc_matrix(bc.backend.diags(bc.backend.cos(x.diagonal())))
 
 
-def _sin_dia(x: csc_matrix) -> csc_matrix:
+def _sin_dia(x: csc_matrix) -> bc.backend.csc_matrix:
     """
     Take the diagonal of the array x, compute its sine, and fill the result into
     the diagonal of a sparse matrix.
@@ -524,22 +524,22 @@ def _sin_dia(x: csc_matrix) -> csc_matrix:
     return bc.backend.solve_csc_matrix(bc.backend.diags(bc.backend.sin(x.diagonal())))
 
 
-def _sin_dia_dense(x: ndarray) -> ndarray:
+def _sin_dia_dense(x: bc.backend.ndarray) -> bc.backend.ndarray:
     """
     This is a special function to calculate the sin of dense diagonal matrices
     """
     return bc.backend.diag(bc.backend.sin(x.diagonal()))
 
 
-def _cos_dia_dense(x: ndarray) -> ndarray:
+def _cos_dia_dense(x: bc.backend.ndarray) -> bc.backend.ndarray:
     """
     This is a special function to calculate the cos of dense diagonal matrices
     """
     return bc.backend.diag(bc.backend.cos(x.diagonal()))
 
 
-def matrix_power_sparse(dense_mat: ndarray, n: int) -> csc_matrix:
-    sparse_mat = sparse.csc_matrix(dense_mat)
+def matrix_power_sparse(dense_mat:  bc.backend.ndarray, n:  bc.backend.int) ->  bc.backend.csc_matrix:
+    sparse_mat = bc.backend.solve_csc_matrix(dense_mat)
     return sparse_mat**n
 
 
@@ -587,7 +587,7 @@ def assemble_circuit(
     circuit_list: List[str],
     couplers: str,
     rename_parameters=False,
-) -> Tuple[str, List[Dict[int, int]]]:
+) -> Tuple[str, List[Dict[bc.backend.int, bc.backend.int]]]:
     """
     Assemble a yaml string for a large circuit that are made of smaller
     sub-circuits and coupling elements. This method takes a list of Sub-circuit yaml
@@ -742,7 +742,7 @@ def assemble_circuit(
                     if not rename_parameters:
                         if len(word.split("=")) == 2:
                             param_str, init_val = word.split("=")
-                            param_str, init_val = param_str.strip(), float(
+                            param_str, init_val = param_str.strip(), bc.backend.float(
                                 init_val.strip()
                             )
                             # if the parameter is already initialized, the subsequent initialization
@@ -757,7 +757,7 @@ def assemble_circuit(
                     else:
                         if len(word.split("=")) == 2:
                             param_str, init_val = word.split("=")
-                            param_str, init_val = param_str.strip(), float(
+                            param_str, init_val = param_str.strip(), bc.backend.float(
                                 init_val.strip()
                             )
                             composite_circuit_yaml += (
@@ -811,7 +811,7 @@ def assemble_circuit(
                 if not rename_parameters:
                     if len(word.split("=")) == 2:
                         param_str, init_val = word.split("=")
-                        param_str, init_val = param_str.strip(), float(init_val.strip())
+                        param_str, init_val = param_str.strip(), bc.backend.float(init_val.strip())
                         # if the parameter is already initialized, the subsequent initialization
                         # is neglected
                         if param_str in param_dict:
@@ -824,7 +824,7 @@ def assemble_circuit(
                 else:
                     if len(word.split("=")) == 2:
                         param_str, init_val = word.split("=")
-                        param_str, init_val = param_str.strip(), float(init_val.strip())
+                        param_str, init_val = param_str.strip(), bc.backend.float(init_val.strip())
                         composite_circuit_yaml += (
                             param_str
                             + "_"
@@ -849,8 +849,8 @@ def assemble_circuit(
 
 
 def assemble_transformation_matrix(
-    transformation_matrix_list: List[ndarray],
-) -> ndarray:
+    transformation_matrix_list: List[bc.backend.ndarray],
+) -> bc.backend.ndarray:
     """
     Assemble a transformation matrix for a large circuit that are made of smaller sub-circuits
     and coupling elements. This method takes a list of sub-circuit transformation matrices as
@@ -866,4 +866,4 @@ def assemble_transformation_matrix(
         A numpy ndarray for the composite circuit.
     """
 
-    return sp.linalg.block_diag(*transformation_matrix_list)
+    return bc.backend.block_diag(*transformation_matrix_list)
