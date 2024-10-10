@@ -27,7 +27,7 @@ import scqubits.core.oscillator as osc
 import scqubits.core.qubit_base as base
 import scqubits.core.storage as storage
 import scqubits.io_utils.fileio_serializers as serializers
-import scqubits.backend_change as backend_change
+import scqubits.backend_change as bc
 
 from scqubits.core.noise import NoisySystem
 
@@ -71,20 +71,20 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         dictionary with evals diagonalization options
     """
 
-    EJ = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    EC = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    EL = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    flux = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    cutoff = descriptors.WatchedProperty(int, "QUANTUMSYSTEM_UPDATE")
+    EJ = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    EC = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    EL = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    flux = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    cutoff = descriptors.WatchedProperty(bc.backend.int_, "QUANTUMSYSTEM_UPDATE")
 
     def __init__(
         self,
-        EJ: float,
-        EC: float,
-        EL: float,
-        flux: float,
-        cutoff: int,
-        truncated_dim: int = 6,
+        EJ: bc.backend.float_,
+        EC: bc.backend.float_,
+        EL: bc.backend.float_,
+        flux: bc.backend.float_,
+        cutoff: bc.backend.int_,
+        truncated_dim: bc.backend.int_ = 6,
         id_str: Optional[str] = None,
         evals_method: Union[Callable, str, None] = None,
         evals_method_options: Union[dict, None] = None,
@@ -105,7 +105,7 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         self.flux = flux
         self.cutoff = cutoff
         self.truncated_dim = truncated_dim
-        self._default_grid = discretization.Grid1d(-4.5 * backend_change.backend.pi, 4.5 * backend_change.backend.pi, 151)
+        self._default_grid = discretization.Grid1d(-4.5 * bc.backend.pi, 4.5 * bc.backend.pi, 151)
 
     @staticmethod
     def default_params() -> Dict[str, Any]:
@@ -139,7 +139,7 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         noise_channels.remove("t1_charge_impedance")
         return noise_channels
 
-    def phi_osc(self) -> float:
+    def phi_osc(self) -> bc.backend.float_:
         """
         Returns
         -------
@@ -148,7 +148,7 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         """
         return (8.0 * self.EC / self.EL) ** 0.25  # LC oscillator length
 
-    def plasma_energy(self) -> float:
+    def plasma_energy(self) -> bc.backend.float_:
         """
         Returns
         -------
@@ -157,8 +157,8 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         return math.sqrt(8.0 * self.EL * self.EC)  # LC plasma oscillation energy
 
     def phi_operator(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         """
         Returns the phi operator in the LC harmonic oscillator or eigenenergy basis.
 
@@ -187,8 +187,8 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def n_operator(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         """
         Returns the :math:`n = - i d/d\\phi` operator in the LC harmonic oscillator or eigenenergy basis.
 
@@ -217,10 +217,10 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
 
     def exp_i_phi_operator(
         self,
-        alpha: float = 1.0,
-        beta: float = 0.0,
-        energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False,
-    ) -> ndarray:
+        alpha: bc.backend.float_ = 1.0,
+        beta: bc.backend.float_ = 0.0,
+        energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False,
+    ) -> bc.backend.ndarray:
         """
         Returns the :math:`e^{i (\\alpha \\phi + \\beta) }` operator, with :math:`\\alpha` and :math:`\\beta` being
         numbers, in the LC harmonic oscillator or eigenenergy basis.
@@ -248,10 +248,10 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
 
     def cos_phi_operator(
         self,
-        alpha: float = 1.0,
-        beta: float = 0.0,
-        energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False,
-    ) -> ndarray:
+        alpha: bc.backend.float_ = 1.0,
+        beta: bc.backend.float_ = 0.0,
+        energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False,
+    ) -> bc.backend.ndarray:
         """
         Returns the :math:`\\cos (\\alpha \\phi + \\beta)` operator with :math:`\\alpha` and :math:`\\beta` being
         numbers, in the LC harmonic oscillator or eigenenergy basis.
@@ -270,16 +270,16 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
             unless energy_esys is specified, :math:`\\cos (\\alpha \\phi + \\beta)` has dimensions of truncated_dim
             x `truncated_dim`. Otherwise, if eigenenergy basis is chosen, :math:`\\cos (\\alpha \\phi + \\beta)` has dimensions of m x m, for m given eigenvectors.
         """
-        argument = alpha * self.phi_operator() + beta * backend_change.backend.eye(self.hilbertdim())
-        native = sp.linalg.cosm(argument)
+        argument = alpha * self.phi_operator() + beta * bc.backend.eye(self.hilbertdim())
+        native = bc.backend.spcosm(argument)
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def sin_phi_operator(
         self,
-        alpha: float = 1.0,
-        beta: float = 0.0,
-        energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False,
-    ) -> ndarray:
+        alpha: bc.backend.float_ = 1.0,
+        beta: bc.backend.float_ = 0.0,
+        energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False,
+    ) -> bc.backend.ndarray:
         """
         Returns the :math:`\\sin (\\alpha \\phi + \\beta)` operator with :math:`\\alpha` and :math:`\\beta` being
         numbers, in the LC harmonic oscillator or eigenenergy basis.
@@ -298,13 +298,13 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
             unless energy_esys is specified, :math:`\\sin (\\alpha \\phi + \\beta)` has dimensions of truncated_dim
             x `truncated_dim`. Otherwise, if eigenenergy basis is chosen, :math:`\\sin (\\alpha \\phi + \\beta)` has dimensions of m x m, for m given eigenvectors.
         """
-        argument = alpha * self.phi_operator() + beta * backend_change.backend.eye(self.hilbertdim())
-        native = sp.linalg.sinm(argument)
+        argument = alpha * self.phi_operator() + beta * bc.backend.eye(self.hilbertdim())
+        native = bc.backend.spsinm(argument)
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def hamiltonian(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:  # follow Zhu et al., PRB 87, 024510 (2013)
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:  # follow Zhu et al., PRB 87, 024510 (2013)
         """
         Constructs Hamiltonian matrix in harmonic-oscillator, following Zhu
         et al., PRB 87, 024510 (2013), or eigenenergy basis.
@@ -326,18 +326,18 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         """
         dimension = self.hilbertdim()
         diag_elements = [(i + 0.5) * self.plasma_energy() for i in range(dimension)]
-        diag_elements = backend_change.backend.array(diag_elements)  # Ensure diag_elements is an ndarray
+        diag_elements = bc.backend.array(diag_elements)  # Ensure diag_elements is an ndarray
 
-        cos_matrix = self.cos_phi_operator(beta=2 * backend_change.backend.pi * self.flux)
+        cos_matrix = self.cos_phi_operator(beta=2 * bc.backend.pi * self.flux)
 
-        hamiltonian_mat = backend_change.backend.diag(diag_elements) - self.EJ * cos_matrix
+        hamiltonian_mat = bc.backend.diag(diag_elements) - self.EJ * cos_matrix
         return self.process_hamiltonian(
             native_hamiltonian=hamiltonian_mat, energy_esys=energy_esys
         )
 
     def d_hamiltonian_d_EJ(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         """
         Returns operator representing a derivative of the Hamiltonian with respect to
         EJ in the harmonic-oscillator or eigenenergy basis. The flux is grouped as in the Hamiltonian.
@@ -357,7 +357,7 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
             x `truncated_dim`. Otherwise, if eigenenergy basis is chosen, operator has dimensions of m x m,
             for m given eigenvectors.
         """
-        native = -self.cos_phi_operator(1, 2 * backend_change.backend.pi * self.flux)
+        native = -self.cos_phi_operator(1, 2 * bc.backend.pi * self.flux)
 
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
@@ -369,8 +369,8 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
     #     return -2 * np.pi * self.EJ * self.sin_phi_operator(1, 2 * np.pi * self.flux, energy_esys=energy_esys)
 
     def d_hamiltonian_d_flux(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         """
         Returns operator representing a derivative of the Hamiltonian with respect to
         flux in the harmonic-oscillator or eigenenergy basis. The flux is grouped as in the Hamiltonian.
@@ -390,17 +390,17 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
             x `truncated_dim`. Otherwise, if eigenenergy basis is chosen, operator has dimensions of m x m,
             for m given eigenvectors.
         """
-        native = -2 * backend_change.backend.pi * self.EJ * self.sin_phi_operator(1, 2 * backend_change.backend.pi * self.flux)
+        native = -2 * bc.backend.pi * self.EJ * self.sin_phi_operator(1, 2 * bc.backend.pi * self.flux)
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
-    def hilbertdim(self) -> int:
+    def hilbertdim(self) -> bc.backend.int_:
         """
         Returns
         -------
             Returns the Hilbert space dimension."""
         return self.cutoff
 
-    def potential(self, phi: Union[float, ndarray]) -> ndarray:
+    def potential(self, phi: Union[bc.backend.float_, bc.backend.ndarray]) -> bc.backend.ndarray:
         """Fluxonium potential evaluated at `phi`.
 
         Parameters
@@ -411,14 +411,14 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         -------
         float or ndarray
         """
-        return 0.5 * self.EL * phi * phi - self.EJ * backend_change.backend.cos(
-            phi + 2.0 * backend_change.backend.pi * self.flux
+        return 0.5 * self.EL * phi * phi - self.EJ * bc.backend.cos(
+            phi + 2.0 * bc.backend.pi * self.flux
         )
 
     def wavefunction(
         self,
-        esys: Optional[Tuple[ndarray, ndarray]],
-        which: int = 0,
+        esys: Optional[Tuple[bc.backend.ndarray, bc.backend.ndarray]],
+        which: bc.backend.int_ = 0,
         phi_grid: "Grid1d" = None,
     ) -> storage.WaveFunction:
         """Returns a fluxonium wave function in `phi` basis
@@ -443,7 +443,7 @@ class Fluxonium(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
 
         phi_basis_labels = phi_grid.make_linspace()
         wavefunc_osc_basis_amplitudes = evecs[:, which]
-        phi_wavefunc_amplitudes = backend_change.backend.zeros(phi_grid.pt_count, dtype=backend_change.backend.complex_)
+        phi_wavefunc_amplitudes = bc.backend.zeros(phi_grid.pt_count, dtype=bc.backend.complex_)
         phi_osc = self.phi_osc()
         for n in range(dim):
             phi_wavefunc_amplitudes += wavefunc_osc_basis_amplitudes[

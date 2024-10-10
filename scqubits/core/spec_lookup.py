@@ -78,7 +78,7 @@ class SpectrumLookupMixin(MixinCompatible):
             self._current_param_indices = slice(None, None, None)
 
     @property
-    def _bare_product_states_labels(self) -> List[Tuple[int, ...]]:
+    def _bare_product_states_labels(self) -> List[Tuple[backend_change.backend.int_, ...]]:
         """
         Generates the list of bare-state labels in canonical order. For example,
         for a Hilbert space composed of two subsystems sys1 and sys2, each label is
@@ -115,8 +115,8 @@ class SpectrumLookupMixin(MixinCompatible):
 
     def _generate_single_mapping(
         self,
-        param_indices: Tuple[int, ...],
-    ) -> ndarray:
+        param_indices: Tuple[backend_change.backend.int_, ...],
+    ) -> backend_change.backend.ndarray:
         """
         For a single set of parameter values, specified by a tuple of indices
         ``param_indices``, create an array of the dressed-state indices in an order
@@ -151,7 +151,7 @@ class SpectrumLookupMixin(MixinCompatible):
         )
 
         dim = self.hilbertspace.dimension
-        dressed_indices: List[Union[int, None]] = [None] * dim
+        dressed_indices: List[Union[backend_change.backend.int_, None]] = [None] * dim
         for dressed_index in range(self._evals_count):
             max_position = (backend_change.backend.abs(overlap_matrix[dressed_index, :])).argmax()
             max_overlap = backend_change.backend.abs(overlap_matrix[dressed_index, max_position])
@@ -159,7 +159,7 @@ class SpectrumLookupMixin(MixinCompatible):
                 max_overlap**2 > settings.OVERLAP_THRESHOLD
             ):
                 overlap_matrix[:, max_position] = 0
-                dressed_indices[int(max_position)] = dressed_index
+                dressed_indices[backend_change.backend.int_(max_position)] = dressed_index
 
         return backend_change.backend.asarray(dressed_indices)
 
@@ -178,9 +178,9 @@ class SpectrumLookupMixin(MixinCompatible):
     @utils.check_sync_status
     def dressed_index(
         self,
-        bare_labels: Tuple[int, ...],
+        bare_labels: Tuple[backend_change.backend.int_, ...],
         param_npindices: Optional[NpIndices] = None,
-    ) -> Union[ndarray, int, None]:
+    ) -> Union[backend_change.backend.ndarray, backend_change.backend.int_, None]:
         """
         For given bare product state return the corresponding dressed-state index.
 
@@ -211,9 +211,9 @@ class SpectrumLookupMixin(MixinCompatible):
     @utils.check_sync_status
     def bare_index(
         self,
-        dressed_index: int,
-        param_indices: Optional[Tuple[int, ...]] = None,
-    ) -> Union[Tuple[int, ...], None]:
+        dressed_index: backend_change.backend.int_,
+        param_indices: Optional[Tuple[backend_change.backend.int_, ...]] = None,
+    ) -> Union[Tuple[backend_change.backend.int_, ...], None]:
         """
         For given dressed index, look up the corresponding bare index.
 
@@ -244,8 +244,8 @@ class SpectrumLookupMixin(MixinCompatible):
     @utils.check_sync_status
     def eigensys(
         self,
-        param_indices: Optional[Tuple[int, ...]] = None,
-    ) -> ndarray:
+        param_indices: Optional[Tuple[backend_change.backend.int_, ...]] = None,
+    ) -> backend_change.backend.ndarray:
         """
         Return the list of dressed eigenvectors
 
@@ -265,8 +265,8 @@ class SpectrumLookupMixin(MixinCompatible):
     @utils.check_sync_status
     def eigenvals(
         self,
-        param_indices: Optional[Tuple[int, ...]] = None,
-    ) -> ndarray:
+        param_indices: Optional[Tuple[backend_change.backend.int_, ...]] = None,
+    ) -> backend_change.backend.ndarray:
         """
         Return the array of dressed eigenenergies - primarily for running the sweep
 
@@ -286,10 +286,10 @@ class SpectrumLookupMixin(MixinCompatible):
     @utils.check_sync_status
     def energy_by_bare_index(
         self,
-        bare_tuple: Tuple[int, ...],
+        bare_tuple: Tuple[backend_change.backend.int_, ...],
         subtract_ground: bool = False,
         param_npindices: Optional[NpIndices] = None,
-    ) -> Union[float, NamedSlotsNdarray]:  # the return value may also be np.nan
+    ) -> Union[backend_change.backend.float_, NamedSlotsNdarray]:  # the return value may also be np.nan
         """
         Look up dressed energy most closely corresponding to the given bare-state labels
 
@@ -338,10 +338,10 @@ class SpectrumLookupMixin(MixinCompatible):
     @utils.check_sync_status
     def energy_by_dressed_index(
         self,
-        dressed_index: int,
+        dressed_index: backend_change.backend.int_,
         subtract_ground: bool = False,
-        param_indices: Optional[Tuple[int, ...]] = None,
-    ) -> Union[float, NamedSlotsNdarray]:
+        param_indices: Optional[Tuple[backend_change.backend.int_, ...]] = None,
+    ) -> Union[backend_change.backend.float_, NamedSlotsNdarray]:
         """
         Look up the dressed eigenenergy belonging to the given dressed index,
         usually to be used with pre-slicing
@@ -370,7 +370,7 @@ class SpectrumLookupMixin(MixinCompatible):
     def bare_eigenstates(
         self,
         subsys: "QuantumSys",
-        param_indices: Optional[Tuple[int, ...]] = None,
+        param_indices: Optional[Tuple[backend_change.backend.int_, ...]] = None,
     ) -> NamedSlotsNdarray:
         """
         Return ndarray of bare eigenstates for given subsystems and parameter index.
@@ -387,7 +387,7 @@ class SpectrumLookupMixin(MixinCompatible):
     def bare_eigenvals(
         self,
         subsys: "QuantumSys",
-        param_indices: Optional[Tuple[int, ...]] = None,
+        param_indices: Optional[Tuple[backend_change.backend.int_, ...]] = None,
     ) -> NamedSlotsNdarray:
         """
         Return `NamedSlotsNdarray` of bare eigenenergies for given subsystem, usually
@@ -412,7 +412,7 @@ class SpectrumLookupMixin(MixinCompatible):
 
     def bare_productstate(
         self,
-        bare_index: Tuple[int, ...],
+        bare_index: Tuple[backend_change.backend.int_, ...],
     ) -> Qobj:
         """
         Return the bare product state specified by `bare_index`. Note: no parameter

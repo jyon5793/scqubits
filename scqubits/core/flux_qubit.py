@@ -28,7 +28,7 @@ import scqubits.core.storage as storage
 import scqubits.io_utils.fileio_serializers as serializers
 import scqubits.utils.plotting as plot
 import scqubits.utils.spectrum_utils as spec_utils
-from scqubits import backend_change
+from scqubits import backend_change as bc
 
 from scqubits.core.noise import NOISE_PARAMS, NoisySystem
 
@@ -37,20 +37,20 @@ from scqubits.core.noise import NOISE_PARAMS, NoisySystem
 class NoisyFluxQubit(NoisySystem, ABC):
     @abstractmethod
     def d_hamiltonian_d_EJ1(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         pass
 
     @abstractmethod
     def d_hamiltonian_d_EJ2(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         pass
 
     @abstractmethod
     def d_hamiltonian_d_EJ3(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         pass
 
     @classmethod
@@ -60,13 +60,13 @@ class NoisyFluxQubit(NoisySystem, ABC):
 
     def tphi_1_over_f_cc1(
         self,
-        A_noise: float = NOISE_PARAMS["A_cc"],
-        i: int = 0,
-        j: int = 1,
-        esys: Tuple[ndarray, ndarray] = None,
+        A_noise: bc.backend.float_ = NOISE_PARAMS["A_cc"],
+        i: bc.backend.int_ = 0,
+        j: bc.backend.int_ = 1,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
         get_rate: bool = False,
         **kwargs
-    ) -> float:
+    ) -> bc.backend.float_:
         r"""
         Calculate the 1/f dephasing time (or rate) due to critical current noise of
         junction associated with Josephson energy :math:`EJ1`.
@@ -108,13 +108,13 @@ class NoisyFluxQubit(NoisySystem, ABC):
 
     def tphi_1_over_f_cc2(
         self,
-        A_noise: float = NOISE_PARAMS["A_cc"],
-        i: int = 0,
-        j: int = 1,
-        esys: Tuple[ndarray, ndarray] = None,
+        A_noise: bc.backend.float_ = NOISE_PARAMS["A_cc"],
+        i: bc.backend.int_ = 0,
+        j: bc.backend.int_ = 1,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
         get_rate: bool = False,
         **kwargs
-    ) -> float:
+    ) -> bc.backend.float_:
         r"""
         Calculate the 1/f dephasing time (or rate) due to critical current noise of
         junction associated with Josephson energy :math:`EJ2`.
@@ -155,13 +155,13 @@ class NoisyFluxQubit(NoisySystem, ABC):
 
     def tphi_1_over_f_cc3(
         self,
-        A_noise: float = NOISE_PARAMS["A_cc"],
-        i: int = 0,
-        j: int = 1,
-        esys: Tuple[ndarray, ndarray] = None,
+        A_noise: bc.backend.float_ = NOISE_PARAMS["A_cc"],
+        i: bc.backend.int_ = 0,
+        j: bc.backend.int_ = 1,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
         get_rate: bool = False,
         **kwargs
-    ) -> float:
+    ) -> bc.backend.float_:
         r"""
         Calculate the 1/f dephasing time (or rate) due to critical current noise of junction associated with
         Josephson energy :math:`EJ3`.
@@ -201,13 +201,13 @@ class NoisyFluxQubit(NoisySystem, ABC):
 
     def tphi_1_over_f_cc(
         self,
-        A_noise: float = NOISE_PARAMS["A_cc"],
-        i: int = 0,
-        j: int = 1,
-        esys: Tuple[ndarray, ndarray] = None,
+        A_noise: bc.backend.float_ = NOISE_PARAMS["A_cc"],
+        i: bc.backend.int_ = 0,
+        j: bc.backend.int_ = 1,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
         get_rate: bool = False,
         **kwargs
-    ) -> float:
+    ) -> bc.backend.float_:
         r"""
         Calculate the 1/f dephasing time (or rate) due to critical-current noise
         from all three Josephson junctions :math:`EJ1`, :math:`EJ2` and :math:`EJ3`.
@@ -250,7 +250,7 @@ class NoisyFluxQubit(NoisySystem, ABC):
         if get_rate:
             return rate
         else:
-            return 1 / rate if rate != 0 else backend_change.backend.inf
+            return 1 / rate if rate != 0 else bc.backend.inf
 
 
 # -Flux qubit, both degrees of freedom in charge basis---------------------------------
@@ -315,34 +315,34 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
         dictionary with evals diagonalization options 
     """
 
-    EJ1 = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    EJ2 = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    EJ3 = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    ECJ1 = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    ECJ2 = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    ECJ3 = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    ECg1 = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    ECg2 = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    ng1 = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    ng2 = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    flux = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    ncut = descriptors.WatchedProperty(int, "QUANTUMSYSTEM_UPDATE")
+    EJ1 = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    EJ2 = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    EJ3 = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    ECJ1 = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    ECJ2 = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    ECJ3 = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    ECg1 = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    ECg2 = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    ng1 = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    ng2 = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    flux = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    ncut = descriptors.WatchedProperty(bc.backend.int_, "QUANTUMSYSTEM_UPDATE")
 
     def __init__(
         self,
-        EJ1: float,
-        EJ2: float,
-        EJ3: float,
-        ECJ1: float,
-        ECJ2: float,
-        ECJ3: float,
-        ECg1: float,
-        ECg2: float,
-        ng1: float,
-        ng2: float,
-        flux: float,
-        ncut: int,
-        truncated_dim: int = 6,
+        EJ1: bc.backend.float_,
+        EJ2: bc.backend.float_,
+        EJ3: bc.backend.float_,
+        ECJ1: bc.backend.float_,
+        ECJ2: bc.backend.float_,
+        ECJ3: bc.backend.float_,
+        ECg1: bc.backend.float_,
+        ECg2: bc.backend.float_,
+        ng1: bc.backend.float_,
+        ng2: bc.backend.float_,
+        flux: bc.backend.float_,
+        ncut: bc.backend.int_,
+        truncated_dim: bc.backend.int_ = 6,
         id_str: Optional[str] = None,
         evals_method: Union[Callable, str, None] = None,
         evals_method_options: Union[dict, None] = None,
@@ -371,7 +371,7 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
         self.ncut = ncut
         self.truncated_dim = truncated_dim
         self._default_grid = discretization.Grid1d(
-            -backend_change.backend.pi / 2, 3 * backend_change.backend.pi / 2, 100
+            -bc.backend.pi / 2, 3 * bc.backend.pi / 2, 100
         )  # for plotting in phi_j basis
 
     @staticmethod
@@ -406,23 +406,23 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
             # 'tphi_1_over_f_ng',
         ]
 
-    def EC_matrix(self) -> ndarray:
+    def EC_matrix(self) -> bc.backend.ndarray:
         """Return the charging energy matrix"""
-        Cmat = backend_change.backend.zeros((2, 2))
+        Cmat = bc.backend.zeros((2, 2))
         CJ1 = 1.0 / (2 * self.ECJ1)  # capacitances in units where e is set to 1
         CJ2 = 1.0 / (2 * self.ECJ2)
         CJ3 = 1.0 / (2 * self.ECJ3)
         Cg1 = 1.0 / (2 * self.ECg1)
         Cg2 = 1.0 / (2 * self.ECg2)
 
-        Cmat = backend_change.backend.array_solve(Cmat, (0, 0), CJ1 + CJ3 + Cg1)
-        Cmat = backend_change.backend.array_solve(Cmat, (1, 1), CJ2 + CJ3 + Cg2)
-        Cmat = backend_change.backend.array_solve(Cmat, (0, 1), -CJ3)
-        Cmat = backend_change.backend.array_solve(Cmat, (1, 0), -CJ3)
+        Cmat = bc.backend.array_solve(Cmat, (0, 0), CJ1 + CJ3 + Cg1)
+        Cmat = bc.backend.array_solve(Cmat, (1, 1), CJ2 + CJ3 + Cg2)
+        Cmat = bc.backend.array_solve(Cmat, (0, 1), -CJ3)
+        Cmat = bc.backend.array_solve(Cmat, (1, 0), -CJ3)
 
-        return backend_change.backend.linalg.inv(Cmat) / 2.0
+        return bc.backend.npinv(Cmat) / 2.0
 
-    def _evals_calc(self, evals_count: int) -> ndarray:
+    def _evals_calc(self, evals_count: bc.backend.int_) -> bc.backend.ndarray:
         hamiltonian_mat = self.hamiltonian()
         evals = sp.linalg.eigh(
             hamiltonian_mat,
@@ -430,9 +430,9 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
             eigvals_only=True,
             check_finite=False,
         )
-        return backend_change.backend.sort(evals)
+        return bc.backend.sort(evals)
 
-    def _esys_calc(self, evals_count: int) -> Tuple[ndarray, ndarray]:
+    def _esys_calc(self, evals_count: bc.backend.int_) -> Tuple[bc.backend.ndarray, bc.backend.ndarray]:
         hamiltonian_mat = self.hamiltonian()
         evals, evecs = sp.linalg.eigh(
             hamiltonian_mat,
@@ -443,28 +443,28 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
         evals, evecs = spec_utils.order_eigensystem(evals, evecs)
         return evals, evecs
 
-    def hilbertdim(self) -> int:
+    def hilbertdim(self) -> bc.backend.int_:
         """Return Hilbert space dimension."""
         return (2 * self.ncut + 1) ** 2
 
-    def potential(self, phi1: ndarray, phi2: ndarray) -> ndarray:
+    def potential(self, phi1: bc.backend.ndarray, phi2: bc.backend.ndarray) -> bc.backend.ndarray:
         """Return value of the potential energy at phi1 and phi2, disregarding
         constants."""
         return (
-            -self.EJ1 * backend_change.backend.cos(phi1)
-            - self.EJ2 * backend_change.backend.cos(phi2)
-            - self.EJ3 * backend_change.backend.cos(2.0 * backend_change.backend.pi * self.flux + phi1 - phi2)
+            -self.EJ1 * bc.backend.cos(phi1)
+            - self.EJ2 * bc.backend.cos(phi2)
+            - self.EJ3 * bc.backend.cos(2.0 * bc.backend.pi * self.flux + phi1 - phi2)
         )
 
-    def kineticmat(self) -> ndarray:
+    def kineticmat(self) -> bc.backend.ndarray:
         """Return the kinetic energy matrix."""
         ECmat = self.EC_matrix()
 
         kinetic_mat = (
             4.0
             * ECmat[0, 0]
-            * backend_change.backend.kron(
-                backend_change.backend.matmul(
+            * bc.backend.kron(
+                bc.backend.matmul(
                     self._n_operator() - self.ng1 * self._identity(),
                     self._n_operator() - self.ng1 * self._identity(),
                 ),
@@ -474,9 +474,9 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
         kinetic_mat += (
             4.0
             * ECmat[1, 1]
-            * backend_change.backend.kron(
+            * bc.backend.kron(
                 self._identity(),
-                backend_change.backend.matmul(
+                bc.backend.matmul(
                     self._n_operator() - self.ng2 * self._identity(),
                     self._n_operator() - self.ng2 * self._identity(),
                 ),
@@ -485,19 +485,19 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
         kinetic_mat += (
             4.0
             * (ECmat[0, 1] + ECmat[1, 0])
-            * backend_change.backend.kron(
+            * bc.backend.kron(
                 self._n_operator() - self.ng1 * self._identity(),
                 self._n_operator() - self.ng2 * self._identity(),
             )
         )
         return kinetic_mat
 
-    def potentialmat(self) -> ndarray:
+    def potentialmat(self) -> bc.backend.ndarray:
         """Return the potential energy matrix for the potential."""
         potential_mat = (
             -0.5
             * self.EJ1
-            * backend_change.backend.kron(
+            * bc.backend.kron(
                 self._exp_i_phi_operator() + self._exp_i_phi_operator().T,
                 self._identity(),
             )
@@ -505,7 +505,7 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
         potential_mat += (
             -0.5
             * self.EJ2
-            * backend_change.backend.kron(
+            * bc.backend.kron(
                 self._identity(),
                 self._exp_i_phi_operator() + self._exp_i_phi_operator().T,
             )
@@ -514,23 +514,23 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
             -0.5
             * self.EJ3
             * (
-                backend_change.backend.exp(1j * 2 * backend_change.backend.pi * self.flux)
-                * backend_change.backend.kron(self._exp_i_phi_operator(), self._exp_i_phi_operator().T)
+                bc.backend.exp(1j * 2 * bc.backend.pi * self.flux)
+                * bc.backend.kron(self._exp_i_phi_operator(), self._exp_i_phi_operator().T)
             )
         )
         potential_mat += (
             -0.5
             * self.EJ3
             * (
-                backend_change.backend.exp(-1j * 2 * backend_change.backend.pi * self.flux)
-                * backend_change.backend.kron(self._exp_i_phi_operator().T, self._exp_i_phi_operator())
+                bc.backend.exp(-1j * 2 * bc.backend.pi * self.flux)
+                * bc.backend.kron(self._exp_i_phi_operator().T, self._exp_i_phi_operator())
             )
         )
         return potential_mat
 
     def hamiltonian(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         """
         Return Hamiltonian in the basis obtained by employing charge basis for both
         degrees of freedom or in the eigenenergy basis.
@@ -556,8 +556,8 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
         )
 
     def d_hamiltonian_d_EJ1(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         """
         Returns operator representing a derivative of the Hamiltonian with respect to
         EJ1 in the native Hamiltonian basis or eigenenergy basis.
@@ -577,14 +577,14 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
             x `truncated_dim`. Otherwise, if eigenenergy basis is chosen, operator has dimensions of m x m,
             for m given eigenvectors.
         """
-        native = -0.5 * backend_change.backend.kron(
+        native = -0.5 * bc.backend.kron(
             self._exp_i_phi_operator() + self._exp_i_phi_operator().T, self._identity()
         )
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def d_hamiltonian_d_EJ2(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         """
         Returns operator representing a derivative of the Hamiltonian with respect to
         EJ2 in the native Hamiltonian basis or eigenenergy basis.
@@ -604,14 +604,14 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
             x `truncated_dim`. Otherwise, if eigenenergy basis is chosen, operator has dimensions of m x m,
             for m given eigenvectors.
         """
-        native = -0.5 * backend_change.backend.kron(
+        native = -0.5 * bc.backend.kron(
             self._identity(), self._exp_i_phi_operator() + self._exp_i_phi_operator().T
         )
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def d_hamiltonian_d_EJ3(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         """
         Returns operator representing a derivative of the Hamiltonian with respect to
         EJ3 in the native Hamiltonian basis or eigenenergy basis.
@@ -634,21 +634,21 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
         native = (
             -0.5
             * (
-                backend_change.backend.exp(1j * 2 * backend_change.backend.pi * self.flux)
-                * backend_change.backend.kron(self._exp_i_phi_operator(), self._exp_i_phi_operator().T)
+                bc.backend.exp(1j * 2 * bc.backend.pi * self.flux)
+                * bc.backend.kron(self._exp_i_phi_operator(), self._exp_i_phi_operator().T)
             )
         ) + (
             -0.5
             * (
-                backend_change.backend.exp(-1j * 2 * backend_change.backend.pi * self.flux)
-                * backend_change.backend.kron(self._exp_i_phi_operator().T, self._exp_i_phi_operator())
+                bc.backend.exp(-1j * 2 * bc.backend.pi * self.flux)
+                * bc.backend.kron(self._exp_i_phi_operator().T, self._exp_i_phi_operator())
             )
         )
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def d_hamiltonian_d_flux(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         """
         Returns the operator representing a derivative of the Hamiltonian with respect to flux
         in the native Hamiltonian basis or eigenenergy basis.
@@ -670,41 +670,41 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
         """
         native = (
             2j
-            * backend_change.backend.pi
+            * bc.backend.pi
             * (
                 -0.5
                 * self.EJ3
                 * (
-                    backend_change.backend.exp(1j * 2 * backend_change.backend.pi * self.flux)
-                    * backend_change.backend.kron(self._exp_i_phi_operator(), self._exp_i_phi_operator().T)
+                    bc.backend.exp(1j * 2 * bc.backend.pi * self.flux)
+                    * bc.backend.kron(self._exp_i_phi_operator(), self._exp_i_phi_operator().T)
                 )
                 + 0.5
                 * self.EJ3
                 * (
-                    backend_change.backend.exp(-1j * 2 * backend_change.backend.pi * self.flux)
-                    * backend_change.backend.kron(self._exp_i_phi_operator().T, self._exp_i_phi_operator())
+                    bc.backend.exp(-1j * 2 * bc.backend.pi * self.flux)
+                    * bc.backend.kron(self._exp_i_phi_operator().T, self._exp_i_phi_operator())
                 )
             )
         )
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
-    def _n_operator(self) -> ndarray:
-        diag_elements = backend_change.backend.arange(-self.ncut, self.ncut + 1, dtype=backend_change.backend.complex_)
-        return backend_change.backend.diag(diag_elements)
+    def _n_operator(self) -> bc.backend.ndarray:
+        diag_elements = bc.backend.arange(-self.ncut, self.ncut + 1, dtype=bc.backend.complex_)
+        return bc.backend.diag(diag_elements)
 
-    def _exp_i_phi_operator(self) -> ndarray:
+    def _exp_i_phi_operator(self) -> bc.backend.ndarray:
         dim = 2 * self.ncut + 1
-        off_diag_elements = backend_change.backend.ones(dim - 1, dtype=backend_change.backend.complex_)
-        e_iphi_matrix = backend_change.backend.diag(off_diag_elements, k=-1)
+        off_diag_elements = bc.backend.ones(dim - 1, dtype=bc.backend.complex_)
+        e_iphi_matrix = bc.backend.diag(off_diag_elements, k=-1)
         return e_iphi_matrix
 
-    def _identity(self) -> ndarray:
+    def _identity(self) -> bc.backend.ndarray:
         dim = 2 * self.ncut + 1
-        return backend_change.backend.eye(dim)
+        return bc.backend.eye(dim)
 
     def n_1_operator(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         r"""
         Returns the charge number operator conjugate to :math:`\phi_1` in the charge? or eigenenergy basis.
 
@@ -722,12 +722,12 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
             unless `energy_esys` is specified, operator has dimensions of `truncated_dim`
             x `truncated_dim`. Otherwise, if eigenenergy basis is chosen, operator has dimensions of m x m, for m given eigenvectors.
         """
-        native = backend_change.backend.kron(self._n_operator(), self._identity())
+        native = bc.backend.kron(self._n_operator(), self._identity())
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def n_2_operator(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         r"""
         Returns the charge number operator conjugate to :math:`\phi_2` in the charge? or eigenenergy basis.
 
@@ -745,12 +745,12 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
             unless `energy_esys` is specified, operator has dimensions of `truncated_dim`
             x `truncated_dim`. Otherwise, if eigenenergy basis is chosen, operator has dimensions of m x m, for m given eigenvectors.
         """
-        native = backend_change.backend.kron(self._identity(), self._n_operator())
+        native = bc.backend.kron(self._identity(), self._n_operator())
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def exp_i_phi_1_operator(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         r"""
         Returns operator :math:`e^{i\phi_1}` in the charge or eigenenergy basis.
 
@@ -769,12 +769,12 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
             x `truncated_dim`. Otherwise, if eigenenergy basis is chosen, :math:`e^{i\phi_1}` has dimensions of m x m,
             for m given eigenvectors.
         """
-        native = backend_change.backend.kron(self._exp_i_phi_operator(), self._identity())
+        native = bc.backend.kron(self._exp_i_phi_operator(), self._identity())
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def exp_i_phi_2_operator(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         r"""
         Returns operator :math:`e^{i\phi_2}` in the charge or eigenenergy basis.
 
@@ -793,12 +793,12 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
             x `truncated_dim`. Otherwise, if eigenenergy basis is chosen, :math:`e^{i\phi_2}` has dimensions of m x m,
             for m given eigenvectors.
         """
-        native = backend_change.backend.kron(self._identity(), self._exp_i_phi_operator())
+        native = bc.backend.kron(self._identity(), self._exp_i_phi_operator())
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def cos_phi_1_operator(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         """
         Returns operator :math:`\\cos \\phi_1` in the charge or eigenenergy basis.
 
@@ -823,8 +823,8 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def cos_phi_2_operator(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         """
         Returns operator :math:`\\cos \\phi_2` in the charge or eigenenergy basis.
 
@@ -849,8 +849,8 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def sin_phi_1_operator(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         """
         Returns operator :math:`\\sin \\phi_1` in the charge or eigenenergy basis.
 
@@ -875,8 +875,8 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def sin_phi_2_operator(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         """
         Returns operator :math:`\\sin \\phi_2` in the charge or eigenenergy basis.
 
@@ -903,7 +903,7 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
     def plot_potential(
         self,
         phi_grid: discretization.Grid1d = None,
-        contour_vals: ndarray = None,
+        contour_vals: bc.backend.ndarray = None,
         **kwargs
     ) -> Tuple[Figure, Axes]:
         """
@@ -928,8 +928,8 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
 
     def wavefunction(
         self,
-        esys: Tuple[ndarray, ndarray] = None,
-        which: int = 0,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
+        which: bc.backend.int_ = 0,
         phi_grid: discretization.Grid1d = None,
     ) -> storage.WaveFunctionOnGrid:
         """
@@ -952,18 +952,18 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
         phi_grid = phi_grid or self._default_grid
 
         dim = 2 * self.ncut + 1
-        state_amplitudes = backend_change.backend.reshape(evecs[:, which], (dim, dim))
+        state_amplitudes = bc.backend.reshape(evecs[:, which], (dim, dim))
 
-        n_vec = backend_change.backend.arange(-self.ncut, self.ncut + 1)
+        n_vec = bc.backend.arange(-self.ncut, self.ncut + 1)
         phi_vec = phi_grid.make_linspace()
-        a_1_phi = backend_change.backend.exp(1j * backend_change.backend.outer(phi_vec, n_vec)) / (2 * backend_change.backend.pi) ** 0.5
+        a_1_phi = bc.backend.exp(1j * bc.backend.outer(phi_vec, n_vec)) / (2 * bc.backend.pi) ** 0.5
         a_2_phi = a_1_phi.T
-        wavefunc_amplitudes = backend_change.backend.matmul(a_1_phi, state_amplitudes)
-        wavefunc_amplitudes = backend_change.backend.matmul(wavefunc_amplitudes, a_2_phi)
+        wavefunc_amplitudes = bc.backend.matmul(a_1_phi, state_amplitudes)
+        wavefunc_amplitudes = bc.backend.matmul(wavefunc_amplitudes, a_2_phi)
         wavefunc_amplitudes = spec_utils.standardize_phases(wavefunc_amplitudes)
 
         grid2d = discretization.GridSpec(
-            backend_change.backend.asarray(
+            bc.backend.asarray(
                 [
                     [phi_grid.min_val, phi_grid.max_val, phi_grid.pt_count],
                     [phi_grid.min_val, phi_grid.max_val, phi_grid.pt_count],
@@ -974,8 +974,8 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
 
     def plot_wavefunction(
         self,
-        esys: Tuple[ndarray, ndarray] = None,
-        which: int = 0,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
+        which: bc.backend.int_ = 0,
         phi_grid: discretization.Grid1d = None,
         mode: str = "abs",
         zero_calibrate: bool = True,

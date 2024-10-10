@@ -25,8 +25,8 @@ if TYPE_CHECKING:
 
 def bare_matrixelement(
     sweep: "ParameterSweep",
-    paramindex_tuple: Tuple[int, ...],
-    paramvals_tuple: Tuple[float, ...],
+    paramindex_tuple: Tuple[backend_change.backend.int_, ...],
+    paramvals_tuple: Tuple[backend_change.backend.float_, ...],
     operator_name: str,
     subsystem: QubitBaseClass,
 ) -> backend_change.backend.ndarray:
@@ -65,8 +65,8 @@ def bare_matrixelement(
 
 def dressed_matrixelement(
     sweep: "ParameterSweep",
-    paramindex_tuple: Tuple[int, ...],
-    paramvals_tuple: Tuple[float, ...],
+    paramindex_tuple: Tuple[backend_change.backend.int_, ...],
+    paramvals_tuple: Tuple[backend_change.backend.float_, ...],
     operator: Qobj,
 ) -> backend_change.backend.ndarray:
     """

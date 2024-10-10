@@ -28,14 +28,12 @@ from matplotlib.offsetbox import AnchoredText
 from numpy import ndarray
 from scipy.sparse import csc_matrix
 from sympy import csc
-import scipy.constants as sp_constants
 
 import scqubits.core.units as units
 import scqubits.settings as settings
 import scqubits.utils.plotting as plotting
 from scqubits.utils.misc import Qobj_to_scipy_csc_matrix
-import scqubits.backend_change as backend_change
-from scqubits.backend_change import backend_dependent_vjp
+from scqubits import backend_change as bc
 
 from scqubits.core.storage import SpectrumData
 from scqubits.settings import matplotlib_settings
@@ -45,7 +43,7 @@ from scqubits.settings import matplotlib_settings
 # filtering does not seem to work in jupyter.
 _t1_default_warning_given_flag = False
 
-@backend_dependent_vjp
+
 def calc_therm_ratio(
     omega: float, T: float, omega_in_standard_units: bool = False
 ) -> float:
@@ -69,25 +67,10 @@ def calc_therm_ratio(
     float
     """
     omega = units.to_standard_units(omega) if not omega_in_standard_units else omega
-    return (sp.constants.hbar * omega) / (sp.constants.k * T)
+    return (bc.backend.constants_hbar * omega) / (bc.backend.constants_k * T)
 
-def calc_therm_ratio_fwd(omega, T, omega_in_standard_units=False):
-    if not omega_in_standard_units:
-        omega = units.to_standard_units(omega)  # 将单位转换为标准单位
-    result = (sp_constants.hbar * omega) / (sp_constants.k * T)
-    return result, (omega, T, omega_in_standard_units)
 
-def calc_therm_ratio_bwd(residuals, grad_output):
-    omega, T, omega_in_standard_units = residuals
-    grad_omega = grad_output * (sp_constants.hbar / (sp_constants.k * T))
-    grad_T = grad_output * (-sp_constants.hbar * omega / (sp_constants.k * T**2))
-    if not omega_in_standard_units:
-        grad_omega *= units.to_standard_units_derivative(omega)  # 单位转换的导数
-    return grad_omega, grad_T, None  # omega_in_standard_units 不需要梯度
-
-calc_therm_ratio = backend_change.backend.bind_custom_vjp(calc_therm_ratio_fwd, calc_therm_ratio_bwd, calc_therm_ratio)
-
-def convert_eV_to_Hz(val: float) -> float:
+def convert_eV_to_Hz(val: bc.backend.float_) -> bc.backend.float_:
     r"""
     Convert a value in electron volts to Hz.
 
@@ -100,7 +83,7 @@ def convert_eV_to_Hz(val: float) -> float:
     -------
         number in Hz
     """
-    return val * sp.constants.e / sp.constants.h
+    return val * bc.backend.constants_e / bc.backend.constants_h
 
 
 # Default values of various noise constants and parameters.
@@ -108,16 +91,16 @@ NOISE_PARAMS = {
     "A_flux": 1e-6,  # Flux noise strength. Units: Phi_0
     "A_ng": 1e-4,  # Charge noise strength. Units of charge e
     "A_cc": 1e-7,  # Critical current noise strength. Units of critical current I_c
-    "omega_low": 1e-9 * 2 * backend_change.backend.pi,  # Low frequency cutoff. Units: 2pi GHz
-    "omega_high": 3 * 2 * backend_change.backend.pi,  # High frequency cutoff. Units: 2pi GHz
+    "omega_low": 1e-9 * 2 * bc.backend.pi,  # Low frequency cutoff. Units: 2pi GHz
+    "omega_high": 3 * 2 * bc.backend.pi,  # High frequency cutoff. Units: 2pi GHz
     "Delta": 3.4e-4,  # Superconducting gap for aluminum (at T=0). Units: eV
     "x_qp": 3e-6,  # Quasiparticles density (see for example Pol et al 2014)
     "t_exp": 1e4,  # Measurement time. Units: ns
     "R_0": 50,  # Characteristic impedance of a transmission line. Units: Ohms
     "T": 0.015,  # Typical temperature for a superconducting circuit experiment. Units: K
     "M": 400,  # Mutual inductance between qubit and a flux line. Units: \Phi_0 / Ampere
-    "R_k": sp.constants.h
-    / sp.constants.e**2.0,  # Normal quantum resistance, aka Klitzing constant.
+    "R_k": bc.backend.constants_h
+    / bc.backend.constants_e**2.0,  # Normal quantum resistance, aka Klitzing constant.
     # Note, in some papers a superconducting quantum
     # resistance is used, and defined as: h/(2e)^2
 }
@@ -144,14 +127,14 @@ class NoisySystem(ABC):
     def plot_coherence_vs_paramvals(
         self,
         param_name: str,
-        param_vals: ndarray,
+        param_vals: bc.backend.ndarray,
         noise_channels: Union[str, List[str], List[Tuple[str, Dict]]] = None,
         common_noise_options: Dict = None,
         spectrum_data: SpectrumData = None,
-        scale: float = 1,
-        num_cpus: Optional[int] = None,
+        scale: bc.backend.float_ = 1,
+        num_cpus: Optional[bc.backend.int_] = None,
         **kwargs
-    ) -> Tuple[Figure, Union[Axes, ndarray]]:
+    ) -> Tuple[Figure, Union[Axes, bc.backend.ndarray]]:
         r"""
         Show plots of coherence for various channels supported by the qubit as they
         vary as a function of a changing parameter.
@@ -161,7 +144,7 @@ class NoisySystem(ABC):
         the `flux` changes::
 
             qubit.plot_coherence_vs_paramvals(param_name='flux',
-                                              param_vals=np.linspace(-0.5, 0.5, 100),
+                                              param_vals=bc.backend.linspace(-0.5, 0.5, 100),
                                               scale=1e-3,
                                               ylabel=r"$\mu s$");
 
@@ -275,7 +258,7 @@ class NoisySystem(ABC):
                 noise_channel_method = noise_channel
 
                 # calculate the noise over the full param span in param_vals
-                noise_vals = backend_change.backend.asarray(
+                noise_vals = bc.backend.asarray(
                     [
                         scale
                         * getattr(
@@ -304,7 +287,7 @@ class NoisySystem(ABC):
                 options.update(noise_channel[1])
 
                 # calculate the noise over the full param span in param_vals
-                noise_vals = backend_change.backend.asarray(
+                noise_vals = bc.backend.asarray(
                     [
                         scale
                         * getattr(
@@ -335,7 +318,7 @@ class NoisySystem(ABC):
             )
             # check whether rate is essentially zero and decoherence time thus
             # excessively large
-            if backend_change.backend.all(noise_vals / scale > 1e12):
+            if bc.backend.all(noise_vals / scale > 1e12):
                 ax.get_lines()[0].set_color("0.8")
                 at = AnchoredText(
                     "subdominant noise channel",
@@ -357,13 +340,13 @@ class NoisySystem(ABC):
     def plot_t1_effective_vs_paramvals(
         self,
         param_name: str,
-        param_vals: ndarray,
+        param_vals: bc.backend.ndarray,
         noise_channels: Union[str, List[str], List[Tuple[str, Dict]]] = None,
         common_noise_options: Dict = None,
         spectrum_data: SpectrumData = None,
         get_rate: bool = False,
-        scale: float = 1,
-        num_cpus: Optional[int] = None,
+        scale: bc.backend.float_ = 1,
+        num_cpus: Optional[bc.backend.int_] = None,
         **kwargs
     ) -> Tuple[Figure, Axes]:
         r"""
@@ -385,7 +368,7 @@ class NoisySystem(ABC):
         changes::
 
             qubit.plot_t1_effective_vs_paramvals(param_name='flux',
-                                                 param_vals=np.linspace(-0.5, 0.5, 100),
+                                                 param_vals=bc.backend.linspace(-0.5, 0.5, 100),
                                                 );
 
         Parameters
@@ -463,7 +446,7 @@ class NoisySystem(ABC):
         current_val = getattr(self, param_name)
 
         # calculate the noise over the full param span in param_vals
-        noise_vals = backend_change.backend.asarray(
+        noise_vals = bc.backend.asarray(
             [
                 scale
                 * self.set_and_return(
@@ -512,13 +495,13 @@ class NoisySystem(ABC):
     def plot_t2_effective_vs_paramvals(
         self,
         param_name: str,
-        param_vals: ndarray,
+        param_vals: bc.backend.ndarray,
         noise_channels: Union[str, List[str], List[Tuple[str, Dict]]] = None,
         common_noise_options: Dict = None,
         spectrum_data: SpectrumData = None,
         get_rate: bool = False,
-        scale: float = 1,
-        num_cpus: Optional[int] = None,
+        scale: bc.backend.float_ = 1,
+        num_cpus: Optional[bc.backend.int_] = None,
         **kwargs
     ) -> Tuple[Figure, Axes]:
         r"""
@@ -542,7 +525,7 @@ class NoisySystem(ABC):
         changes::
 
             qubit.plot_t2_effective_vs_paramvals(param_name='flux',
-                                                 param_vals=np.linspace(-0.5, 0.5, 100),
+                                                 param_vals=bc.backend.linspace(-0.5, 0.5, 100),
                                                 );
 
         Parameters
@@ -616,7 +599,7 @@ class NoisySystem(ABC):
         current_val = getattr(self, param_name)
 
         # calculate the noise over the full param span in param_vals
-        noise_vals = backend_change.backend.asarray(
+        noise_vals = bc.backend.asarray(
             [
                 scale
                 * self.set_and_return(param_name, v).t2_effective(  # type: ignore
@@ -661,9 +644,9 @@ class NoisySystem(ABC):
         self,
         noise_channels: Union[List[str], List[Tuple[str, Dict]]],
         common_noise_options: Dict,
-        esys: Tuple[ndarray, ndarray],
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray],
         noise_type: str,
-    ) -> float:
+    ) -> bc.backend.float_:
         """
         Helper method used when calculating the effective rates by methods
         `t1_effective` and `t2_effective`.
@@ -745,10 +728,10 @@ class NoisySystem(ABC):
         self,
         noise_channels: Union[str, List[str], List[Tuple[str, Dict]]] = None,
         common_noise_options: Dict = None,
-        esys: Tuple[ndarray, ndarray] = None,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
         get_rate: bool = False,
         **kwargs
-    ) -> float:
+    ) -> bc.backend.float_:
         r"""
         Calculate the effective :math:`T_1` time (or rate).
 
@@ -844,15 +827,15 @@ class NoisySystem(ABC):
         if get_rate:
             return rate
         else:
-            return 1 / rate if rate != 0 else backend_change.backend.inf
+            return 1 / rate if rate != 0 else bc.backend.inf
 
     def t2_effective(
         self,
         noise_channels: Union[str, List[str], List[Tuple[str, Dict]]] = None,
         common_noise_options: Dict = None,
-        esys: Tuple[ndarray, ndarray] = None,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
         get_rate: bool = False,
-    ) -> float:
+    ) -> bc.backend.float_:
         r"""
         Calculate the effective :math:`T_2` time (or rate).
 
@@ -935,18 +918,18 @@ class NoisySystem(ABC):
         if get_rate:
             return rate
         else:
-            return 1 / rate if rate != 0 else backend_change.backend.inf
+            return 1 / rate if rate != 0 else bc.backend.inf
 
     def tphi_1_over_f(
         self,
-        A_noise: float,
-        i: int,
-        j: int,
-        noise_op: Union[ndarray, csc_matrix],
-        esys: Tuple[ndarray, ndarray] = None,
+        A_noise: bc.backend.float_,
+        i: bc.backend.int_,
+        j: bc.backend.int_,
+        noise_op: Union[bc.backend.ndarray, bc.backend.csc_matrix],
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
         get_rate: bool = False,
         **kwargs
-    ) -> float:
+    ) -> bc.backend.float_:
         r"""
         Calculate the 1/f dephasing time (or rate) due to  arbitrary noise source.
 
@@ -986,39 +969,39 @@ class NoisySystem(ABC):
         evals, evecs = self.eigensys(evals_count=max(j, i) + 1) if esys is None else esys  # type: ignore
 
         if isinstance(
-            noise_op, backend_change.backend.ndarray
+            noise_op, bc.backend.ndarray
         ):  # Check if the operator is given in dense form
             # if so, use numpy's vdot and dot
-            rate = backend_change.backend.abs(
-                backend_change.backend.vdot(evecs[:, i], backend_change.backend.dot(noise_op, evecs[:, i]))
-                - backend_change.backend.vdot(evecs[:, j], backend_change.backend.dot(noise_op, evecs[:, j]))
+            rate = bc.backend.abs(
+                bc.backend.vdot(evecs[:, i], bc.backend.dot(noise_op, evecs[:, i]))
+                - bc.backend.vdot(evecs[:, j], bc.backend.dot(noise_op, evecs[:, j]))
             )
         else:  # Else, we have a sparse operator, use it's own dot method.
-            rate = backend_change.backend.abs(
-                backend_change.backend.vdot(evecs[:, i], noise_op.dot(evecs[:, i]))
-                - backend_change.backend.vdot(evecs[:, j], noise_op.dot(evecs[:, j]))
+            rate = bc.backend.abs(
+                bc.backend.vdot(evecs[:, i], noise_op.dot(evecs[:, i]))
+                - bc.backend.vdot(evecs[:, j], noise_op.dot(evecs[:, j]))
             )
 
-        rate *= A_noise * backend_change.backend.sqrt(2 * backend_change.backend.abs(backend_change.backend.log(p["omega_low"] * p["t_exp"])))
+        rate *= A_noise * bc.backend.sqrt(2 * bc.backend.abs(bc.backend.log(p["omega_low"] * p["t_exp"])))
 
         # We assume that the system energies are given in units of frequency and
         # not the angular frequency, hence we have to multiply by `2\pi`
-        rate *= 2 * backend_change.backend.pi
+        rate *= 2 * bc.backend.pi
 
         if get_rate:
             return rate
         else:
-            return 1 / rate if rate != 0 else backend_change.backend.inf
+            return 1 / rate if rate != 0 else bc.backend.inf
 
     def tphi_1_over_f_flux(
         self,
-        A_noise: float = NOISE_PARAMS["A_flux"],
-        i: int = 0,
-        j: int = 1,
-        esys: Tuple[ndarray, ndarray] = None,
+        A_noise: bc.backend.float_ = NOISE_PARAMS["A_flux"],
+        i: bc.backend.int_ = 0,
+        j: bc.backend.int_ = 1,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
         get_rate: bool = False,
         **kwargs
-    ) -> float:
+    ) -> bc.backend.float_:
         r"""
         Calculate the 1/f dephasing time (or rate) due to flux noise.
 
@@ -1060,13 +1043,13 @@ class NoisySystem(ABC):
 
     def tphi_1_over_f_cc(
         self,
-        A_noise: float = NOISE_PARAMS["A_cc"],
-        i: int = 0,
-        j: int = 1,
-        esys: Tuple[ndarray, ndarray] = None,
+        A_noise: bc.backend.float_ = NOISE_PARAMS["A_cc"],
+        i: bc.backend.int_ = 0,
+        j: bc.backend.int_ = 1,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
         get_rate: bool = False,
         **kwargs
-    ) -> float:
+    ) -> bc.backend.float_:
         r"""
         Calculate the 1/f dephasing time (or rate) due to critical current noise.
 
@@ -1109,13 +1092,13 @@ class NoisySystem(ABC):
 
     def tphi_1_over_f_ng(
         self,
-        A_noise: float = NOISE_PARAMS["A_ng"],
-        i: int = 0,
-        j: int = 1,
-        esys: Tuple[ndarray, ndarray] = None,
+        A_noise: bc.backend.float_ = NOISE_PARAMS["A_ng"],
+        i: bc.backend.int_ = 0,
+        j: bc.backend.int_ = 1,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
         get_rate: bool = False,
         **kwargs
-    ) -> float:
+    ) -> bc.backend.float_:
         r"""
         Calculate the 1/f dephasing time (or rate) due to charge noise.
 
@@ -1157,15 +1140,15 @@ class NoisySystem(ABC):
 
     def t1(
         self,
-        i: int,
-        j: int,
-        noise_op: Union[ndarray, csc_matrix],
+        i: bc.backend.int_,
+        j: bc.backend.int_,
+        noise_op: Union[bc.backend.ndarray, bc.backend.csc_matrix],
         spectral_density: Callable,
-        T: float = NOISE_PARAMS["T"],
+        T: bc.backend.float_ = NOISE_PARAMS["T"],
         total: bool = True,
-        esys: Tuple[ndarray, ndarray] = None,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
         get_rate: bool = False,
-    ) -> float:
+    ) -> bc.backend.float_:
         r"""
         Calculate the transition time (or rate) using Fermi's Golden Rule due to a
         noise channel with a spectral density `spectral_density` and system noise
@@ -1238,7 +1221,7 @@ class NoisySystem(ABC):
         # We assume that the energies in `evals` are given in the units of frequency
         # and *not* angular frequency. The function `spectral_density` is assumed to
         # take as a parameter an angular frequency, hence we have to convert.
-        omega = 2 * backend_change.backend.pi * (evals[i] - evals[j])
+        omega = 2 * bc.backend.pi * (evals[i] - evals[j])
 
         s = (
             spectral_density(omega, T) + spectral_density(-omega, T)
@@ -1247,30 +1230,30 @@ class NoisySystem(ABC):
         )
 
         if isinstance(
-            noise_op, backend_change.backend.ndarray
+            noise_op, bc.backend.ndarray
         ):  # Check if the operator is given in dense form
             # if so, use numpy's vdot and dot
-            rate = backend_change.backend.abs(backend_change.backend.vdot(evecs[:, i], backend_change.backend.dot(noise_op, evecs[:, j]))) ** 2 * s
+            rate = bc.backend.abs(bc.backend.vdot(evecs[:, i], bc.backend.dot(noise_op, evecs[:, j]))) ** 2 * s
         else:  # Else, we have a sparse operator, use its own dot method.
-            rate = backend_change.backend.abs(backend_change.backend.vdot(evecs[:, i], noise_op.dot(evecs[:, j]))) ** 2 * s
+            rate = bc.backend.abs(bc.backend.vdot(evecs[:, i], noise_op.dot(evecs[:, j]))) ** 2 * s
 
         if get_rate:
             return rate
         else:
-            return 1 / rate if rate != 0 else backend_change.backend.inf
+            return 1 / rate if rate != 0 else bc.backend.inf
 
     def t1_capacitive(
         self,
-        i: int = 1,
-        j: int = 0,
-        Q_cap: Union[float, Callable] = None,
+        i: bc.backend.int_ = 1,
+        j: bc.backend.int_ = 0,
+        Q_cap: Union[bc.backend.float_, Callable] = None,
         T: float = NOISE_PARAMS["T"],
         total: bool = True,
-        esys: Tuple[ndarray, ndarray] = None,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
         get_rate: bool = False,
-        noise_op: Optional[Union[ndarray, csc_matrix, qt.Qobj]] = None,
+        noise_op: Optional[Union[bc.backend.ndarray, bc.backend.csc_matrix, qt.Qobj]] = None,
         branch_params: Optional[dict] = None,
-    ) -> float:
+    ) -> bc.backend.float_:
         r"""
         :math:`T_1` due to dielectric dissipation in the Josephson junction
         capacitances.
@@ -1312,7 +1295,7 @@ class NoisySystem(ABC):
             def q_cap_fun(omega, T):
                 return (
                     1e6
-                    * (2 * backend_change.backend.pi * 6e9 / backend_change.backend.abs(units.to_standard_units(omega))) ** 0.7
+                    * (2 * bc.backend.pi * 6e9 / bc.backend.abs(units.to_standard_units(omega))) ** 0.7
                 )
 
         elif callable(Q_cap):  # Q_cap is a function of omega
@@ -1329,11 +1312,11 @@ class NoisySystem(ABC):
                 * 8
                 * (branch_params if branch_params else self.EC)
                 / q_cap_fun(omega, T)
-                * (1 / backend_change.backend.tanh(0.5 * backend_change.backend.abs(therm_ratio)))
-                / (1 + backend_change.backend.exp(-therm_ratio))
+                * (1 / bc.backend.tanh(0.5 * bc.backend.abs(therm_ratio)))
+                / (1 + bc.backend.exp(-therm_ratio))
             )
             s *= (
-                2 * backend_change.backend.pi
+                2 * bc.backend.pi
             )  # We assume that system energies are given in units of frequency
             return s
 
@@ -1358,15 +1341,15 @@ class NoisySystem(ABC):
 
     def t1_charge_impedance(
         self,
-        i: int = 1,
-        j: int = 0,
-        Z: Union[float, Callable] = NOISE_PARAMS["R_0"],
-        T: float = NOISE_PARAMS["T"],
+        i: bc.backend.int_ = 1,
+        j: bc.backend.int_ = 0,
+        Z: Union[bc.backend.float_, Callable] = NOISE_PARAMS["R_0"],
+        T: bc.backend.float_ = NOISE_PARAMS["T"],
         total: bool = True,
-        esys: Tuple[ndarray, ndarray] = None,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
         get_rate: bool = False,
-        noise_op: Optional[Union[ndarray, csc_matrix, qt.Qobj]] = None,
-    ) -> float:
+        noise_op: Optional[Union[bc.backend.ndarray, bc.backend.csc_matrix, qt.Qobj]] = None,
+    ) -> bc.backend.float_:
         r"""Noise due to charge coupling to an impedance (such as a transmission line).
 
         References: Schoelkopf et al (2003), Ithier et al (2005)
@@ -1404,19 +1387,19 @@ class NoisySystem(ABC):
         def spectral_density(omega, T):
             # Note, our definition of Q_c is different from Zhang et al (2020) by a
             # factor of 2
-            Q_c = NOISE_PARAMS["R_k"] / (8 * backend_change.backend.pi * complex(Z_fun(omega)).real)
+            Q_c = NOISE_PARAMS["R_k"] / (8 * bc.backend.pi * complex(Z_fun(omega)).real)
             therm_ratio = calc_therm_ratio(omega, T)
             s = (
                 2
                 * omega
                 / Q_c
-                * (1 / backend_change.backend.tanh(0.5 * therm_ratio))
-                / (1 + backend_change.backend.exp(-therm_ratio))
+                * (1 / bc.backend.tanh(0.5 * therm_ratio))
+                / (1 + bc.backend.exp(-therm_ratio))
             )
             return s
 
         noise_op = noise_op or self.n_operator()  # type: ignore
-        if not isinstance(noise_op, (ndarray, csc_matrix, qt.Qobj)):
+        if not isinstance(noise_op, (bc.backend.ndarray, bc.backend.csc_matrix, qt.Qobj)):
             raise AttributeError(
                 "The type of the matrix noise_op is invalid. It should be an instance of ndarray, csc_matrix or qutip Qobj."
             )
@@ -1436,16 +1419,16 @@ class NoisySystem(ABC):
 
     def t1_flux_bias_line(
         self,
-        i: int = 1,
-        j: int = 0,
-        M: float = NOISE_PARAMS["M"],
-        Z: Union[complex, float, Callable] = NOISE_PARAMS["R_0"],
-        T: float = NOISE_PARAMS["T"],
+        i: bc.backend.int_ = 1,
+        j: bc.backend.int_ = 0,
+        M: bc.backend.float_ = NOISE_PARAMS["M"],
+        Z: Union[bc.backend.complex_, bc.backend.float_, Callable] = NOISE_PARAMS["R_0"],
+        T: bc.backend.float_ = NOISE_PARAMS["T"],
         total: bool = True,
-        esys: Tuple[ndarray, ndarray] = None,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
         get_rate: bool = False,
         noise_op_method: Optional[Callable] = None,
-    ) -> float:
+    ) -> bc.backend.float_:
         r"""Noise due to a bias flux line.
 
         References: Koch et al (2007), Groszkowski et al (2018)
@@ -1491,13 +1474,13 @@ class NoisySystem(ABC):
             therm_ratio = calc_therm_ratio(omega, T)
             s = (
                 2
-                * (2 * backend_change.backend.pi) ** 2
+                * (2 * bc.backend.pi) ** 2
                 * M**2
                 * omega
-                * sp.constants.hbar
-                / complex(Z_fun(omega)).real
-                * (1 / backend_change.backend.tanh(0.5 * therm_ratio))
-                / (1 + backend_change.backend.exp(-therm_ratio))
+                * bc.backend.constants_hbar
+                / bc.backend.complex_(Z_fun(omega)).real
+                * (1 / bc.backend.tanh(0.5 * therm_ratio))
+                / (1 + bc.backend.exp(-therm_ratio))
             )
             # We assume that system energies are given in units of frequency and that
             # the noise operator to be used with this `spectral_density` is dH/dflux.
@@ -1521,16 +1504,16 @@ class NoisySystem(ABC):
 
     def t1_inductive(
         self,
-        i: int = 1,
-        j: int = 0,
-        Q_ind: Union[float, Callable] = None,
-        T: float = NOISE_PARAMS["T"],
+        i: bc.backend.int_ = 1,
+        j: bc.backend.int_ = 0,
+        Q_ind: Union[bc.backend.float_, Callable] = None,
+        T: bc.backend.float_ = NOISE_PARAMS["T"],
         total: bool = True,
-        esys: Tuple[ndarray, ndarray] = None,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
         get_rate: bool = False,
-        noise_op: Optional[Union[ndarray, csc_matrix, qt.Qobj]] = None,
+        noise_op: Optional[Union[bc.backend.ndarray, bc.backend.csc_matrix, qt.Qobj]] = None,
         branch_params: Optional[dict] = None,
-    ) -> float:
+    ) -> bc.backend.float_:
         r"""
         :math:`T_1` due to inductive dissipation in a superinductor.
 
@@ -1572,17 +1555,17 @@ class NoisySystem(ABC):
             def q_ind_fun(omega, T):
                 therm_ratio = abs(calc_therm_ratio(omega, T))
                 therm_ratio_500MHz = calc_therm_ratio(
-                    2 * backend_change.backend.pi * 500e6, T, omega_in_standard_units=True
+                    2 * bc.backend.pi * 500e6, T, omega_in_standard_units=True
                 )
                 return (
                     500e6
                     * (
-                        sp.special.kv(0, 1 / 2 * therm_ratio_500MHz)
-                        * backend_change.backend.sinh(1 / 2 * therm_ratio_500MHz)
+                        bc.backend.special_kv(0, 1 / 2 * therm_ratio_500MHz)
+                        * bc.backend.sinh(1 / 2 * therm_ratio_500MHz)
                     )
                     / (
-                        sp.special.kv(0, 1 / 2 * therm_ratio)
-                        * backend_change.backend.sinh(1 / 2 * therm_ratio)
+                        bc.backend.special_kv(0, 1 / 2 * therm_ratio)
+                        * bc.backend.sinh(1 / 2 * therm_ratio)
                     )
                 )
 
@@ -1600,16 +1583,16 @@ class NoisySystem(ABC):
                 2
                 * (branch_params if branch_params else self.EL)
                 / q_ind_fun(omega, T)
-                * (1 / backend_change.backend.tanh(0.5 * backend_change.backend.abs(therm_ratio)))
-                / (1 + backend_change.backend.exp(-therm_ratio))
+                * (1 / bc.backend.tanh(0.5 * bc.backend.abs(therm_ratio)))
+                / (1 + bc.backend.exp(-therm_ratio))
             )
             s *= (
-                2 * backend_change.backend.pi
+                2 * bc.backend.pi
             )  # We assume that system energies are given in units of frequency
             return s
 
         noise_op = noise_op or self.phi_operator()  # type: ignore
-        if not isinstance(noise_op, (ndarray, csc_matrix, qt.Qobj)):
+        if not isinstance(noise_op, (bc.backend.ndarray, bc.backend.csc_matrix, qt.Qobj)):
             raise AttributeError(
                 "The type of the matrix noise_op is invalid. It should be an instance of ndarray, csc_matrix or qutip Qobj."
             )
@@ -1629,17 +1612,17 @@ class NoisySystem(ABC):
 
     def t1_quasiparticle_tunneling(
         self,
-        i: int = 1,
-        j: int = 0,
-        Y_qp: Union[float, Callable] = None,
-        x_qp: float = NOISE_PARAMS["x_qp"],
-        T: float = NOISE_PARAMS["T"],
-        Delta: float = NOISE_PARAMS["Delta"],
+        i: bc.backend.int_ = 1,
+        j: bc.backend.int_ = 0,
+        Y_qp: Union[bc.backend.float_, Callable] = None,
+        x_qp: bc.backend.float_ = NOISE_PARAMS["x_qp"],
+        T: bc.backend.float_ = NOISE_PARAMS["T"],
+        Delta: bc.backend.float_ = NOISE_PARAMS["Delta"],
         total: bool = True,
-        esys: Tuple[ndarray, ndarray] = None,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
         get_rate: bool = False,
-        noise_op: Optional[Union[ndarray, csc_matrix, qt.Qobj]] = None,
-    ) -> float:
+        noise_op: Optional[Union[bc.backend.ndarray, bc.backend.csc_matrix, qt.Qobj]] = None,
+    ) -> bc.backend.float_:
         r"""Noise due to quasiparticle tunneling across a Josephson junction.
 
         References: Smith et al (2020), Catelani et al (2011), Pop et al (2014).
@@ -1690,23 +1673,23 @@ class NoisySystem(ABC):
 
                 Delta_in_Hz = convert_eV_to_Hz(Delta)
 
-                omega_in_Hz = units.to_standard_units(omega) / (2 * backend_change.backend.pi)
+                omega_in_Hz = units.to_standard_units(omega) / (2 * bc.backend.pi)
                 EJ_in_Hz = units.to_standard_units(self.EJ)
 
                 therm_ratio = calc_therm_ratio(omega, T)
                 Delta_over_T = calc_therm_ratio(
-                    2 * backend_change.backend.pi * Delta_in_Hz, T, omega_in_standard_units=True
+                    2 * bc.backend.pi * Delta_in_Hz, T, omega_in_standard_units=True
                 )
 
                 re_y_qp = (
-                    backend_change.backend.sqrt(2 / backend_change.backend.pi)
+                    bc.backend.sqrt(2 / bc.backend.pi)
                     * (8 / NOISE_PARAMS["R_k"])
                     * (EJ_in_Hz / Delta_in_Hz)
                     * (2 * Delta_in_Hz / omega_in_Hz) ** (3 / 2)
                     * x_qp
-                    * backend_change.backend.sqrt(1 / 2 * therm_ratio)
+                    * bc.backend.sqrt(1 / 2 * therm_ratio)
                     * sp.special.kv(0, 1 / 2 * abs(therm_ratio))
-                    * backend_change.backend.sinh(1 / 2 * therm_ratio)
+                    * bc.backend.sinh(1 / 2 * therm_ratio)
                 )
 
                 return re_y_qp
@@ -1726,18 +1709,18 @@ class NoisySystem(ABC):
             return (
                 2
                 * omega
-                * complex(y_qp_fun(omega, T)).real
-                * (1 / backend_change.backend.tanh(0.5 * therm_ratio))
-                / (1 + backend_change.backend.exp(-therm_ratio))
+                * bc.backend.complex_(y_qp_fun(omega, T)).real
+                * (1 / bc.backend.tanh(0.5 * therm_ratio))
+                / (1 + bc.backend.exp(-therm_ratio))
             )
 
         # In some literature the operator sin(phi/2) is used, which assumes
         # that the flux is grouped with the inductive term in the Hamiltonian.
         # Here we assume a grouping with the cosine term, which requires us to
         # transform the operator using phi -> phi + 2*pi*flux
-        noise_op = noise_op or self.sin_phi_operator(alpha=0.5, beta=0.5 * (2 * backend_change.backend.pi * self.flux))  # type: ignore
+        noise_op = noise_op or self.sin_phi_operator(alpha=0.5, beta=0.5 * (2 * bc.backend.pi * self.flux))  # type: ignore
 
-        if not isinstance(noise_op, (ndarray, csc_matrix, qt.Qobj)):
+        if not isinstance(noise_op, (bc.backend.ndarray, bc.backend.csc_matrix, qt.Qobj)):
             raise AttributeError(
                 "The type of the matrix noise_op is invalid. It should be an instance of ndarray, csc_matrix or qutip Qobj."
             )

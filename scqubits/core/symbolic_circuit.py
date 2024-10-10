@@ -32,6 +32,7 @@ from scqubits.core.circuit_utils import (
 
 import scqubits.io_utils.fileio_serializers as serializers
 import scqubits.settings as settings
+import scqubits.backend_change as bc
 
 from scqubits.utils.misc import (
     flatten_list_recursive,
@@ -62,7 +63,7 @@ class Node:
         method independent_modes.
     """
 
-    def __init__(self, index: int, marker: int):
+    def __init__(self, index: bc.backend.int_, marker: bc.backend.int_):
         self.index = index
         self.marker = marker
         self._init_params = {"id": self.index, "marker": self.marker}

@@ -33,6 +33,7 @@ class Backend(object):
 class NumpyBackend(Backend):
     # numpy methods
     __name__ = 'numpy'
+    dtype = staticmethod(np.dtype)
     array = staticmethod(np.array)
     dot = staticmethod(np.dot)
     vdot = staticmethod(np.vdot)
@@ -126,6 +127,11 @@ class NumpyBackend(Backend):
     speye = staticmethod(scipy.sparse.eye)
     speigsh = staticmethod(scipy.sparse.linalg.eigsh)
     qr = staticmethod(scipy.linalg.qr)
+    npinv = staticmethod(np.linalg.inv)
+    constants_hbar = staticmethod(scipy.constants.hbar)
+    constants_k = staticmethod(scipy.constants.k)
+    constants_e = staticmethod(scipy.constants.e)
+    constants_h = staticmethod(scipy.constants.h)
 
     @staticmethod
     def toarray(matrix):
@@ -187,6 +193,7 @@ class NumpyBackend(Backend):
 
 class JaxBackend(Backend):
     __name__ = 'jax'
+    dtype = staticmethod(jax.numpy.dtype)
     ndarray = staticmethod(jax.numpy.array)
     int = staticmethod(jax.numpy.int64)
     array = staticmethod(jax.numpy.array)
@@ -273,6 +280,11 @@ class JaxBackend(Backend):
     expm = staticmethod(jax.scipy.linalg.expm)
     block_diag = staticmethod(jax.scipy.linalg.block_diag)
     qr = staticmethod(jax.scipy.linalg.qr)
+    npinv = staticmethod(jax.numpy.linalg.inv)
+    constants_hbar = 1.054571817e-34
+    constants_k = 1.380649e-23
+    constants_e = 1.602176634e-19
+    constants_h = 6.62607015e-34
     
     @staticmethod
     def eigvalsh(A):

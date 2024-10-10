@@ -16,14 +16,15 @@ import qutip as qt
 from scqubits.io_utils.fileio import IOData
 from scqubits.io_utils.fileio_serializers import Serializable
 from scqubits.utils import misc as utils
+from scqubits import backend_change as bc
 
 
-class QutipEigenstates(np.ndarray, Serializable):
+class QutipEigenstates(bc.backend.ndarray, Serializable):
     """Wrapper class that adds serialization functionality to the numpy
     ndarray class."""
 
     @classmethod
-    def deserialize(cls, io_data: IOData) -> np.ndarray:  # type:ignore
+    def deserialize(cls, io_data: IOData) -> bc.backend.ndarray:  # type:ignore
         """
         Take the given IOData and return an instance of the described class, initialized
         with the data stored in io_data.
@@ -33,9 +34,9 @@ class QutipEigenstates(np.ndarray, Serializable):
         qobj_shape = io_data.ndarrays["qobj_shape"]
         evec_array = io_data.ndarrays["evecs"]
 
-        qt_eigenstates = np.asarray(
+        qt_eigenstates = bc.backend.asarray(
             [qt.Qobj(evec, dims=qobj_dims) for evec in evec_array],
-            dtype=np.dtype("O"),
+            dtype=bc.backend.dtype("O"),
         )
         return qt_eigenstates
 
@@ -47,11 +48,11 @@ class QutipEigenstates(np.ndarray, Serializable):
 
         typename = type(self).__name__
         evec_count = len(self)
-        qobj_dims = np.asarray(self[0].dims)
-        qobj_shape = np.asarray(self[0].shape)
+        qobj_dims = bc.backend.asarray(self[0].dims)
+        qobj_shape = bc.backend.asarray(self[0].shape)
         io_attributes = {"evec_count": evec_count}
         io_ndarrays = {
-            "evecs": np.asarray(
+            "evecs": bc.backend.asarray(
                 [utils.qt_ket_to_ndarray(qobj_ket) for qobj_ket in self]
             ),
             "qobj_dims": qobj_dims,

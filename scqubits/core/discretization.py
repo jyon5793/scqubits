@@ -106,9 +106,9 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
         number of grid points
     """
 
-    min_val = descriptors.WatchedProperty(float, "GRID_UPDATE")
-    max_val = descriptors.WatchedProperty(float, "GRID_UPDATE")
-    pt_count = descriptors.WatchedProperty(int, "GRID_UPDATE")
+    min_val = descriptors.WatchedProperty(bc.backend.float_, "GRID_UPDATE")
+    max_val = descriptors.WatchedProperty(bc.backend.float_, "GRID_UPDATE")
+    pt_count = descriptors.WatchedProperty(bc.backend.int_, "GRID_UPDATE")
 
     def __init__(self, min_val: bc.backend.float, max_val: bc.backend.float, pt_count: bc.backend.int) -> None:
         self.min_val = min_val
@@ -178,7 +178,7 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
         -------
             sparse matrix in `dia` format
         """
-        if isinstance(prefactor, complex):
+        if isinstance(prefactor, bc.backend.complex):
             dtp = bc.backend.complex_
         else:
             dtp = bc.backend.float_
@@ -212,7 +212,7 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
         -------
             sparse matrix in `dia` format
         """
-        if isinstance(prefactor, bc.backend.complex):
+        if isinstance(prefactor, bc.backend.complex_):
             dtp = bc.backend.complex_
         else:
             dtp = bc.backend.float_
@@ -239,16 +239,16 @@ class GridSpec(dispatch.DispatchClient, serializers.Serializable):
         array of with entries [minvalue, maxvalue, number of points]
     """
 
-    min_vals = descriptors.WatchedProperty(ndarray, "GRID_UPDATE")
-    max_vals = descriptors.WatchedProperty(ndarray, "GRID_UPDATE")
-    var_count = descriptors.WatchedProperty(int, "GRID_UPDATE")
-    pt_counts = descriptors.WatchedProperty(ndarray, "GRID_UPDATE")
+    min_vals = descriptors.WatchedProperty(bc.backend.ndarray, "GRID_UPDATE")
+    max_vals = descriptors.WatchedProperty(bc.backend.ndarray, "GRID_UPDATE")
+    var_count = descriptors.WatchedProperty(bc.backend.int_, "GRID_UPDATE")
+    pt_counts = descriptors.WatchedProperty(bc.backend.ndarray, "GRID_UPDATE")
 
-    def __init__(self, minmaxpts_array: ndarray) -> None:
+    def __init__(self, minmaxpts_array: bc.backend.ndarray) -> None:
         self.min_vals = minmaxpts_array[:, 0]
         self.max_vals = minmaxpts_array[:, 1]
         self.var_count = len(self.min_vals)
-        self.pt_counts = minmaxpts_array[:, 2].astype(int)  # used as int indices
+        self.pt_counts = minmaxpts_array[:, 2].astype(bc.backend.int_)  # used as int indices
 
     def __str__(self) -> str:
         output = "    GridSpec ......"
@@ -256,7 +256,7 @@ class GridSpec(dispatch.DispatchClient, serializers.Serializable):
             output += f"\n{param_name}\t: {param_val}"
         return output
 
-    def unwrap(self) -> Tuple[ndarray, ndarray, Union[List[int], ndarray], int]:
+    def unwrap(self) -> Tuple[bc.backend.ndarray, bc.backend.ndarray, Union[List[bc.backend.int_], bc.backend.ndarray], bc.backend.int_]:
         """Auxiliary routine that yields a tuple of the parameters specifying the
         grid."""
         return self.min_vals, self.max_vals, self.pt_counts, self.var_count

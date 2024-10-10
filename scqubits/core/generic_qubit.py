@@ -21,7 +21,7 @@ import scqubits.core.descriptors as descriptors
 import scqubits.core.operators as operators
 import scqubits.core.qubit_base as base
 import scqubits.io_utils.fileio_serializers as serializers
-from scqubits import backend_change
+from scqubits import backend_change as bc
 
 from scqubits.utils.spectrum_utils import get_matrixelement_table, order_eigensystem
 
@@ -47,9 +47,9 @@ class GenericQubit(base.QuantumSystem, serializers.Serializable):
     _sys_type: str
     _init_params: list
 
-    E = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
+    E = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
 
-    def __init__(self, E: float, id_str: Optional[str] = None) -> None:
+    def __init__(self, E: bc.backend.float_, id_str: Optional[str] = None) -> None:
         base.QuantumSystem.__init__(self, id_str=id_str)
         self.E = E
 
@@ -60,22 +60,22 @@ class GenericQubit(base.QuantumSystem, serializers.Serializable):
     def hamiltonian(self):
         return 0.5 * self.E * self.sz_operator()
 
-    def hilbertdim(self) -> int:
+    def hilbertdim(self) -> bc.backend.int_:
         """Returns Hilbert space dimension"""
         return 2
 
-    def eigenvals(self, evals_count: int = 2) -> ndarray:
+    def eigenvals(self, evals_count: bc.backend.int_ = 2) -> bc.backend.ndarray:
         hamiltonian_mat = self.hamiltonian()
-        evals = sp.linalg.eigh(hamiltonian_mat, eigvals_only=True)
-        return backend_change.backend.sort(evals)
+        evals = bc.backend.eigh(hamiltonian_mat, eigvals_only=True)
+        return bc.backend.sort(evals)
 
-    def eigensys(self, evals_count: int = 2) -> Tuple[ndarray, ndarray]:
+    def eigensys(self, evals_count: bc.backend.int_ = 2) -> Tuple[bc.backend.ndarray, bc.backend.ndarray]:
         hamiltonian_mat = self.hamiltonian()
-        evals, evecs = sp.linalg.eigh(hamiltonian_mat, eigvals_only=False)
+        evals, evecs = bc.backend.eigh(hamiltonian_mat, eigvals_only=False)
         evals, evecs = order_eigensystem(evals, evecs)
         return evals, evecs
 
-    def matrixelement_table(self, operator: str) -> ndarray:
+    def matrixelement_table(self, operator: str) -> bc.backend.ndarray:
         """Returns table of matrix elements for `operator` with respect to the
         eigenstates of the qubit. The operator is given as a string matching a class
         method returning an operator matrix.

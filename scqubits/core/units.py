@@ -14,6 +14,7 @@
 import warnings
 
 from typing import List, Optional
+from scqubits import backend_change as bc
 
 # Currently set units, referred to elsewhere as "system units" (must be one of the units
 # in `_supported_units`) Often, system units need to be converted to "standard
@@ -97,7 +98,7 @@ def show_supported_units() -> List[str]:
     return _supported_units
 
 
-def to_standard_units(value: float) -> float:
+def to_standard_units(value: bc.backend.float_) -> bc.backend.float_:
     r"""
     Converts `value` (a frequency or angular frequency) from currently set system units,
     to standard units (Hz or  2pi/s).
@@ -114,7 +115,7 @@ def to_standard_units(value: float) -> float:
     return value * _units_factor[_current_units]
 
 
-def from_standard_units(value: float) -> float:
+def from_standard_units(value: bc.backend.float_) -> bc.backend.float_:
     r"""
     Converts `value` (a frequency or angular frequency) from standard units
     (`[Hz]` or  `2\pi / [s]`) to currently set system units.
@@ -133,7 +134,7 @@ def from_standard_units(value: float) -> float:
     return value / _units_factor[_current_units]
 
 
-def units_scale_factor(units: Optional[str] = None) -> float:
+def units_scale_factor(units: Optional[str] = None) -> bc.backend.float_:
     """The units_scale_factor function returns a numerical scaling factor that converts from Hz to the `units` given as
     a string argument. If no argument is given, the current units stored in `_current_units` are used. If the units are
     not supported, a `ValueError` is raised.

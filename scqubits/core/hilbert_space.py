@@ -53,7 +53,7 @@ import scqubits.utils.spectrum_utils as spec_utils
 from scqubits.core.namedslots_array import NamedSlotsNdarray, Parameters
 from scqubits.core.storage import SpectrumData
 from scqubits.io_utils.fileio_qutip import QutipEigenstates
-from scqubits import backend_change
+from scqubits import backend_change as bc
 
 
 if settings.IN_IPYTHON:
@@ -93,17 +93,17 @@ class InteractionTerm(dispatch.DispatchClient, serializers.Serializable):
         conjugate is added.
     """
 
-    g_strength = descriptors.WatchedProperty(complex, "INTERACTIONTERM_UPDATE")
+    g_strength = descriptors.WatchedProperty(bc.backend.complex_, "INTERACTIONTERM_UPDATE")
 
     operator_list = descriptors.WatchedProperty(
-        List[Tuple[int, Union[ndarray, csc_matrix, Callable]]], "INTERACTIONTERM_UPDATE"
+        List[Tuple[bc.backend.int_, Union[bc.backend.ndarray, bc.backend.csc_matrix, Callable]]], "INTERACTIONTERM_UPDATE"
     )  # Each item in the operator_list is a tuple (subsys_index, operator)
     add_hc = descriptors.WatchedProperty(bool, "INTERACTIONTERM_UPDATE")
 
     def __init__(
         self,
-        g_strength: Union[float, complex],
-        operator_list: List[Tuple[int, Union[ndarray, csc_matrix, Callable]]],
+        g_strength: Union[bc.backend.float_, bc.backend.complex_],
+        operator_list: List[Tuple[bc.backend.int_, Union[bc.backend.ndarray, bc.backend.csc_matrix, Callable]]],
         add_hc: bool = False,
     ) -> None:
         self.g_strength = g_strength
@@ -134,7 +134,7 @@ class InteractionTerm(dispatch.DispatchClient, serializers.Serializable):
     def hamiltonian(
         self,
         subsystem_list: List[QuantumSys],
-        bare_esys: Optional[Dict[int, ndarray]] = None,
+        bare_esys: Optional[Dict[bc.backend.int_, bc.backend.ndarray]] = None,
     ) -> qt.Qobj:
         """
         Returns the full Hamiltonian of the interacting quantum system described by the
@@ -165,9 +165,9 @@ class InteractionTerm(dispatch.DispatchClient, serializers.Serializable):
 
     @staticmethod
     def id_wrap_all_ops(
-        operator_list: List[Tuple[int, Union[ndarray, csc_matrix, Callable]]],
+        operator_list: List[Tuple[bc.backend.int_, Union[bc.backend.ndarray, bc.backend.csc_matrix, Callable]]],
         subsystem_list: List[QuantumSys],
-        bare_esys: Optional[Dict[int, ndarray]] = None,
+        bare_esys: Optional[Dict[bc.backend.int_, bc.backend.ndarray]] = None,
     ) -> List[qt.Qobj]:
         """
         Returns a list of identity-wrapped operators, one for each operator in
@@ -244,7 +244,7 @@ class InteractionTermStr(dispatch.DispatchClient, serializers.Serializable):
 
     expr = descriptors.WatchedProperty(str, "INTERACTIONTERM_UPDATE")
     operator_list = descriptors.WatchedProperty(
-        List[Tuple[int, str, Union[ndarray, csc_matrix, dia_matrix]]],
+        List[Tuple[bc.backend.int_, str, Union[bc.backend.ndarray, bc.backend.csc_matrix, bc.backend.dia_matrix]]],
         "INTERACTIONTERM_UPDATE",
     )
     add_hc = descriptors.WatchedProperty(bool, "INTERACTIONTERM_UPDATE")
@@ -252,9 +252,9 @@ class InteractionTermStr(dispatch.DispatchClient, serializers.Serializable):
     def __init__(
         self,
         expr: str,
-        operator_list: List[Tuple[int, str, Union[ndarray, csc_matrix, dia_matrix]]],
+        operator_list: List[Tuple[bc.backend.int_, str, Union[bc.backend.ndarray, bc.backend.csc_matrix, bc.backend.dia_matrix]]],
         id_wrapped_operator_list: Optional[List[Tuple[str, callable]]] = None,
-        const: Optional[Dict[str, Union[float, complex, QubitBaseClass]]] = None,
+        const: Optional[Dict[str, Union[bc.backend.float_, bc.backend.complex_, QubitBaseClass]]] = None,
         add_hc: bool = False,
     ) -> None:
         self.qutip_dict = {
@@ -315,7 +315,7 @@ class InteractionTermStr(dispatch.DispatchClient, serializers.Serializable):
     def id_wrap_all_ops(
         self,
         subsys_list: List[QuantumSys],
-        bare_esys: Optional[Dict[int, ndarray]] = None,
+        bare_esys: Optional[Dict[bc.backend.int_, ndarray]] = None,
     ) -> Dict[str, qt.Qobj]:
         idwrapped_ops_by_name = {}
         for subsys_index, name, op in self.operator_list:
@@ -331,7 +331,7 @@ class InteractionTermStr(dispatch.DispatchClient, serializers.Serializable):
     def hamiltonian(
         self,
         subsystem_list: List[QuantumSys],
-        bare_esys: Optional[Dict[int, ndarray]] = None,
+        bare_esys: Optional[Dict[bc.backend.int_, bc.backend.ndarray]] = None,
     ) -> qt.Qobj:
         """
         Parameters
@@ -439,7 +439,7 @@ class HilbertSpace(
 
         # The following attributes are for compatibility with SpectrumLookupMixin
         self._data: Dict[str, Any] = {}
-        self._parameters = Parameters({"dummy_parameter": backend_change.backend.array([0])})
+        self._parameters = Parameters({"dummy_parameter": bc.backend.array([0])})
         self._ignore_low_overlap = ignore_low_overlap
         self._current_param_indices = 0
         self._evals_count = self.dimension
@@ -459,6 +459,7 @@ class HilbertSpace(
         self, key: str
     ) -> Union[QuantumSys, InteractionTerm, InteractionTermStr]: ...
 
+    ## keep int here instead of using bc.backend.int_
     def __getitem__(
         self, key: Union[int, str]
     ) -> Union[QuantumSys, InteractionTerm, InteractionTermStr]:
@@ -590,7 +591,7 @@ class HilbertSpace(
     ###################################################################################
     # HilbertSpace: subsystems, dimensions, etc.
     ###################################################################################
-    def get_subsys_index(self, subsys: QuantumSys) -> int:
+    def get_subsys_index(self, subsys: QuantumSys) -> bc.backend.int_:
         """
         Return the index of the given subsystem in the HilbertSpace.
         """
@@ -601,24 +602,24 @@ class HilbertSpace(
         return self._subsystems
 
     @property
-    def subsystem_dims(self) -> List[int]:
+    def subsystem_dims(self) -> List[bc.backend.int_]:
         """Returns list of the Hilbert space dimensions of each subsystem"""
         return [subsystem.truncated_dim for subsystem in self]
 
     @property
-    def dimension(self) -> int:
+    def dimension(self) -> bc.backend.int_:
         """Returns total dimension of joint Hilbert space"""
-        return backend_change.backend.prod(backend_change.backend.asarray(self.subsystem_dims)).item()
+        return bc.backend.prod(bc.backend.asarray(self.subsystem_dims)).item()
 
     @property
-    def subsystem_count(self) -> int:
+    def subsystem_count(self) -> bc.backend.int_:
         """Returns number of subsystems composing the joint Hilbert space"""
         return len(self._subsystems)
 
     ###################################################################################
     # HilbertSpace: generate SpectrumLookup
     ###################################################################################
-    def generate_lookup(self, update_subsystem_indices: List[int] = None) -> None:
+    def generate_lookup(self, update_subsystem_indices: List[bc.backend.int_] = None) -> None:
         self._lookup_exists = True
         bare_esys_dict = self.generate_bare_esys(
             update_subsystem_indices=update_subsystem_indices
@@ -632,9 +633,9 @@ class HilbertSpace(
         # view when getting placed inside an outer array
         evecs_wrapped = np.empty(shape=1, dtype=object)
         evecs_wrapped[0] = evecs
-        # evecs_wrapped = backend_change.backend.stack([evecs])
+        # evecs_wrapped = bc.backend.stack([evecs])
 
-        self._data["evals"] = NamedSlotsNdarray(backend_change.backend.array([evals]), dummy_params)
+        self._data["evals"] = NamedSlotsNdarray(bc.backend.array([evals]), dummy_params)
         self._data["evecs"] = NamedSlotsNdarray(evecs_wrapped, dummy_params)
         self._data["dressed_indices"] = spec_lookup.SpectrumLookupMixin.generate_lookup(
             self
@@ -643,7 +644,7 @@ class HilbertSpace(
     def lookup_exists(self) -> bool:
         return self._lookup_exists
 
-    def generate_bare_esys(self, update_subsystem_indices: List[int] = None) -> dict:
+    def generate_bare_esys(self, update_subsystem_indices: List[bc.backend.int_] = None) -> dict:
         # update all the subsystems when update_subsystem_indices is set to None
         if update_subsystem_indices is None:
             update_subsystem_indices = list(range(self.subsystem_count))
@@ -671,18 +672,18 @@ class HilbertSpace(
                 )
             bare_esys_dict[subsys_index] = bare_esys
             bare_evals[subsys_index] = NamedSlotsNdarray(
-                backend_change.backend.asarray([bare_esys[0].tolist()]),
+                bc.backend.asarray([bare_esys[0].tolist()]),
                 self._parameters.paramvals_by_name,
             )
             bare_evecs[subsys_index] = NamedSlotsNdarray(
-                backend_change.backend.asarray([bare_esys[1].tolist()]),
+                bc.backend.asarray([bare_esys[1].tolist()]),
                 self._parameters.paramvals_by_name,
             )
         self._data["bare_evals"] = NamedSlotsNdarray(
-            bare_evals, {"subsys": backend_change.backend.arange(self.subsystem_count)}
+            bare_evals, {"subsys": bc.backend.arange(self.subsystem_count)}
         )
         self._data["bare_evecs"] = NamedSlotsNdarray(
-            bare_evecs, {"subsys": backend_change.backend.arange(self.subsystem_count)}
+            bare_evecs, {"subsys": bc.backend.arange(self.subsystem_count)}
         )
         return bare_esys_dict
 
@@ -691,9 +692,9 @@ class HilbertSpace(
     ##################################################################################
     def eigenvals(
         self,
-        evals_count: int = 6,
-        bare_esys: Optional[Dict[int, Union[ndarray, List[ndarray]]]] = None,
-    ) -> ndarray:
+        evals_count: bc.backend.int_ = 6,
+        bare_esys: Optional[Dict[bc.backend.int_, Union[bc.backend.ndarray, List[bc.backend.ndarray]]]] = None,
+    ) -> bc.backend.ndarray:
         """Calculates eigenvalues of the full Hamiltonian. Qutip's `qutip.Qobj.eigenenergies()` is
         used by default, unless `self.evals_method` has been set to something other than `None`.
 
@@ -732,8 +733,8 @@ class HilbertSpace(
     def eigensys(
         self,
         evals_count: int = 6,
-        bare_esys: Optional[Dict[int, Union[ndarray, List[ndarray]]]] = None,
-    ) -> Tuple[ndarray, QutipEigenstates]:
+        bare_esys: Optional[Dict[bc.backend.int_, Union[bc.backend.ndarray, List[bc.backend.ndarray]]]] = None,
+    ) -> Tuple[bc.backend.ndarray, QutipEigenstates]:
         """Calculates eigenvalues and eigenvectors of the full Hamiltonian. Qutip's
         `qutip.Qobj.eigenenergies()` is used by default, unless `self.evals_method`
         has been set to something other than `None`.
@@ -775,21 +776,21 @@ class HilbertSpace(
 
     def _esys_for_paramval(
         self,
-        paramval: float,
+        paramval: bc.backend.float_,
         update_hilbertspace: Callable,
-        evals_count: int,
-        bare_esys: Optional[Dict[int, Union[ndarray, List[ndarray]]]] = None,
-    ) -> Tuple[ndarray, QutipEigenstates]:
+        evals_count: bc.backend.int_,
+        bare_esys: Optional[Dict[bc.backend.int_, Union[bc.backend.ndarray, List[bc.backend.ndarray]]]] = None,
+    ) -> Tuple[bc.backend.ndarray, QutipEigenstates]:
         update_hilbertspace(paramval)
         return self.eigensys(evals_count, bare_esys=bare_esys)
 
     def _evals_for_paramval(
         self,
-        paramval: float,
+        paramval: bc.backend.float_,
         update_hilbertspace: Callable,
-        evals_count: int,
-        bare_esys: Optional[Dict[int, Union[ndarray, List[ndarray]]]] = None,
-    ) -> ndarray:
+        evals_count: bc.backend.int_,
+        bare_esys: Optional[Dict[bc.backend.int_, Union[bc.backend.ndarray, List[bc.backend.ndarray]]]] = None,
+    ) -> bc.backend.ndarray:
         update_hilbertspace(paramval)
         return self.eigenvals(evals_count, bare_esys=bare_esys)
 
@@ -799,7 +800,7 @@ class HilbertSpace(
 
     def hamiltonian(
         self,
-        bare_esys: Optional[Dict[int, ndarray]] = None,
+        bare_esys: Optional[Dict[bc.backend.int_, bc.backend.ndarray]] = None,
     ) -> qt.Qobj:
         """
         Parameters
@@ -818,7 +819,7 @@ class HilbertSpace(
         return hamiltonian
 
     def bare_hamiltonian(
-        self, bare_esys: Optional[Dict[int, ndarray]] = None
+        self, bare_esys: Optional[Dict[bc.backend.int_, bc.backend.ndarray]] = None
     ) -> qt.Qobj:
         """
         Parameters
@@ -846,7 +847,7 @@ class HilbertSpace(
         return bare_hamiltonian
 
     def interaction_hamiltonian(
-        self, bare_esys: Optional[Dict[int, ndarray]] = None
+        self, bare_esys: Optional[Dict[bc.backend.int_, bc.backend.ndarray]] = None
     ) -> qt.Qobj:
         """
         Returns the interaction Hamiltonian, based on the interaction terms specified
@@ -884,7 +885,7 @@ class HilbertSpace(
         hamiltonian = sum(operator_list)
         return hamiltonian
 
-    def diag_hamiltonian(self, subsystem: QuantumSys, evals: ndarray = None) -> qt.Qobj:
+    def diag_hamiltonian(self, subsystem: QuantumSys, evals: bc.backend.ndarray = None) -> qt.Qobj:
         """Returns a `qutip.Qobj` which has the eigenenergies of the object `subsystem`
         on the diagonal.
 
@@ -899,14 +900,14 @@ class HilbertSpace(
 
         if evals is None:
             evals = subsystem.eigenvals(evals_count=evals_count)
-        diag_qt_op = qt.Qobj(backend_change.backend.diagflat(evals[0:evals_count]))  # type:ignore
+        diag_qt_op = qt.Qobj(bc.backend.diagflat(evals[0:evals_count]))  # type:ignore
         return spec_utils.identity_wrap(diag_qt_op, subsystem, self.subsystem_list)
 
     ###################################################################################
     # HilbertSpace: identity wrapping, operators
     ###################################################################################
 
-    def diag_operator(self, diag_elements: ndarray, subsystem: QuantumSys) -> qt.Qobj:
+    def diag_operator(self, diag_elements: bc.backend.ndarray, subsystem: QuantumSys) -> qt.Qobj:
         """For given diagonal elements of a diagonal operator in `subsystem`, return
         the `Qobj` operator for the full Hilbert space (perform wrapping in
         identities for other subsystems).
@@ -920,11 +921,11 @@ class HilbertSpace(
         """
         dim = subsystem.truncated_dim
         index = range(dim)
-        diag_matrix = backend_change.backend.zeros((dim, dim), dtype=backend_change.backend.float_)
+        diag_matrix = bc.backend.zeros((dim, dim), dtype=bc.backend.float_)
         diag_matrix[index, index] = diag_elements
         return spec_utils.identity_wrap(diag_matrix, subsystem, self.subsystem_list)
 
-    def hubbard_operator(self, j: int, k: int, subsystem: QuantumSys) -> qt.Qobj:
+    def hubbard_operator(self, j: bc.backend.int_, k: bc.backend.int_, subsystem: QuantumSys) -> qt.Qobj:
         """Hubbard operator :math:`|j\\rangle\\langle k|` for system `subsystem`
 
         Parameters
@@ -955,12 +956,12 @@ class HilbertSpace(
     ###################################################################################
     def get_spectrum_vs_paramvals(
         self,
-        param_vals: ndarray,
+        param_vals: bc.backend.ndarray,
         update_hilbertspace: Callable,
-        evals_count: int = 10,
+        evals_count: bc.backend.int_ = 10,
         get_eigenstates: bool = False,
         param_name: str = "external_parameter",
-        num_cpus: Optional[int] = None,
+        num_cpus: Optional[bc.backend.int_] = None,
     ) -> SpectrumData:
         """Return eigenvalues (and optionally eigenstates) of the full Hamiltonian as
         a function of a parameter. Parameter values are specified as a list or array
@@ -1024,7 +1025,7 @@ class HilbertSpace(
                 "Parallel computation of eigensystems [num_cpus={}]".format(num_cpus),
                 num_cpus,
             ):
-                eigenvalue_table = backend_change.backend.asarray(
+                eigenvalue_table = bc.backend.asarray(
                     list(
                         target_map(
                             func,
@@ -1054,14 +1055,14 @@ class HilbertSpace(
         for idx, evec in enumerate(self._data["evecs"][0]):
             array = utils.Qobj_to_scipy_csc_matrix(evec)
             phase = spec_utils.extract_phase(array)
-            self._data["evecs"][0][idx] = evec * backend_change.backend.exp(-1j * phase)
+            self._data["evecs"][0][idx] = evec * bc.backend.exp(-1j * phase)
 
     def op_in_dressed_eigenbasis(
         self,
         op_callable_or_tuple: Union[
-            Tuple[Union[backend_change.backend.ndarray, csc_matrix], QuantumSys], Callable
+            Tuple[Union[bc.backend.ndarray, bc.backend.csc_matrix], QuantumSys], Callable
         ],
-        truncated_dim: Optional[int] = None,
+        truncated_dim: Optional[bc.backend.int_] = None,
         **kwargs,
     ) -> qt.Qobj:
         """
@@ -1254,8 +1255,8 @@ class HilbertSpace(
 
     def _parse_str_based_op(
         self,
-        keyword_value: Union[Tuple[str, ndarray, QuantumSys], Tuple[str, Callable]],
-    ) -> Tuple[int, str, Union[ndarray, csc_matrix, dia_matrix, Callable]]:
+        keyword_value: Union[Tuple[str, bc.backend.ndarray, QuantumSys], Tuple[str, Callable]],
+    ) -> Tuple[bc.backend.int_, str, Union[bc.backend.ndarray, bc.backend.csc_matrix, bc.backend.dia_matrix, Callable]]:
         if not isinstance(keyword_value, tuple):
             raise TypeError(
                 "Cannot interpret specified operator {}".format(keyword_value)
@@ -1276,8 +1277,8 @@ class HilbertSpace(
 
     def _parse_non_strbased_op(
         self,
-        op: Union[Callable, Tuple[Union[ndarray, csc_matrix], QuantumSys]],
-    ) -> Tuple[int, Union[ndarray, csc_matrix, Callable]]:
+        op: Union[Callable, Tuple[Union[bc.backend.ndarray, bc.backend.csc_matrix], QuantumSys]],
+    ) -> Tuple[bc.backend.int_, Union[bc.backend.ndarray, bc.backend.csc_matrix, Callable]]:
         if callable(op):
             return (
                 self.get_subsys_index(op.__self__),

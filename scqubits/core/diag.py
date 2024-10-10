@@ -468,8 +468,8 @@ def evals_cupy_dense(
 
 
 def esys_cupy_dense(
-    matrix: Union[ndarray, csc_matrix, Qobj], evals_count: int, **kwargs
-) -> Union[Tuple[ndarray, ndarray], Tuple[ndarray, QutipEigenstates]]:
+    matrix: Union[bc.backend.ndarray, bc.backend.csc_matrix, Qobj], evals_count: bc.backend.int_, **kwargs
+) -> Union[Tuple[bc.backend.ndarray, bc.backend.ndarray], Tuple[bc.backend.ndarray, QutipEigenstates]]:
     """
     Diagonalization based on cupy's (dense) `eigh` function.
     Both evals and evecs are returned.
@@ -510,8 +510,8 @@ def esys_cupy_dense(
 
 
 def evals_cupy_sparse(
-    matrix: Union[ndarray, csc_matrix, Qobj], evals_count: int, **kwargs
-) -> ndarray:
+    matrix: Union[bc.backend.ndarray, bc.backend.csc_matrix, Qobj], evals_count: bc.backend.int_, **kwargs
+) -> bc.backend.ndarray:
     """
     Diagonalization based on cupy's (sparse) `eigsh` function.
     Only evals are returned.
@@ -555,8 +555,8 @@ def evals_cupy_sparse(
 
 
 def esys_cupy_sparse(
-    matrix: Union[ndarray, csc_matrix, Qobj], evals_count: int, **kwargs
-) -> Union[Tuple[ndarray, ndarray], Tuple[ndarray, QutipEigenstates]]:
+    matrix: Union[bc.backend.ndarray, bc.backend.csc_matrix, Qobj], evals_count: bc.backend.int_, **kwargs
+) -> Union[Tuple[bc.backend.ndarray, bc.backend.ndarray], Tuple[bc.backend.ndarray, QutipEigenstates]]:
     """
     Diagonalization based on cupy's (sparse) eigsh function.
     Both evals and evecs are returned.
@@ -642,7 +642,6 @@ def evals_jax_dense(
 
     m = _cast_matrix(matrix, "dense")
 
-    # 使用动态后端的array方法将矩阵转换为适当的数组类型
     m_array = bc.backend.array(m)
 
     evals = jax.scipy.linalg.eigh(m_array, eigvals_only=True, **kwargs)

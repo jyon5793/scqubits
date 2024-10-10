@@ -29,8 +29,8 @@ _default_evals_count = 6
 
 
 def harm_osc_wavefunction(
-    n: int, x: Union[float, ndarray], l_osc: float
-) -> Union[float, ndarray]:
+    n: bc.backend.int_, x: Union[bc.backend.float_, bc.backend.ndarray], l_osc: bc.backend.float_
+) -> Union[bc.backend.float_, bc.backend.ndarray]:
     r"""For given quantum number n=0,1,2,... return the value of the harmonic
     oscillator wave function :math:`\psi_n(x) = N H_n(x/l_{osc}) \exp(-x^2/2l_\text{
     osc})`, N being the proper normalization factor.
@@ -59,13 +59,13 @@ def harm_osc_wavefunction(
     return result[0]
 
 
-def convert_to_E_osc(E_kin: float, E_pot: float) -> float:
+def convert_to_E_osc(E_kin: bc.backend.float_, E_pot: bc.backend.float_) -> bc.backend.float_:
     r"""Returns the oscillator energy given a harmonic Hamiltonian of the form
     :math:`H=\frac{1}{2}E_{\text{kin}}p^2 + \frac{1}{2}E_{\text{pot}}x^2`"""
     return bc.backend.sqrt(E_kin * E_pot)
 
 
-def convert_to_l_osc(E_kin: float, E_pot: float) -> float:
+def convert_to_l_osc(E_kin: bc.backend.float_, E_pot: bc.backend.float_) -> bc.backend.float_:
     r"""Returns the oscillator length given a harmonic Hamiltonian of the form
     :math:`H=\frac{1}{2}E_{\text{kin}}p^2 + \frac{1}{2}E_{\text{pot}}x^2`"""
     return (E_kin / E_pot) ** (1 / 4)
@@ -92,19 +92,19 @@ class Oscillator(base.QuantumSystem, serializers.Serializable):
         and `ParameterSweep`. If not provided, an id is auto-generated.
     """
 
-    E_osc = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    l_osc = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
+    E_osc = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    l_osc = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
 
     def __init__(
         self,
-        E_osc: float,
-        l_osc: Union[float, None] = None,
-        truncated_dim: int = _default_evals_count,
+        E_osc: bc.backend.float_,
+        l_osc: Union[bc.backend.float_, None] = None,
+        truncated_dim: bc.backend.int_ = _default_evals_count,
         id_str: Optional[str] = None,
     ) -> None:
         base.QuantumSystem.__init__(self, id_str=id_str)
-        self.truncated_dim: int = truncated_dim  # type:ignore
-        self.l_osc: Union[None, float] = l_osc  # type:ignore
+        self.truncated_dim: bc.backend.int_ = truncated_dim  # type:ignore
+        self.l_osc: Union[None, bc.backend.float_] = l_osc  # type:ignore
         self.E_osc = E_osc
         self._image_filename = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "qubit_img/oscillator.jpg"
@@ -114,7 +114,7 @@ class Oscillator(base.QuantumSystem, serializers.Serializable):
     def default_params() -> Dict[str, Any]:
         return {"E_osc": 5.0, "l_osc": 1, "truncated_dim": _default_evals_count}
 
-    def eigenvals(self, evals_count: int = _default_evals_count) -> ndarray:
+    def eigenvals(self, evals_count: bc.backend.int_ = _default_evals_count) -> bc.backend.ndarray:
         """Returns array of eigenvalues.
 
         Parameters
@@ -126,8 +126,8 @@ class Oscillator(base.QuantumSystem, serializers.Serializable):
         return bc.backend.asarray(evals)
 
     def eigensys(
-        self, evals_count: int = _default_evals_count
-    ) -> Tuple[ndarray, ndarray]:
+        self, evals_count: bc.backend.int_ = _default_evals_count
+    ) -> Tuple[bc.backend.ndarray, bc.backend.ndarray]:
         """Returns array of eigenvalues and eigenvectors
 
         Parameters
@@ -144,24 +144,24 @@ class Oscillator(base.QuantumSystem, serializers.Serializable):
 
         return self.eigenvals(evals_count=evals_count), evecs
 
-    def hilbertdim(self) -> int:
+    def hilbertdim(self) -> bc.backend.int_:
         """Returns Hilbert space dimension"""
         return self.truncated_dim
 
-    def creation_operator(self) -> ndarray:
+    def creation_operator(self) -> bc.backend.ndarray:
         """Returns the creation operator"""
         return op.creation(self.truncated_dim)
 
-    def annihilation_operator(self) -> ndarray:
+    def annihilation_operator(self) -> bc.backend.ndarray:
         """Returns the annihilation operator"""
         return op.annihilation(self.truncated_dim)
 
-    def matrixelement_table(self, *args, **kwargs) -> ndarray:
+    def matrixelement_table(self, *args, **kwargs) -> bc.backend.ndarray:
         raise NotImplementedError(
             "The Oscillator class does not implement the matrixelement_table method."
         )
 
-    def phi_operator(self) -> ndarray:
+    def phi_operator(self) -> bc.backend.ndarray:
         r"""Returns the phase operator defined as
         :math:`l_\text{osc} (a + a^{\dagger})/\sqrt{2}`, with :math:`a` representing
         an annihilation operator, and :math:`l_\text{osc}` the oscillator length.
@@ -175,7 +175,7 @@ class Oscillator(base.QuantumSystem, serializers.Serializable):
         a = op.annihilation(self.truncated_dim)
         return self.l_osc / bc.backend.sqrt(2) * (a + a.T)
 
-    def n_operator(self) -> ndarray:
+    def n_operator(self) -> bc.backend.ndarray:
         r"""Returns the charge-number n operator defined as
         :math:`i (a^{\dagger} - a)/ ( \sqrt{2} l_\text{osc})`, with :math:`a` representing
         an annihilation operator, and :math:`l_\text{osc}` the oscillator length.
@@ -214,17 +214,17 @@ class KerrOscillator(Oscillator, serializers.Serializable):
         and `ParameterSweep`. If not provided, an id is auto-generated.
     """
 
-    K = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
+    K = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
 
     def __init__(
         self,
-        E_osc: float,
-        K: float,
-        l_osc: Union[float, None] = None,
-        truncated_dim: int = _default_evals_count,
+        E_osc: bc.backend.float_,
+        K: bc.backend.float_,
+        l_osc: Union[bc.backend.float_, None] = None,
+        truncated_dim: bc.backend.int_ = _default_evals_count,
         id_str: Optional[str] = None,
     ) -> None:
-        self.K: float = K  # type:ignore
+        self.K: bc.backend.float_ = K  # type:ignore
 
         super().__init__(
             E_osc=E_osc,
@@ -246,7 +246,7 @@ class KerrOscillator(Oscillator, serializers.Serializable):
             "truncated_dim": _default_evals_count,
         }
 
-    def eigenvals(self, evals_count: int = _default_evals_count) -> ndarray:
+    def eigenvals(self, evals_count: bc.backend.int_ = _default_evals_count) -> bc.backend.ndarray:
         """Returns array of eigenvalues.
 
         Parameters

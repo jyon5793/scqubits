@@ -46,13 +46,13 @@ class WaveFunction:
     """
 
     def __init__(
-        self, basis_labels: backend_change.backend.ndarray, amplitudes: backend_change.backend.ndarray, energy: float = None
+        self, basis_labels: backend_change.backend.ndarray, amplitudes: backend_change.backend.ndarray, energy: backend_change.backend.float_ = None
     ) -> None:
         self.basis_labels = basis_labels
         self.amplitudes = amplitudes
         self.energy = energy
 
-    def rescale(self, scale_factor: float) -> None:
+    def rescale(self, scale_factor: backend_change.backend.float_) -> None:
         """Rescale the wavefunction amplitudes by a given factor"""
         self.amplitudes *= scale_factor
 
@@ -69,7 +69,7 @@ class WaveFunction:
         """
         self.amplitudes *= self.amplitude_scale_factor(potential_vals)
 
-    def amplitude_scale_factor(self, potential_vals: backend_change.backend.ndarray) -> float:
+    def amplitude_scale_factor(self, potential_vals: backend_change.backend.ndarray) -> backend_change.backend.float_:
         """
         Returnn scale factor that converts the dimensionless amplitude to a (pseudo-)energy that allows us to plot
         wavefunctions and potential energies in the same plot.
@@ -110,7 +110,7 @@ class WaveFunctionOnGrid:
     """
 
     def __init__(
-        self, gridspec: "GridSpec", amplitudes: backend_change.backend.ndarray, energy: float = None
+        self, gridspec: "GridSpec", amplitudes: backend_change.backend.ndarray, energy: backend_change.backend.float_ = None
     ) -> None:
         self.gridspec = gridspec
         self.amplitudes = amplitudes
@@ -237,7 +237,7 @@ class SpectrumData(DataStore):
 
     def plot_evals_vs_paramvals(
         self,
-        which: Union[int, List[int]] = -1,
+        which: Union[backend_change.backend.int_, List[backend_change.backend.int_]] = -1,
         subtract_ground: bool = False,
         label_list: List[str] = None,
         **kwargs
