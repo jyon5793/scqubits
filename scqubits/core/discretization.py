@@ -23,17 +23,16 @@ import scqubits.core.descriptors as descriptors
 import scqubits.io_utils.fileio_serializers as serializers
 import scqubits.settings as settings
 import scqubits.utils.misc as utils
-from scqubits import backend_change as bc
+import scqubits.backend_change as bc
 
-
-FIRST_STENCIL_COEFFS: Dict[bc.backend.int, List[bc.backend.float]] = {
+FIRST_STENCIL_COEFFS: Dict[bc.backend.int_, List[bc.backend.float_]] = {
     3: [-1 / 2, 0.0, 1 / 2],
     5: [1 / 12, -2 / 3, 0.0, 2 / 3, -1 / 12],
     7: [-1 / 60, 3 / 20, -3 / 4, 0.0, 3 / 4, -3 / 20, 1 / 60],
     9: [1 / 280, -4 / 105, 1 / 5, -4 / 5, 0.0, 4 / 5, -1 / 5, 4 / 105, -1 / 280],
 }
 
-SECOND_STENCIL_COEFFS: Dict[bc.backend.int, List[bc.backend.float]] = {
+SECOND_STENCIL_COEFFS: Dict[bc.backend.int_, List[bc.backend.float_]] = {
     3: [1, -2, 1],
     5: [-1 / 12, 4 / 3, -5 / 2, 4 / 3, -1 / 12],
     7: [1 / 90, -3 / 20, 3 / 2, -49 / 18, 3 / 2, -3 / 20, 1 / 90],
@@ -42,9 +41,9 @@ SECOND_STENCIL_COEFFS: Dict[bc.backend.int, List[bc.backend.float]] = {
 
 
 def band_matrix(
-    band_coeffs: Union[List[bc.backend.float], List[bc.backend.complex], bc.backend.ndarray],
-    band_offsets: Union[List[bc.backend.int], bc.backend.ndarray],
-    dim: bc.backend.int,
+    band_coeffs: Union[List[bc.backend.float_], List[bc.backend.complex_], bc.backend.ndarray],
+    band_offsets: Union[List[bc.backend.int_], bc.backend.ndarray],
+    dim: bc.backend.int_,
     dtype: Any = None,
     has_corners: bool = False,
 ) -> bc.backend.csc_matrix:
@@ -110,7 +109,7 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
     max_val = descriptors.WatchedProperty(bc.backend.float_, "GRID_UPDATE")
     pt_count = descriptors.WatchedProperty(bc.backend.int_, "GRID_UPDATE")
 
-    def __init__(self, min_val: bc.backend.float, max_val: bc.backend.float, pt_count: bc.backend.int) -> None:
+    def __init__(self, min_val: bc.backend.float_, max_val: bc.backend.float_, pt_count: bc.backend.int_) -> None:
         self.min_val = min_val
         self.max_val = max_val
         self.pt_count = pt_count
@@ -144,7 +143,7 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
         """
         return self.__dict__
 
-    def grid_spacing(self) -> bc.backend.float:
+    def grid_spacing(self) -> bc.backend.float_:
         """
         Returns
         -------
@@ -161,7 +160,7 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
         return bc.backend.linspace(self.min_val, self.max_val, self.pt_count)
 
     def first_derivative_matrix(
-        self, prefactor: Union[bc.backend.float, bc.backend.complex] = 1.0, periodic: bool = False
+        self, prefactor: Union[bc.backend.float_, bc.backend.complex_] = 1.0, periodic: bool = False
     ) -> bc.backend.csc_matrix:
         """Generate sparse matrix for first derivative of the form
         :math:`\\partial_{x_i}`. Uses STENCIL setting to construct the matrix with a
@@ -178,7 +177,8 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
         -------
             sparse matrix in `dia` format
         """
-        if isinstance(prefactor, bc.backend.complex):
+        # keep complex here instead of bc.backend.complex_
+        if isinstance(prefactor, complex):
             dtp = bc.backend.complex_
         else:
             dtp = bc.backend.float_
@@ -195,7 +195,7 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
         return bc.backend.solve_csc_matrix(derivative_matrix)
 
     def second_derivative_matrix(
-        self, prefactor: Union[bc.backend.float, bc.backend.complex] = 1.0, periodic: bool = False
+        self, prefactor: Union[bc.backend.float_, bc.backend.complex_] = 1.0, periodic: bool = False
     ) -> bc.backend.csc_matrix:
         """Generate sparse matrix for second derivative of the form
         :math:`\\partial^2_{x_i}`. Uses STENCIL setting to construct the matrix with
@@ -212,7 +212,7 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
         -------
             sparse matrix in `dia` format
         """
-        if isinstance(prefactor, bc.backend.complex_):
+        if isinstance(prefactor, complex):
             dtp = bc.backend.complex_
         else:
             dtp = bc.backend.float_
