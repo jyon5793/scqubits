@@ -420,7 +420,7 @@ class FluxQubit(base.QubitBaseClass, serializers.Serializable, NoisyFluxQubit):
         Cmat = bc.backend.array_solve(Cmat, (0, 1), -CJ3)
         Cmat = bc.backend.array_solve(Cmat, (1, 0), -CJ3)
 
-        return bc.backend.npinv(Cmat) / 2.0
+        return bc.backend.inv(Cmat) / 2.0
 
     def _evals_calc(self, evals_count: bc.backend.int_) -> bc.backend.ndarray:
         hamiltonian_mat = self.hamiltonian()

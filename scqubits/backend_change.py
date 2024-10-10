@@ -111,6 +111,7 @@ class NumpyBackend(Backend):
     stack = staticmethod(np.stack)
     eigvalsh = staticmethod(scipy.linalg.eigvalsh)
     eigh = staticmethod(scipy.linalg.eigh)
+    eig = staticmethod(sp.linalg.eig)
     csc_matrix = staticmethod(scipy.sparse.csc_matrix)
     dia_matrix = staticmethod(scipy.sparse.dia_matrix)
     coo_matrix = staticmethod(scipy.sparse.coo_matrix)
@@ -127,11 +128,17 @@ class NumpyBackend(Backend):
     speye = staticmethod(scipy.sparse.eye)
     speigsh = staticmethod(scipy.sparse.linalg.eigsh)
     qr = staticmethod(scipy.linalg.qr)
-    npinv = staticmethod(np.linalg.inv)
+    inv = staticmethod(np.linalg.inv)
     constants_hbar = staticmethod(scipy.constants.hbar)
     constants_k = staticmethod(scipy.constants.k)
     constants_e = staticmethod(scipy.constants.e)
     constants_h = staticmethod(scipy.constants.h)
+    matrix_rank = staticmethod(np.linalg.matrix_rank)
+    det = staticmethod(np.linalg.det)
+    pinv = staticmethod(np.linalg.pinv)
+    delete = staticmethod(np.delete)
+    eigvalsh_tridiagonal = staticmethod(scipy.linalg.eigvalsh_tridiagonal)
+    eigh_tridiagonal = staticmethod(sp.linalg.eigh_tridiagonal)
 
     @staticmethod
     def toarray(matrix):
@@ -276,15 +283,25 @@ class JaxBackend(Backend):
     grad = staticmethod(jax.grad)
     value_and_grad = staticmethod(jax.value_and_grad)
     eigh = staticmethod(jax.scipy.linalg.eigh)
+    eig = staticmethod(jax.numpy.linalg.eig)
     # eigvalsh = staticmethod(jax.scipy.linalg.eigh)
     expm = staticmethod(jax.scipy.linalg.expm)
     block_diag = staticmethod(jax.scipy.linalg.block_diag)
     qr = staticmethod(jax.scipy.linalg.qr)
-    npinv = staticmethod(jax.numpy.linalg.inv)
+    inv = staticmethod(jax.numpy.linalg.inv)
     constants_hbar = 1.054571817e-34
     constants_k = 1.380649e-23
     constants_e = 1.602176634e-19
     constants_h = 6.62607015e-34
+    matrix_rank = staticmethod(jax.numpy.linalg.matrix_rank)
+    det = staticmethod(jax.numpy.linalg.det)
+    pinv = staticmethod(jax.numpy.linalg.pinv)
+    delete = staticmethod(jax.numpy.delete)
+    eigh_tridiagonal = staticmethod(jax.scipy.linalg.eigh_tridiagonal)
+    
+    @staticmethod
+    def eigvalsh_tridiagonal(A):
+        return jax.scipy.linalg.eigh_tridiagonal(A)[0]
     
     @staticmethod
     def eigvalsh(A):

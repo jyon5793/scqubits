@@ -114,11 +114,11 @@ class Node:
 def make_branch(
     nodes_list: List[Node],
     branch_type: str,
-    node_idx1: int,
-    node_idx2: int,
+    node_idx1: bc.backend.int_,
+    node_idx2: bc.backend.int_,
     params,
     aux_params,
-    _branch_count: int,
+    _branch_count: bc.backend.int_,
 ):
     params_dict = {}
     params = [process_param(param) for param in params]
@@ -190,9 +190,9 @@ class Branch:
         n_i: Node,
         n_f: Node,
         branch_type: str,
-        parameters: Optional[List[Union[float, Symbol, int]]] = None,
+        parameters: Optional[List[Union[bc.backend.float_, Symbol, bc.backend.int_]]] = None,
         id_str: Optional[str] = None,
-        aux_params: Dict[Symbol, float] = {},
+        aux_params: Dict[Symbol, bc.backend.float_] = {},
     ):
         self.nodes = (n_i, n_f)
         self.type = branch_type
@@ -234,7 +234,7 @@ class Branch:
                     self.parameters[f"EJ{junc_order}"] = parameters[junc_order]
             self.parameters["ECJ"] = parameters[number_of_junc_params]
 
-    def node_ids(self) -> Tuple[int, int]:
+    def node_ids(self) -> Tuple[bc.backend.int_, bc.backend.int_]:
         return self.nodes[0].index, self.nodes[1].index
 
     def is_connected(self, branch) -> bool:
@@ -298,7 +298,7 @@ class SymbolicCircuit(serializers.Serializable):
         self,
         nodes_list: List[Node],
         branches_list: List[Branch],
-        branch_var_dict: Dict[Union[Any, Symbol], Union[Any, float]],
+        branch_var_dict: Dict[Union[Any, Symbol], Union[Any, bc.backend.float_]],
         basis_completion: str = "heuristic",
         use_dynamic_flux_grouping: bool = False,
         initiate_sym_calc: bool = True,
@@ -311,13 +311,13 @@ class SymbolicCircuit(serializers.Serializable):
         self._sys_type = type(self).__name__  # for object description
 
         # attributes set by methods
-        self.transformation_matrix: Optional[ndarray] = None
+        self.transformation_matrix: Optional[bc.backend.ndarray] = None
 
-        self.var_categories: Optional[List[int]] = None
+        self.var_categories: Optional[List[bc.backend.int_]] = None
         self.external_fluxes: List[Symbol] = []
         self.closure_branches: List[Branch] = []
 
-        self.symbolic_params: Dict[Symbol, float] = branch_var_dict
+        self.symbolic_params: Dict[Symbol, bc.backend.float_] = branch_var_dict
 
         self.hamiltonian_symbolic: Optional[sympy.Expr] = None
         # to store the internally used lagrangian
@@ -356,7 +356,7 @@ class SymbolicCircuit(serializers.Serializable):
         return True if len(self.symbolic_params) > 0 else False
 
     @staticmethod
-    def _gram_schmidt(initial_vecs: ndarray, metric: ndarray) -> ndarray:
+    def _gram_schmidt(initial_vecs: bc.backend.ndarray, metric: bc.backend.ndarray) -> bc.backend.ndarray:
         def inner_product(u, v, metric):
             return u @ metric @ v
 
@@ -378,15 +378,15 @@ class SymbolicCircuit(serializers.Serializable):
                 [projection(vec, ortho_vec, metric) for ortho_vec in orthogonal_vecs]
             )
             orthogonal_vecs.append(vec - projection_on_orthovecs)
-        return np.array(orthogonal_vecs).T
+        return bc.backend.array(orthogonal_vecs).T
 
     def _orthogonalize_degenerate_eigen_vecs(
-        self, evecs: ndarray, eigs: ndarray, relevant_eig_indices, cap_matrix: ndarray
-    ) -> ndarray:
+        self, evecs: bc.backend.ndarray, eigs: bc.backend.ndarray, relevant_eig_indices, cap_matrix: bc.backend.ndarray
+    ) -> bc.backend.ndarray:
         relevant_eigs = eigs[relevant_eig_indices]
-        unique_eigs = np.unique(np.round(relevant_eigs, 10))
+        unique_eigs = bc.backend.unique(bc.backend.round(relevant_eigs, 10))
         close_eigs = [
-            list(np.where(np.abs(eigs - eig) < 1e-10)[0]) for eig in unique_eigs
+            list(bc.backend.where(bc.backend.abs(eigs - eig) < 1e-10)[0]) for eig in unique_eigs
         ]
         degenerate_indices_list = [
             indices for indices in close_eigs if len(indices) > 1
@@ -401,7 +401,7 @@ class SymbolicCircuit(serializers.Serializable):
 
         return orthogonal_evecs
 
-    def purely_harmonic_transformation(self) -> Tuple[ndarray, ndarray]:
+    def purely_harmonic_transformation(self) -> Tuple[bc.backend.ndarray, bc.backend.ndarray]:
         trans_mat, _ = self.variable_transformation_matrix()
         c_mat = (
             trans_mat.T @ self._capacitance_matrix(substitute_params=True) @ trans_mat
@@ -414,7 +414,7 @@ class SymbolicCircuit(serializers.Serializable):
         if not self.is_grounded:
             c_mat = c_mat[:-1, :-1]
             l_inv_mat = l_inv_mat[:-1, :-1]
-        normal_mode_freqs, normal_mode_vecs = sp.linalg.eig(l_inv_mat, c_mat)
+        normal_mode_freqs, normal_mode_vecs = bc.backend.eig(l_inv_mat, c_mat)
         normal_mode_freqs = normal_mode_freqs.round(10)
         # rounding to the tenth digit to remove numerical errors in eig calculation
         # rearranging the vectors
@@ -422,10 +422,10 @@ class SymbolicCircuit(serializers.Serializable):
         normal_freq_ids = [
             id
             for id in idx
-            if normal_mode_freqs[id] != 0 and not np.isinf(normal_mode_freqs[id])
+            if normal_mode_freqs[id] != 0 and not bc.backend.isinf(normal_mode_freqs[id])
         ]
         zero_freq_ids = [id for id in idx if normal_mode_freqs[id] == 0]
-        inf_freq_ids = [id for id in idx if np.isinf(normal_mode_freqs[id])]
+        inf_freq_ids = [id for id in idx if bc.backend.isinf(normal_mode_freqs[id])]
         idx = normal_freq_ids + zero_freq_ids + inf_freq_ids
         # sorting so that all the zero frequencies show up at the end
 
@@ -443,12 +443,12 @@ class SymbolicCircuit(serializers.Serializable):
         )
 
         return (
-            np.real(
-                np.sqrt(
+            bc.backend.real(
+                bc.backend.sqrt(
                     [
                         freq
                         for freq in normal_mode_freqs
-                        if not np.isinf(freq) and freq != 0
+                        if not bc.backend.isinf(freq) and freq != 0
                     ]
                 )
             ),
@@ -457,7 +457,7 @@ class SymbolicCircuit(serializers.Serializable):
 
     def configure(
         self,
-        transformation_matrix: Optional[ndarray] = None,
+        transformation_matrix: Optional[bc.backend.ndarray] = None,
         closure_branches: Optional[List[Branch]] = None,
         use_dynamic_flux_grouping: Optional[bool] = None,
     ):
@@ -597,9 +597,9 @@ class SymbolicCircuit(serializers.Serializable):
         bool
             Returns True if the branches have a connection, else False
         """
-        node_array1 = np.array([branch.node_ids() for branch in branch_list1]).flatten()
-        node_array2 = np.array([branch.node_ids() for branch in branch_list2]).flatten()
-        return np.intersect1d(node_array1, node_array2).size == 0
+        node_array1 = bc.backend.array([branch.node_ids() for branch in branch_list1]).flatten()
+        node_array2 = bc.backend.array([branch.node_ids() for branch in branch_list2]).flatten()
+        return bc.backend.intersect1d(node_array1, node_array2).size == 0
 
     @staticmethod
     def _parse_nodes(branches_list) -> Tuple[Optional[Node], List[Node]]:
@@ -715,7 +715,7 @@ class SymbolicCircuit(serializers.Serializable):
         self,
         branch_subset: List[Branch],
         single_nodes: bool = True,
-        basisvec_entries: Optional[List[int]] = None,
+        basisvec_entries: Optional[List[bc.backend.int_]] = None,
     ):
         """
         Returns the vectors which span a subspace where there is no generalized flux
@@ -831,8 +831,8 @@ class SymbolicCircuit(serializers.Serializable):
                     )
 
             for mode in single_node_modes:
-                mat = np.array(basis + [mode])
-                if np.linalg.matrix_rank(mat) == len(mat):
+                mat = bc.backend.array(basis + [mode])
+                if bc.backend.matrix_rank(mat) == len(mat):
                     basis.append(mode)
 
         if (
@@ -858,11 +858,11 @@ class SymbolicCircuit(serializers.Serializable):
         """
         if len(subspace) == 0:
             return False
-        matrix = np.vstack([subspace, np.array(mode)])
-        return np.linalg.matrix_rank(matrix) == len(subspace)
+        matrix = bc.backend.vstack([subspace, bc.backend.array(mode)])
+        return bc.backend.linalg.matrix_rank(matrix) == len(subspace)
 
     def check_transformation_matrix(
-        self, transformation_matrix: ndarray, enable_warnings: bool = True
+        self, transformation_matrix: bc.backend.ndarray, enable_warnings: bool = True
     ) -> Dict[str, list]:
         """
         Method to identify the different modes in the transformation matrix provided by
@@ -883,7 +883,7 @@ class SymbolicCircuit(serializers.Serializable):
             var indices corresponding to the rows of the transformation matrix
         """
         # basic check to see if the matrix is invertible
-        if np.linalg.det(transformation_matrix) == 0:
+        if bc.backend.det(transformation_matrix) == 0:
             raise Exception("The transformation matrix provided is not invertible.")
 
         # find all the different types of modes present in the circuit.
@@ -907,9 +907,9 @@ class SymbolicCircuit(serializers.Serializable):
         # ******************* including the Σ mode ****************
         Σ = [1] * (len(self.nodes) - self.is_grounded)
         if not self.is_grounded:  # only append if the circuit is not grounded
-            mat = np.array(frozen_modes + [Σ])
+            mat = bc.backend.array(frozen_modes + [Σ])
             # check to see if the vectors are still independent
-            if np.linalg.matrix_rank(mat) < len(frozen_modes) + 1:
+            if bc.backend.linalg.matrix_rank(mat) < len(frozen_modes) + 1:
                 frozen_modes = frozen_modes[1:] + [Σ]
             else:
                 frozen_modes.append(Σ)
@@ -1011,7 +1011,7 @@ class SymbolicCircuit(serializers.Serializable):
 
         return var_categories_user
 
-    def variable_transformation_matrix(self) -> Tuple[ndarray, Dict[str, List[int]]]:
+    def variable_transformation_matrix(self) -> Tuple[bc.backend.ndarray, Dict[str, List[bc.backend.int_]]]:
         """
         Evaluates the boundary conditions and constructs the variable transformation
         matrix, which is returned along with the dictionary `var_categories` which
@@ -1038,9 +1038,9 @@ class SymbolicCircuit(serializers.Serializable):
         # ****************  including the Σ mode ****************
         Σ = [1] * (len(self.nodes) - self.is_grounded)
         if not self.is_grounded:  # only append if the circuit is not grounded
-            mat = np.array(frozen_modes + [Σ])
+            mat = bc.backend.array(frozen_modes + [Σ])
             # check to see if the vectors are still independent
-            if np.linalg.matrix_rank(mat) < len(frozen_modes) + 1:
+            if bc.backend.linalg.matrix_rank(mat) < len(frozen_modes) + 1:
                 frozen_modes = frozen_modes[1:] + [Σ]
             else:
                 frozen_modes.append(Σ)
@@ -1057,8 +1057,8 @@ class SymbolicCircuit(serializers.Serializable):
         for m in (
             frozen_modes + free_modes + periodic_modes + LC_modes  # + extended_modes
         ):  # This order is important
-            mat = np.array(modes + [m])
-            if np.linalg.matrix_rank(mat) == len(mat):
+            mat = bc.backend.array(modes + [m])
+            if bc.backend.linalg.matrix_rank(mat) == len(mat):
                 modes.append(m)
 
         # ********** Completing the Basis ****************
@@ -1067,9 +1067,9 @@ class SymbolicCircuit(serializers.Serializable):
         # constructing a standard basis
         if self.basis_completion == "heuristic":
             node_count = len(self.nodes) - self.is_grounded
-            standard_basis = [np.ones(node_count)]
+            standard_basis = [bc.backend.ones(node_count)]
 
-            vector_ref = np.zeros(node_count)
+            vector_ref = bc.backend.zeros(node_count)
             if node_count > 2:
                 vector_ref[: node_count - 2] = 1
             else:
@@ -1079,25 +1079,25 @@ class SymbolicCircuit(serializers.Serializable):
                 permutation
                 for permutation in itertools.permutations(vector_ref, node_count)
             )  # making a generator
-            while np.linalg.matrix_rank(np.array(standard_basis)) < node_count:
+            while bc.backend.matrix_rank(bc.backend.array(standard_basis)) < node_count:
                 a = next(vector_set)
-                mat = np.array(standard_basis + [a])
-                if np.linalg.matrix_rank(mat) == len(mat):
+                mat = bc.backend.array(standard_basis + [a])
+                if bc.backend.matrix_rank(mat) == len(mat):
                     standard_basis = standard_basis + [list(a)]
 
-            standard_basis = np.array(standard_basis)
+            standard_basis = bc.backend.array(standard_basis)
 
         elif self.basis_completion == "canonical":
-            standard_basis = np.identity(len(self.nodes) - self.is_grounded)
+            standard_basis = bc.backend.identity(len(self.nodes) - self.is_grounded)
 
         new_basis = modes.copy()
 
         for m in standard_basis:  # completing the basis
-            mat = np.array([i for i in new_basis] + [m])
-            if np.linalg.matrix_rank(mat) == len(mat):
+            mat = bc.backend.array([i for i in new_basis] + [m])
+            if bc.backend.linalg.matrix_rank(mat) == len(mat):
                 new_basis.append(m)
 
-        new_basis = np.array(new_basis)
+        new_basis = bc.backend.array(new_basis)
 
         # sorting the basis so that the free, periodic and frozen variables occur at
         # the beginning.
@@ -1158,7 +1158,7 @@ class SymbolicCircuit(serializers.Serializable):
             ),
         }
 
-        return np.array(new_basis), var_categories
+        return bc.backend.array(new_basis), var_categories
 
     def update_param_init_val(self, param_name, value):
         """
@@ -1196,7 +1196,7 @@ class SymbolicCircuit(serializers.Serializable):
                     phi_ext += self.external_fluxes[index]
             if self.use_dynamic_flux_grouping:
                 flux_branch_assignment = self._time_dependent_flux_distribution()
-                phi_ext += flux_branch_assignment[int(jj_branch.id_str)]
+                phi_ext += flux_branch_assignment[bc.backend.int_(jj_branch.id_str)]
 
             # if loop to check for the presence of ground node
             for order in range(1, junction_branch_order[branch_idx] + 1):
@@ -1242,7 +1242,7 @@ class SymbolicCircuit(serializers.Serializable):
                     phi_ext += self.external_fluxes[index]
             if self.use_dynamic_flux_grouping:
                 flux_branch_assignment = self._time_dependent_flux_distribution()
-                phi_ext += flux_branch_assignment[int(jj_branch.id_str)]
+                phi_ext += flux_branch_assignment[bc.backend.int_(jj_branch.id_str)]
 
             # if loop to check for the presence of ground node
             junction_param = "EJ"
@@ -1293,14 +1293,14 @@ class SymbolicCircuit(serializers.Serializable):
         else:
             num_nodes = len(self.nodes) - self.is_grounded + 1
         if not self.is_any_branch_parameter_symbolic() or substitute_params:
-            L_mat = np.zeros([num_nodes, num_nodes])
+            L_mat = bc.backend.zeros([num_nodes, num_nodes])
         else:
             L_mat = sympy.zeros(num_nodes)
 
         for branch in branches_with_inductance:
             if len(set(branch.nodes)) > 1:  # branch if shorted is not considered
                 inductance = branch.parameters["EL"]
-                if type(inductance) != float and substitute_params:
+                if type(inductance) != bc.backend.float_ and substitute_params:
                     inductance = param_init_vals_dict[inductance]
                 if self.is_grounded:
                     L_mat[branch.nodes[0].index, branch.nodes[1].index] += -inductance
@@ -1310,12 +1310,12 @@ class SymbolicCircuit(serializers.Serializable):
                     ] += -inductance
 
         if not self.is_any_branch_parameter_symbolic() or substitute_params:
-            L_mat = L_mat + L_mat.T - np.diag(L_mat.diagonal())
+            L_mat = L_mat + L_mat.T - bc.backend.diag(L_mat.diagonal())
         else:
             L_mat = L_mat + L_mat.T - sympy.diag(*L_mat.diagonal())
 
         for i in range(L_mat.shape[0]):  # filling the diagonal entries
-            L_mat[i, i] = -np.sum(L_mat[i, :])
+            L_mat[i, i] = -bc.backend.sum(L_mat[i, :])
 
         if self.is_grounded:  # if grounded remove the 0th column and row from L_mat
             L_mat = L_mat[1:, 1:]
@@ -1350,7 +1350,7 @@ class SymbolicCircuit(serializers.Serializable):
         else:
             num_nodes = len(self.nodes) - self.is_grounded + 1
         if not self.is_any_branch_parameter_symbolic() or substitute_params:
-            C_mat = np.zeros([num_nodes, num_nodes])
+            C_mat = bc.backend.zeros([num_nodes, num_nodes])
         else:
             C_mat = sympy.zeros(num_nodes)
 
@@ -1359,7 +1359,7 @@ class SymbolicCircuit(serializers.Serializable):
                 capacitance = branch.parameters[
                     _capactiance_variable_for_branch(branch.type)
                 ]
-                if type(capacitance) != float and substitute_params:
+                if type(capacitance) != bc.backend.float_ and substitute_params:
                     capacitance = param_init_vals_dict[capacitance]
                 if self.is_grounded:
                     C_mat[branch.nodes[0].index, branch.nodes[1].index] += -1 / (
@@ -1371,12 +1371,12 @@ class SymbolicCircuit(serializers.Serializable):
                     ] += -1 / (capacitance * 8)
 
         if not self.is_any_branch_parameter_symbolic() or substitute_params:
-            C_mat = C_mat + C_mat.T - np.diag(C_mat.diagonal())
+            C_mat = C_mat + C_mat.T - bc.backend.diag(C_mat.diagonal())
         else:
             C_mat = C_mat + C_mat.T - sympy.diag(*C_mat.diagonal())
 
         for i in range(C_mat.shape[0]):  # filling the diagonal entries
-            C_mat[i, i] = -np.sum(C_mat[i, :])
+            C_mat[i, i] = -bc.backend.sum(C_mat[i, :])
 
         if self.is_grounded:  # if grounded remove the 0th column and row from C_mat
             C_mat = C_mat[1:, 1:]
@@ -1440,7 +1440,7 @@ class SymbolicCircuit(serializers.Serializable):
                     phi_ext += self.external_fluxes[index]
             if self.use_dynamic_flux_grouping:
                 flux_branch_assignment = self._time_dependent_flux_distribution()
-                phi_ext += flux_branch_assignment[int(l_branch.id_str)]
+                phi_ext += flux_branch_assignment[bc.backend.int_(l_branch.id_str)]
 
             if l_branch.nodes[0].index == 0:
                 terms += (
@@ -1710,11 +1710,11 @@ class SymbolicCircuit(serializers.Serializable):
 
     def _time_dependent_flux_distribution(self):
         # constructing the constraint matrix
-        R = np.zeros([len(self.branches), len(self.closure_branches)])
+        R = bc.backend.zeros([len(self.branches), len(self.closure_branches)])
         # constructing branch capacitance matrix
-        C_diag = np.identity(len(self.branches)) * 0
+        C_diag = bc.backend.identity(len(self.branches)) * 0
         # constructing the matrix which transforms node to branch variables
-        W = np.zeros([len(self.branches), len(self.nodes) - self.is_grounded])
+        W = bc.backend.zeros([len(self.branches), len(self.nodes) - self.is_grounded])
 
         for closure_brnch_idx, closure_branch in enumerate(self.closure_branches):
             loop_branches = self._find_loop(closure_branch)
@@ -1754,23 +1754,23 @@ class SymbolicCircuit(serializers.Serializable):
                 n_id = self.nodes.index(node) - self.is_grounded
                 W[idx, n_id] = (-1) ** node_idx
 
-        M = np.vstack([(W.T @ C_diag), R.T])
+        M = bc.backend.vstack([(W.T @ C_diag), R.T])
 
-        I = np.vstack(
+        I = bc.backend.vstack(
             [
-                np.zeros(
+                bc.backend.zeros(
                     [len(self.nodes) - self.is_grounded, len(self.closure_branches)]
                 ),
-                np.identity(len(self.closure_branches)),
+                bc.backend.identity(len(self.closure_branches)),
             ]
         )
 
-        B = (np.linalg.pinv(M)) @ I
+        B = (bc.backend.linalg.pinv(M)) @ I
         return B.round(10) @ self.external_fluxes
 
     def _find_path_to_root(
         self, node: Node, spanning_tree_dict=None
-    ) -> Tuple[int, List["Node"], List["Branch"]]:
+    ) -> Tuple[bc.backend.int_, List["Node"], List["Branch"]]:
         r"""
         Returns all the nodes and branches in the spanning tree path between the
         input node and the root of the spanning tree. Also returns the distance
@@ -1945,16 +1945,16 @@ class SymbolicCircuit(serializers.Serializable):
                     @ self._capacitance_matrix(substitute_params=substitute_params)
                     @ transformation_matrix
                 )
-                C_mat_θ = np.delete(C_mat_θ, frozen_indices, 0)
-                C_mat_θ = np.delete(C_mat_θ, frozen_indices, 1)
-                EC_mat_θ = np.linalg.inv(C_mat_θ)
+                C_mat_θ = bc.backend.delete(C_mat_θ, frozen_indices, 0)
+                C_mat_θ = bc.backend.delete(C_mat_θ, frozen_indices, 1)
+                EC_mat_θ = bc.backend.linalg.inv(C_mat_θ)
             p_θ_vars = [
                 (
                     symbols(f"Q{i}")
                     if i not in self.var_categories["free"]
                     else symbols(f"Qf{i}")
                 )
-                for i in np.sort(
+                for i in bc.backend.sort(
                     self.var_categories["periodic"]
                     + self.var_categories["extended"]
                     + self.var_categories["free"]
@@ -2024,7 +2024,7 @@ class SymbolicCircuit(serializers.Serializable):
                 phi_ext += self.external_fluxes[index]
         if self.use_dynamic_flux_grouping:
             flux_branch_assignment = self._time_dependent_flux_distribution()
-            phi_ext += flux_branch_assignment[int(branch.id_str)]
+            phi_ext += flux_branch_assignment[bc.backend.int_(branch.id_str)]
         for idx, var in enumerate(old_vars):
             expr_node_vars = expr_node_vars.subs(var, transformed_expr[idx])
         return round_symbolic_expr(expr_node_vars + phi_ext, 12)
@@ -2148,9 +2148,9 @@ class SymbolicCircuit(serializers.Serializable):
                 @ self._capacitance_matrix(substitute_params=substitute_params)
                 @ transformation_matrix
             )
-            C_mat_θ = np.delete(C_mat_θ, frozen_indices, 0)
-            C_mat_θ = np.delete(C_mat_θ, frozen_indices, 1)
-            C_mat_θ = np.linalg.inv(C_mat_θ)
+            C_mat_θ = bc.backend.delete(C_mat_θ, frozen_indices, 0)
+            C_mat_θ = bc.backend.delete(C_mat_θ, frozen_indices, 1)
+            C_mat_θ = bc.backend.inv(C_mat_θ)
 
         p_φ_vars = [
             (
@@ -2158,7 +2158,7 @@ class SymbolicCircuit(serializers.Serializable):
                 if i not in self.var_categories["free"]
                 else symbols(f"Qf{i}")
             )
-            for i in np.sort(
+            for i in bc.backend.sort(
                 self.var_categories["periodic"]
                 + self.var_categories["extended"]
                 + self.var_categories["free"]

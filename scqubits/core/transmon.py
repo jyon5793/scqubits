@@ -36,8 +36,8 @@ from scqubits.core.noise import NoisySystem
 from scqubits.core.storage import WaveFunction
 from scqubits import backend_change as bc
 
-LevelsTuple = Tuple[int, ...]
-Transition = Tuple[int, int]
+LevelsTuple = Tuple[bc.backend.int_, ...]
+Transition = Tuple[bc.backend.int_, bc.backend.int_]
 TransitionsTuple = Tuple[Transition, ...]
 
 # Cooper pair box / transmon
@@ -77,18 +77,18 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         dictionary with evals diagonalization options
     """
 
-    EJ = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    EC = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    ng = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    ncut = descriptors.WatchedProperty(int, "QUANTUMSYSTEM_UPDATE")
+    EJ = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    EC = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    ng = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    ncut = descriptors.WatchedProperty(bc.backend.int_, "QUANTUMSYSTEM_UPDATE")
 
     def __init__(
         self,
-        EJ: float,
-        EC: float,
-        ng: float,
-        ncut: int,
-        truncated_dim: int = 6,
+        EJ: bc.backend.float_,
+        EC: bc.backend.float_,
+        ng: bc.backend.float_,
+        ncut: bc.backend.int_,
+        truncated_dim: bc.backend.int_ = 6,
         id_str: Optional[str] = None,
         evals_method: Union[Callable, str, None] = None,
         evals_method_options: Union[dict, None] = None,
@@ -133,15 +133,15 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         noise_channels.remove("t1_charge_impedance")
         return noise_channels
 
-    def _hamiltonian_diagonal(self) -> ndarray:
+    def _hamiltonian_diagonal(self) -> bc.backend.ndarray:
         dimension = self.hilbertdim()
         return 4.0 * self.EC * (bc.backend.arange(dimension) - self.ncut - self.ng) ** 2
 
-    def _hamiltonian_offdiagonal(self) -> ndarray:
+    def _hamiltonian_offdiagonal(self) -> bc.backend.ndarray:
         dimension = self.hilbertdim()
         return bc.backend.full(shape=(dimension - 1,), fill_value=-self.EJ / 2.0)
 
-    def _evals_calc(self, evals_count: int) -> ndarray:
+    def _evals_calc(self, evals_count: bc.backend.int_) -> bc.backend.ndarray:
         diagonal = self._hamiltonian_diagonal()
         off_diagonal = self._hamiltonian_offdiagonal()
 
@@ -149,7 +149,7 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
             H = bc.backend.diag(diagonal) + bc.backend.diag(off_diagonal, 1) + bc.backend.diag(off_diagonal, -1)
             evals, _ = bc.backend.eigh(H)
         else:
-            evals = sp.linalg.eigvalsh_tridiagonal(
+            evals = bc.backend.eigvalsh_tridiagonal(
                 diagonal,
                 off_diagonal,
                 select="i",
@@ -159,7 +159,7 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
 
         return evals
 
-    def _esys_calc(self, evals_count: int) -> Tuple[ndarray, ndarray]:
+    def _esys_calc(self, evals_count: bc.backend.int_) -> Tuple[bc.backend.ndarray, bc.backend.ndarray]:
         diagonal = self._hamiltonian_diagonal()
         off_diagonal = self._hamiltonian_offdiagonal()
 
@@ -169,7 +169,7 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
             evals = evals[:evals_count]
             evecs = evecs[:, :evals_count]
         else:
-            evals, evecs = sp.linalg.eigh_tridiagonal(
+            evals, evecs = bc.backend.eigh_tridiagonal(
                 diagonal,
                 off_diagonal,
                 select="i",
@@ -181,8 +181,8 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
 
     @staticmethod
     def find_EJ_EC(
-        E01: float, anharmonicity: float, ng=0, ncut=30
-    ) -> Tuple[float, float]:
+        E01: bc.backend.float_, anharmonicity: bc.backend.float_, ng=0, ncut=30
+    ) -> Tuple[bc.backend.float_, bc.backend.float_]:
         """
         Finds the EJ and EC values given a qubit splitting `E01` and `anharmonicity`.
 
@@ -204,7 +204,7 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         tmon = Transmon(EJ=10.0, EC=0.1, ng=ng, ncut=ncut)
         start_EJ_EC = bc.backend.array([tmon.EJ, tmon.EC])
 
-        def cost_func(EJ_EC: Tuple[float, float]) -> float:
+        def cost_func(EJ_EC: Tuple[bc.backend.float_, bc.backend.float_]) -> bc.backend.float_:
             EJ, EC = EJ_EC
             tmon.EJ = EJ
             tmon.EC = EC
@@ -232,7 +232,7 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         return result if bc.backend.__name__ == "jax" else result.x
 
     def n_operator(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
     ) -> ndarray:
         """
         Returns charge operator n in the charge or eigenenergy basis.
@@ -258,8 +258,8 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def exp_i_phi_operator(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         """
         Returns operator :math:`e^{i\\varphi}` in the charge or eigenenergy basis.
 
@@ -284,8 +284,8 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         return self.process_op(native_op=exp_op, energy_esys=energy_esys)
 
     def cos_phi_operator(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         """
         Returns operator :math:`\\cos \\varphi` in the charge or eigenenergy basis.
 
@@ -309,8 +309,8 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         return self.process_op(native_op=cos_op, energy_esys=energy_esys)
 
     def sin_phi_operator(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         """
         Returns operator :math:`\\sin \\varphi` in the charge or eigenenergy basis.
 
@@ -334,8 +334,8 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         return self.process_op(native_op=sin_op, energy_esys=energy_esys)
 
     def hamiltonian(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         """
         Returns Hamiltonian in the charge or eigenenergy basis.
 
@@ -368,8 +368,8 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         )
 
     def d_hamiltonian_d_ng(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         """
         Returns operator representing a derivative of the Hamiltonian with respect to
         charge offset `ng` in the charge or eigenenergy basis.
@@ -393,8 +393,8 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
     def d_hamiltonian_d_EJ(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         """
         Returns operator representing a derivative of the Hamiltonian with respect to
         EJ in the charge or eigenenergy basis.
@@ -417,11 +417,11 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         native = -self.cos_phi_operator()
         return self.process_op(native_op=native, energy_esys=energy_esys)
 
-    def hilbertdim(self) -> int:
+    def hilbertdim(self) -> bc.backend.int_:
         """Returns Hilbert space dimension"""
         return 2 * self.ncut + 1
 
-    def potential(self, phi: Union[float, ndarray]) -> ndarray:
+    def potential(self, phi: Union[bc.backend.float_, bc.backend.ndarray]) -> bc.backend.ndarray:
         """Transmon phase-basis potential evaluated at `phi`.
 
         Parameters
@@ -433,10 +433,10 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
 
     def plot_n_wavefunction(
         self,
-        esys: Tuple[ndarray, ndarray] = None,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
         mode: str = "real",
-        which: int = 0,
-        nrange: Tuple[int, int] = None,
+        which: bc.backend.int_ = 0,
+        nrange: Tuple[bc.backend.int_, bc.backend.int_] = None,
         **kwargs
     ) -> Tuple[Figure, Axes]:
         """Plots transmon wave function in charge basis
@@ -467,11 +467,11 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
 
     def plot_phi_wavefunction(
         self,
-        esys: Tuple[ndarray, ndarray] = None,
-        which: int = 0,
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
+        which: bc.backend.int_ = 0,
         phi_grid: Grid1d = None,
         mode: str = "abs_sqr",
-        scaling: float = None,
+        scaling: bc.backend.float_ = None,
         **kwargs
     ) -> Tuple[Figure, Axes]:
         """Alias for plot_wavefunction"""
@@ -485,7 +485,7 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         )
 
     def numberbasis_wavefunction(
-        self, esys: Tuple[ndarray, ndarray] = None, which: int = 0
+        self, esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None, which: bc.backend.int_ = 0
     ) -> WaveFunction:
         """Return the transmon wave function in number basis. The specific index of the
         wave function to be returned is `which`.
@@ -509,8 +509,8 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
 
     def wavefunction(
         self,
-        esys: Optional[Tuple[ndarray, ndarray]] = None,
-        which: int = 0,
+        esys: Optional[Tuple[bc.backend.ndarray, bc.backend.ndarray]] = None,
+        which: bc.backend.int_ = 0,
         phi_grid: Grid1d = None,
     ) -> WaveFunction:
         """Return the transmon wave function in phase basis. The specific index of the
@@ -556,12 +556,12 @@ class Transmon(base.QubitBaseClass1d, serializers.Serializable, NoisySystem):
         self,
         dispersion_name: str,
         param_name: str,
-        param_vals: ndarray,
+        param_vals: bc.backend.ndarray,
         transitions_tuple: TransitionsTuple = ((0, 1),),
         levels_tuple: Optional[LevelsTuple] = None,
         point_count: int = 50,
-        num_cpus: Optional[int] = None,
-    ) -> Tuple[ndarray, ndarray]:
+        num_cpus: Optional[bc.backend.int_] = None,
+    ) -> Tuple[bc.backend.ndarray, bc.backend.ndarray]:
         if dispersion_name != "ng":
             return super()._compute_dispersion(
                 dispersion_name,
@@ -672,19 +672,19 @@ class TunableTransmon(Transmon, serializers.Serializable, NoisySystem):
         dictionary with evals diagonalization options
     """
 
-    EJmax = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    d = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
-    flux = descriptors.WatchedProperty(float, "QUANTUMSYSTEM_UPDATE")
+    EJmax = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    d = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
+    flux = descriptors.WatchedProperty(bc.backend.float_, "QUANTUMSYSTEM_UPDATE")
 
     def __init__(
         self,
-        EJmax: float,
-        EC: float,
-        d: float,
-        flux: float,
-        ng: float,
-        ncut: int,
-        truncated_dim: int = 6,
+        EJmax: bc.backend.float_,
+        EC: bc.backend.float_,
+        d: bc.backend.float_,
+        flux: bc.backend.float_,
+        ng: bc.backend.float_,
+        ncut: bc.backend.int_,
+        truncated_dim: bc.backend.int_ = 6,
         id_str: Optional[str] = None,
         evals_method: Optional[str] = None,
         evals_method_options: Optional[dict] = None,
@@ -710,7 +710,7 @@ class TunableTransmon(Transmon, serializers.Serializable, NoisySystem):
         self._default_n_range = (-5, 6)
 
     @property
-    def EJ(self) -> float:  # type: ignore
+    def EJ(self) -> bc.backend.float_:  # type: ignore
         """This is the effective, flux dependent Josephson energy, playing the role
         of EJ in the parent class `Transmon`"""
         return self.EJmax * bc.backend.sqrt(
@@ -742,8 +742,8 @@ class TunableTransmon(Transmon, serializers.Serializable, NoisySystem):
         ]
 
     def d_hamiltonian_d_flux(
-        self, energy_esys: Union[bool, Tuple[ndarray, ndarray]] = False
-    ) -> ndarray:
+        self, energy_esys: Union[bool, Tuple[bc.backend.ndarray, bc.backend.ndarray]] = False
+    ) -> bc.backend.ndarray:
         r"""Returns operator representing a derivative of the Hamiltonian with respect to
         `flux` in the charge or eigenenergy basis.
 
@@ -794,12 +794,12 @@ class TunableTransmon(Transmon, serializers.Serializable, NoisySystem):
         self,
         dispersion_name: str,
         param_name: str,
-        param_vals: ndarray,
+        param_vals: bc.backend.ndarray,
         transitions_tuple: TransitionsTuple = ((0, 1),),
         levels_tuple: Optional[LevelsTuple] = None,
-        point_count: int = 50,
-        num_cpus: Optional[int] = None,
-    ) -> Tuple[ndarray, ndarray]:
+        point_count: bc.backend.int_ = 50,
+        num_cpus: Optional[bc.backend.int_] = None,
+    ) -> Tuple[bc.backend.ndarray, bc.backend.ndarray]:
         if dispersion_name != "flux":
             return super()._compute_dispersion(
                 dispersion_name,
