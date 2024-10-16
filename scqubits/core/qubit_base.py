@@ -557,7 +557,7 @@ class QubitBaseClass(QuantumSystem, ABC):
         evals = esys[0][: self.truncated_dim]
         if isinstance(native_hamiltonian, bc.backend.ndarray):
             return bc.backend.diag(evals)
-        return bc.backend.solve_csc_matrix(bc.backend.dia_matrix(evals))
+        return bc.backend.to_csc_matrix(bc.backend.dia_matrix(evals))
     
     # def process_hamiltonian_fwd(
     #     self,

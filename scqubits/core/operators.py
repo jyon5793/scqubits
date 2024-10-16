@@ -36,7 +36,7 @@ def annihilation_sparse(dimension: bc.backend.int) ->bc.backend.csc_matrix:
 
     offdiag_elements = bc.backend.sqrt(bc.backend.arange(dimension))
         
-    return bc.backend.solve_csc_matrix(bc.backend.dia_matrix(
+    return bc.backend.to_csc_matrix(bc.backend.dia_matrix(
         (offdiag_elements, [1]), shape=(dimension, dimension)
     ))
 
@@ -53,7 +53,7 @@ def creation_sparse(dimension: bc.backend.int_) -> bc.backend.csc_matrix:
     """Returns a matrix of size dimension x dimension representing the creation operator
     in the format of a scipy sparse.csc_matrix
     """
-    return bc.backend.solve_csc_matrix(annihilation_sparse(dimension).transpose())
+    return bc.backend.to_csc_matrix(annihilation_sparse(dimension).transpose())
 
 
 def hubbard_sparse(j1: bc.backend.int_, j2: bc.backend.int_, dimension: bc.backend.int_) -> bc.backend.csc_matrix:
@@ -121,7 +121,7 @@ def number_sparse(
     diag_elements = bc.backend.arange(dimension, dtype=bc.backend.float_)
     if prefactor:
         diag_elements *= prefactor
-    return bc.backend.solve_csc_matrix(bc.backend.dia_matrix(
+    return bc.backend.to_csc_matrix(bc.backend.dia_matrix(
         (diag_elements, [0]), shape=(dimension, dimension), dtype=bc.backend.float_
     ))
 

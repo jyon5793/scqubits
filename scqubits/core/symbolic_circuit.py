@@ -1300,7 +1300,7 @@ class SymbolicCircuit(serializers.Serializable):
         for branch in branches_with_inductance:
             if len(set(branch.nodes)) > 1:  # branch if shorted is not considered
                 inductance = branch.parameters["EL"]
-                if type(inductance) != bc.backend.float_ and substitute_params:
+                if type(inductance) != float and substitute_params:
                     inductance = param_init_vals_dict[inductance]
                 if self.is_grounded:
                     L_mat[branch.nodes[0].index, branch.nodes[1].index] += -inductance
@@ -1359,7 +1359,7 @@ class SymbolicCircuit(serializers.Serializable):
                 capacitance = branch.parameters[
                     _capactiance_variable_for_branch(branch.type)
                 ]
-                if type(capacitance) != bc.backend.float_ and substitute_params:
+                if type(capacitance) != float and substitute_params:
                     capacitance = param_init_vals_dict[capacitance]
                 if self.is_grounded:
                     C_mat[branch.nodes[0].index, branch.nodes[1].index] += -1 / (

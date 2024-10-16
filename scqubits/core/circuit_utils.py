@@ -244,7 +244,7 @@ def _phi_operator(grid: discretization.Grid1d) -> bc.backend.csc_matrix:
     phi_matrix = bc.backend.dia_matrix((pt_count, pt_count))
     diag_elements = grid.make_linspace()
     phi_matrix.setdiag(diag_elements)
-    return bc.backend.solve_csc_matrix(phi_matrix)
+    return bc.backend.to_csc_matrix(phi_matrix)
 
 
 def _i_d_dphi_operator(grid: discretization.Grid1d) -> bc.backend.csc_matrix:
@@ -297,7 +297,7 @@ def _cos_phi(grid: discretization.Grid1d) -> bc.backend.csc_matrix:
     # cos_op = sparse.dia_matrix((pt_count, pt_count))
     diag_elements = bc.backend.cos(grid.make_linspace())
     cos_op.setdiag(diag_elements)
-    return bc.backend.solve_csc_matrix(cos_op)
+    return bc.backend.to_csc_matrix(cos_op)
 
 
 def _sin_phi(grid: discretization.Grid1d) -> bc.backend.csc_matrix:
@@ -318,7 +318,7 @@ def _sin_phi(grid: discretization.Grid1d) -> bc.backend.csc_matrix:
     sin_op = bc.backend.dia_matrix((pt_count, pt_count))
     diag_elements = bc.backend.sin(grid.make_linspace())
     sin_op.setdiag(diag_elements)
-    return bc.backend.solve_csc_matrix(sin_op)
+    return bc.backend.to_csc_matrix(sin_op)
 
 
 def _identity_theta(ncut: bc.backend.int) -> bc.backend.csc_matrix:
@@ -335,7 +335,7 @@ def _n_theta_operator(ncut: bc.backend.int) -> bc.backend.csc_matrix:
     """
     dim_theta = 2 * ncut + 1
     diag_elements = bc.backend.arange(-ncut, ncut + 1)
-    n_theta_matrix = bc.backend.solve_csc_matrix(bc.backend.dia_matrix(
+    n_theta_matrix = bc.backend.to_csc_matrix(bc.backend.dia_matrix(
         (diag_elements, [0]), shape=(dim_theta, dim_theta)
     ))
     return n_theta_matrix
@@ -348,7 +348,7 @@ def _exp_i_theta_operator(ncut, prefactor=1) -> bc.backend.csc_matrix:
     # if type(prefactor) != int:
     #     raise ValueError("Prefactor must be an integer")
     dim_theta = 2 * ncut + 1
-    matrix = bc.backend.solve_csc_matrix(bc.backend.dia_matrix(
+    matrix = bc.backend.to_csc_matrix(bc.backend.dia_matrix(
         (bc.backend.ones(dim_theta), [-prefactor]),
         shape=(dim_theta, dim_theta),
     ))
@@ -360,7 +360,7 @@ def _exp_i_theta_operator_conjugate(ncut) ->  bc.backend.csc_matrix:
     Operator :math:`\cos(\theta)`, acting only on the `\theta` Hilbert subspace.
     """
     dim_theta = 2 * ncut + 1
-    matrix = bc.backend.solve_csc_matrix(bc.backend.dia_matrix(
+    matrix = bc.backend.to_csc_matrix(bc.backend.dia_matrix(
         (bc.backend.ones(dim_theta), [1]),
         shape=(dim_theta, dim_theta),
     ))
@@ -513,7 +513,7 @@ def _cos_dia(x: bc.backend.csc_matrix) -> bc.backend.csc_matrix:
     Take the diagonal of the array x, compute its cosine, and fill the result into
     the diagonal of a sparse matrix
     """
-    return bc.backend.solve_csc_matrix(bc.backend.diags(bc.backend.cos(x.diagonal())))
+    return bc.backend.to_csc_matrix(bc.backend.diags(bc.backend.cos(x.diagonal())))
 
 
 def _sin_dia(x: csc_matrix) -> bc.backend.csc_matrix:
@@ -521,7 +521,7 @@ def _sin_dia(x: csc_matrix) -> bc.backend.csc_matrix:
     Take the diagonal of the array x, compute its sine, and fill the result into
     the diagonal of a sparse matrix.
     """
-    return bc.backend.solve_csc_matrix(bc.backend.diags(bc.backend.sin(x.diagonal())))
+    return bc.backend.to_csc_matrix(bc.backend.diags(bc.backend.sin(x.diagonal())))
 
 
 def _sin_dia_dense(x: bc.backend.ndarray) -> bc.backend.ndarray:
@@ -539,7 +539,7 @@ def _cos_dia_dense(x: bc.backend.ndarray) -> bc.backend.ndarray:
 
 
 def matrix_power_sparse(dense_mat:  bc.backend.ndarray, n:  bc.backend.int) ->  bc.backend.csc_matrix:
-    sparse_mat = bc.backend.solve_csc_matrix(dense_mat)
+    sparse_mat = bc.backend.to_csc_matrix(dense_mat)
     return sparse_mat**n
 
 

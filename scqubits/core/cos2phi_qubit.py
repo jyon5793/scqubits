@@ -1142,7 +1142,7 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
 
         """
         diag_elements = bc.backend.arange(-self.ncut, self.ncut + 1)
-        return bc.backend.solve_csc_matrix(bc.backend.dia_matrix(
+        return bc.backend.to_csc_matrix(bc.backend.dia_matrix(
             (diag_elements, [0]), shape=(self._dim_theta(), self._dim_theta())
         ))
 
@@ -1193,14 +1193,14 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
         """
         cos_op = (
             0.5
-            * bc.backend.solve_csc_matrix(bc.backend.dia_matrix(
+            * bc.backend.to_csc_matrix(bc.backend.dia_matrix(
                 (bc.backend.ones(self._dim_theta()), [1]),
                 shape=(self._dim_theta(), self._dim_theta()),
             ))
         )
         cos_op += (
             0.5
-            * bc.backend.solve_csc_matrix(bc.backend.dia_matrix(
+            * bc.backend.to_csc_matrix(bc.backend.dia_matrix(
                 (bc.backend.ones(self._dim_theta()), [-1]),
                 shape=(self._dim_theta(), self._dim_theta()),
             ))
@@ -1223,14 +1223,14 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
         """
         sin_op = (
             0.5
-            * bc.backend.solve_csc_matrix(bc.backend.dia_matrix(
+            * bc.backend.to_csc_matrix(bc.backend.dia_matrix(
                 (bc.backend.ones(self._dim_theta()), [-1]),
                 shape=(self._dim_theta(), self._dim_theta()),
             ))
         )
         sin_op -= (
             0.5
-            * bc.backend.solve_csc_matrix(bc.backend.dia_matrix(
+            * bc.backend.to_csc_matrix(bc.backend.dia_matrix(
                 (bc.backend.ones(self._dim_theta()), [1]),
                 shape=(self._dim_theta(), self._dim_theta()),
             ))
@@ -1426,7 +1426,7 @@ class Cos2PhiQubit(base.QubitBaseClass, serializers.Serializable, NoisyCos2PhiQu
             + disorder_j
             + disorder_c
         )
-        native = bc.backend.solve_csc_matrix(hamiltonian_mat)
+        native = bc.backend.to_csc_matrix(hamiltonian_mat)
         return self.process_hamiltonian(
             native_hamiltonian=native, energy_esys=energy_esys
         )

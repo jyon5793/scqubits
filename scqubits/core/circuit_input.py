@@ -7,6 +7,7 @@ from pyparsing import Group, Opt, Or, Literal, Suppress
 import numpy as np
 import scipy as sp
 import sympy as sm
+import scqubits.backend_change as bc
 
 # *****************************************************************
 #  OUR GRAMMAR DEFINITIONS
@@ -263,13 +264,13 @@ def process_param(pattern):
     """
     name = pattern.getName()
     if name == "ASSIGN":
-        sym = sm.symbols(pattern[0])
+        sym = bc.backend.sympy.symbols(pattern[0])
         val = pattern[1]
         units = None if pattern[-1] == None else pattern[-2:]
         val_converted = convert_value_to_GHz(val, units)
         return sym, val_converted
     if name == "SYMBOL":
-        return sm.symbols(pattern[0]), None
+        return bc.backend.sympy.symbols(pattern[0]), None
     if name == "VALUE":
         units = None if pattern[-1] == None else pattern[-2:]
         converted_val = convert_value_to_GHz(pattern[0], units)

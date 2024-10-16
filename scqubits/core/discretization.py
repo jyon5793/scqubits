@@ -75,7 +75,7 @@ def band_matrix(
     vectors = [ones_vector * number for number in band_coeffs]
     matrix = bc.backend.dia_matrix((vectors, band_offsets), shape=(dim, dim), dtype=dtype)
     if not has_corners:
-        return bc.backend.solve_csc_matrix(matrix)
+        return bc.backend.to_csc_matrix(matrix)
     for index, offset in enumerate(band_offsets):
         if offset < 0:
             corner_offset = dim + offset
@@ -88,7 +88,7 @@ def band_matrix(
         else:  # when offset == 0
             continue
         matrix.setdiag(corner_band, k=corner_offset)
-    return bc.backend.solve_csc_matrix(matrix)
+    return bc.backend.to_csc_matrix(matrix)
 
 
 class Grid1d(dispatch.DispatchClient, serializers.Serializable):
@@ -192,7 +192,7 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
         derivative_matrix = band_matrix(
             matrix_diagonals, offset, self.pt_count, dtype=dtp, has_corners=periodic
         )
-        return bc.backend.solve_csc_matrix(derivative_matrix)
+        return bc.backend.to_csc_matrix(derivative_matrix)
 
     def second_derivative_matrix(
         self, prefactor: Union[bc.backend.float_, bc.backend.complex_] = 1.0, periodic: bool = False
@@ -226,7 +226,7 @@ class Grid1d(dispatch.DispatchClient, serializers.Serializable):
         derivative_matrix = band_matrix(
             matrix_diagonals, offset, self.pt_count, dtype=dtp, has_corners=periodic
         )
-        return bc.backend.solve_csc_matrix(derivative_matrix)
+        return bc.backend.to_csc_matrix(derivative_matrix)
 
 
 class GridSpec(dispatch.DispatchClient, serializers.Serializable):

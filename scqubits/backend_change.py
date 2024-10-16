@@ -8,6 +8,8 @@ from scipy.special import pbdv
 import scipy as sp
 import jax.experimental.sparse as jsp
 from jax import jit
+import sympy
+import sympy2jax
 
 class Backend(object):
     int = np.int64
@@ -33,6 +35,7 @@ class Backend(object):
 class NumpyBackend(Backend):
     # numpy methods
     __name__ = 'numpy'
+    sympy = sympy
     dtype = staticmethod(np.dtype)
     array = staticmethod(np.array)
     dot = staticmethod(np.dot)
@@ -149,7 +152,7 @@ class NumpyBackend(Backend):
         return matrix.asformat(format)
     
     @staticmethod
-    def solve_csc_matrix(matrix):
+    def to_csc_matrix(matrix):
         # 如果输入是稠密矩阵或其他类型，转换为 CSC 格式
         if isinstance(matrix, np.ndarray):
             return sparse.csc_matrix(matrix)
@@ -200,6 +203,7 @@ class NumpyBackend(Backend):
 
 class JaxBackend(Backend):
     __name__ = 'jax'
+    scipy = sympy2jax
     dtype = staticmethod(jax.numpy.dtype)
     ndarray = staticmethod(jax.numpy.array)
     int = staticmethod(jax.numpy.int64)
@@ -277,8 +281,8 @@ class JaxBackend(Backend):
     allclose = staticmethod(jax.numpy.allclose)
     stack = staticmethod(jax.numpy.stack)
     custom_vjp = staticmethod(jax.custom_jvp)
-    csc_matrix = staticmethod(jsp.BCOO)
-    coo_matrix = staticmethod(jsp.BCOO)
+    csc_matrix = staticmethod(jsp.CSC)
+    coo_matrix = staticmethod(jsp.COO)
     scipy = staticmethod(jax.scipy)
     grad = staticmethod(jax.grad)
     value_and_grad = staticmethod(jax.value_and_grad)
@@ -333,12 +337,18 @@ class JaxBackend(Backend):
         data = jax.numpy.ones(n)
         indices = jax.numpy.arange(n)[:, None]  # 行和列的索引是相同的
         indices = jax.numpy.hstack([indices, indices])  # 构造 (row, col) 索引对
+        if format == "csc":
+            # 如果 format 是 "csc"，创建 CSC 稀疏矩阵
+            return jsp.CSC((data, indices), shape=(n, n))
+        elif format == "array":
+            return jsp.BCOO((data, indices), shape=(n, n)).todense
 
         # 创建 BCOO 稀疏单位矩阵
         return jsp.BCOO((data, indices), shape=(n, n))
 
     @staticmethod
     def spkron(a: jsp.BCOO, b: jsp.BCOO, format=None):
+        # 获取 a 和 b 的数据及索引
         a_data, a_indices = a.data, a.indices
         b_data, b_indices = b.data, b.indices
 
@@ -351,7 +361,7 @@ class JaxBackend(Backend):
 
         # 构建 Kronecker 积的数据和索引
         result_data = jax.numpy.kron(a_data, b_data)
-        
+
         row_indices_a = a_indices[:, 0][:, None]
         col_indices_a = a_indices[:, 1][:, None]
         row_indices_b = b_indices[:, 0]
@@ -361,7 +371,13 @@ class JaxBackend(Backend):
         result_indices_col = col_indices_a * b_shape[1] + col_indices_b
         result_indices = jax.numpy.hstack([result_indices_row, result_indices_col])
 
-        return jsp.BCOO((result_data, result_indices), shape=result_shape)
+        # 根据 `format` 参数，返回不同的矩阵类型
+        if format == "csc":
+            return jsp.CSC((result_data, result_indices), shape=result_shape)
+        elif format == "array":
+            return jsp.BCOO((result_data, result_indices), shape=result_shape).todense()
+        else:
+            return jsp.BCOO((result_data, result_indices), shape=result_shape)
 
     @staticmethod
     def convert_to_array(obj_list):
@@ -389,14 +405,14 @@ class JaxBackend(Backend):
     
     @staticmethod
     def is_sparse(matrix):
-        if isinstance(matrix, jsp.BCOO):
+        if isinstance(matrix, jsp.BCOO) or isinstance(matrixt, jsp.COO) or isinstance(matrix, jsp.CSC):
             return True
         else:
             return False
 
     @staticmethod
     def to_dense(matrix):
-        if isinstance(matrix, jsp.BCOO):
+        if isinstance(matrix, jsp.BCOO) or isinstance(matrixt, jsp.COO) or isinstance(matrix, jsp.CSC):
             return matrix.todense()
         return matrix
         
@@ -465,7 +481,7 @@ class JaxBackend(Backend):
         return jsp.BCOO((data, indices), shape=shape)
     
     @staticmethod
-    def solve_csc_matrix(matrix):
+    def to_csc_matrix(matrix):
         if isinstance(matrix, scipy.sparse.csc_matrix):
             # Extract data, indices, and indptr from the CSC matrix
             data = matrix.data
@@ -488,13 +504,12 @@ class JaxBackend(Backend):
             # Create BCOO sparse matrix in JAX
             data = jax.numpy.array(data)
             bcoo_matrix = jsp.BCOO((data, coo_indices), shape=shape)
-
-            return bcoo_matrix
-
-        elif isinstance(matrix, jsp.BCOO):
+            # If format is "csc", create a CSC sparse matrix
+            return jsp.CSC((data, coo_indices), shape=shape)
+            
+        elif isinstance(matrix, jsp.CSC) or isinstance(matrix, jsp.BCOO):
             # If it's already a BCOO matrix, return it as-is
-            return matrix
-        
+            return jsp.CSC(matrix.data, shape=matrix.shape)
         else:
             # If input is not a recognized sparse type, raise an error
             raise TypeError("Input matrix must be either a scipy.sparse.csc_matrix or a JAX BCOO matrix.")
