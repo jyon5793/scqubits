@@ -2958,8 +2958,8 @@ class CircuitRoutines(ABC):
     def set_bare_eigensys(self, eigensys):
         if not self.hierarchical_diagonalization:
             return None
-        bare_evals = create_empty_array(len(self.subsystems))
-        bare_evecs = create_empty_array(len(self.subsystems))
+        bare_evals = np.empty((len(self.subsystems),), dtype=object)
+        bare_evecs = np.empty((len(self.subsystems),), dtype=object)
 
         for subsys_idx, subsys in enumerate(self.subsystems):
             if subsys.hierarchical_diagonalization:

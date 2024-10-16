@@ -40,7 +40,7 @@ else:
     from tqdm import tqdm
 
 
-def process_which(which: Union[int, Iterable[int]], max_index: int) -> List[int]:
+def process_which(which: Union[bc.backend.int_, Iterable[bc.backend.int_]], max_index: bc.backend.int_) -> List[int]:
     """Processes different ways of specifying the selection of  wanted
     eigenvalues/eigenstates.
 
@@ -63,7 +63,7 @@ def process_which(which: Union[int, Iterable[int]], max_index: int) -> List[int]
     return list(which)
 
 
-def make_bare_labels(subsystem_count: int, *args) -> Tuple[int, ...]:
+def make_bare_labels(subsystem_count: bc.backend.int_, *args) -> Tuple[bc.backend.int_, ...]:
     """
     For two given subsystem states, return the full-system bare state label obtained
     by placing all remaining subsys_list in their ground states.
@@ -103,7 +103,7 @@ class InfoBar:
         Number of CPUS/cores employed in underlying calculation.
     """
 
-    def __init__(self, desc: str, num_cpus: int) -> None:
+    def __init__(self, desc: str, num_cpus: bc.backend.int_) -> None:
         self.desc = desc
         self.num_cpus = num_cpus
         self.tqdm_bar = None
@@ -471,7 +471,7 @@ def unique_elements_in_list(list_object: list) -> list:
     return unique_list
 
 
-def number_of_lists_in_list(list_object: list) -> int:
+def number_of_lists_in_list(list_object: list) -> bc.backend.int_:
     """
     Takes a list as an argument and returns the number of lists in that list. (Counts lists at root level only, no
     recursion.)

@@ -81,7 +81,7 @@ def eigsh_safe_bwd(residuals, g):
 eigsh_safe = bc.backend.bind_custom_vjp(eigsh_safe_fwd, eigsh_safe_bwd,eigsh_safe)
 
 
-def has_degeneracy(evals: ndarray) -> bool:
+def has_degeneracy(evals: bc.backendndarray) -> bool:
     evals_rightpad = bc.backend.pad(evals, (0, 1))
     evals_leftpad = bc.backend.pad(evals, (1, 0))
     evals_neighbor_diffs = evals_leftpad - evals_rightpad
@@ -89,7 +89,7 @@ def has_degeneracy(evals: ndarray) -> bool:
 
 
 def order_eigensystem(
-    evals: bc.backend.ndarray, evecs: bc.backend.ndarray
+    evals: bc.backend.bc.backendndarray, evecs: bc.backend.ndarray
 ) -> Tuple[bc.backend.ndarray, bc.backend.ndarray]:
     """Takes eigenvalues and corresponding eigenvectors and orders them (in place)
     according to the eigenvalues (from smallest to largest; real valued eigenvalues
@@ -133,7 +133,7 @@ order_eigensystem = bc.backend.bind_custom_vjp(order_eigensystem_fwd, order_eige
 
 
 def extract_phase(
-    complex_array: bc.backend.ndarray, position: Optional[Tuple[int, ...]] = None
+    complex_array: bc.backend.ndarray, position: Optional[Tuple[bc.backend.int_, ...]] = None
 ) -> bc.backend.float_:
     """Extracts global phase from `complex_array` at given `position`. If position is
     not specified, the `position` is set as follows. Find the maximum between the
@@ -149,7 +149,7 @@ def extract_phase(
     """
     from scqubits.backend_change import backend_dependent_vjp
     @backend_dependent_vjp
-    def extract_phase_impl(complex_array: bc.backend.ndarray, position: Optional[Tuple[int, ...]] = None) -> float:
+    def extract_phase_impl(complex_array: bc.backend.ndarray, position: Optional[Tuple[bc.backend.int_, ...]] = None) -> bc.backend.float_:
         if position is None:
             halfway_position = (complex_array.shape[0]) // 2
             flattened_position = bc.backend.argmax(
@@ -209,9 +209,9 @@ def standardize_sign(real_array: bc.backend.ndarray) -> bc.backend.ndarray:
 
 def matrix_element(
     state1: Union[bc.backend.ndarray, qt.Qobj],
-    operator: Union[bc.backend.ndarray, csc_matrix, qt.Qobj],
+    operator: Union[bc.backend.ndarray, bc.backend.csc_matrix, qt.Qobj],
     state2: Union[bc.backend.ndarray, qt.Qobj],
-) -> Union[float, complex]:
+) -> Union[bc.backend.float_, bc.backend.complex_]:
     """Calculate the matrix element `<state1|operator|state2>`.
 
     Parameters
@@ -246,7 +246,7 @@ def matrix_element(
 
 
 def get_matrixelement_table(
-    operator: Union[bc.backend.ndarray, csc_matrix, dia_matrix, qt.Qobj],
+    operator: Union[bc.backend.ndarray, bc.backend.csc_matrix, bc.backend.dia_matrix, qt.Qobj],
     state_table: Union[bc.backend.ndarray, qt.Qobj],
 ) -> bc.backend.ndarray:
     """Calculates a table of matrix elements.
@@ -273,7 +273,7 @@ def get_matrixelement_table(
 
 
 def closest_dressed_energy(
-    bare_energy: float, dressed_energy_vals: bc.backend.ndarray
+    bare_energy: bc.backend.float_, dressed_energy_vals: bc.backend.ndarray
 ) -> bc.backend.float_:
     """For a given bare energy value, this returns the closest lying dressed energy
     value from an array.
@@ -321,7 +321,7 @@ def get_eigenstate_index_maxoverlap(
     eigenstates_qobj: "QutipEigenstates",
     reference_state_qobj: qt.Qobj,
     return_overlap: bool = False,
-) -> Union[int, Tuple[int, float], None]:
+) -> Union[bc.backend.int_, Tuple[bc.backend.int_, bc.backend.float_], None]:
     """For given list of qutip states, find index of the state that has largest
     overlap with the qutip ket `reference_state_qobj`. If `|overlap|` is smaller than
     0.5, return None.
@@ -374,13 +374,13 @@ def emission_spectrum(spectrum_data: "SpectrumData") -> "SpectrumData":
     select state, and multiplying the result by -1. Resulting negative frequencies,
     corresponding to absorption instead, are omitted.
     """
-    assert isinstance(spectrum_data.energy_table, ndarray)
+    assert isinstance(spectrum_data.energy_table, bc.backend.ndarray)
     spectrum_data.energy_table *= -1.0
     spectrum_data.energy_table = spectrum_data.energy_table.clip(min=0.0)  # type:ignore
     return spectrum_data
 
 
-def convert_evecs_to_ndarray(evecs_qutip: ndarray) -> bc.backend.ndarray:
+def convert_evecs_to_ndarray(evecs_qutip: bc.backend.ndarray) -> bc.backend.ndarray:
     """Takes a qutip eigenstates array, as obtained with .eigenstates(), and converts
     it into a pure numpy array.
 
@@ -403,7 +403,7 @@ def convert_evecs_to_ndarray(evecs_qutip: ndarray) -> bc.backend.ndarray:
 
 
 def convert_matrix_to_qobj(
-    operator: Union[bc.backend.ndarray, csc_matrix, dia_matrix],
+    operator: Union[bc.backend.ndarray, bc.backend.csc_matrix, bc.backend.dia_matrix],
     subsystem: Union["QubitBaseClass", "Oscillator"],
     op_in_eigenbasis: bool,
     evecs: Optional[bc.backend.ndarray],
@@ -432,14 +432,14 @@ def convert_opstring_to_qobj(
 
 
 def convert_operator_to_qobj(
-    operator: Union[bc.backend.ndarray, csc_matrix, dia_matrix, qt.Qobj, str],
+    operator: Union[bc.backend.ndarray, bc.backend.csc_matrix, bc.backend.dia_matrix, qt.Qobj, str],
     subsystem: Union["QubitBaseClass", "Oscillator"],
     op_in_eigenbasis: bool,
     evecs: Optional[bc.backend.ndarray],
 ) -> qt.Qobj:
     if isinstance(operator, qt.Qobj):
         return operator
-    if isinstance(operator, (bc.backend.ndarray, csc_matrix, csr_matrix, dia_matrix)):
+    if isinstance(operator, (bc.backend.ndarray, bc.backend.csc_matrix, bc.backend.csr_matrix, bc.backend.dia_matrix)):
         return convert_matrix_to_qobj(operator, subsystem, op_in_eigenbasis, evecs)
     if isinstance(operator, str):
         return convert_opstring_to_qobj(operator, subsystem, evecs)
@@ -447,8 +447,8 @@ def convert_operator_to_qobj(
 
 
 def generate_target_states_list(
-    sweep: "ParameterSweep", initial_state_labels: Tuple[int, ...]
-) -> List[Tuple[int, ...]]:
+    sweep: "ParameterSweep", initial_state_labels: Tuple[bc.backend.int_, ...]
+) -> List[Tuple[bc.backend.int_, ...]]:
     """Based on a bare state label (i1, i2, ...)  with i1 being the excitation level
     of subsystem 1, i2 the excitation level of subsystem 2 etc., generate a list of
     new bare state labels. These bare state labels correspond to target states
@@ -497,11 +497,11 @@ def recast_esys_mapdata(
 
 
 def identity_wrap(
-    operator: Union[str, ndarray, Qobj, Callable],
+    operator: Union[str, bc.backend.ndarray, Qobj, Callable],
     subsystem: "QuantumSys",
     subsys_list: List["QuantumSys"],
     op_in_eigenbasis: bool = False,
-    evecs: Optional[ndarray] = None,
+    evecs: Optional[bc.backend.ndarray] = None,
 ) -> Qobj:
     """Takes the `operator` belonging to `subsystem` and "wraps" it in identities.
     The full Hilbert space is taken to consist of all subsystems given as

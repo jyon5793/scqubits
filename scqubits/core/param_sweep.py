@@ -1134,10 +1134,10 @@ class ParameterSweep(  # type:ignore
         bare_evecs = np.empty((self.subsystem_count,), dtype=object)
         # creating data arrays for subsystems, to store the esys for all subsystems when HD is used
         circuit_esys = np.empty((self.subsystem_count,), dtype=object)
-        if bc.backend.__name__ == "jax":
-            bare_evals = convert_to_jax_compatible(bare_evals)
-            bare_evecs = convert_to_jax_compatible(bare_evecs)
-            circuit_esys = convert_to_jax_compatible(circuit_esys)
+        # if bc.backend.__name__ == "jax":
+        #     bare_evals = convert_to_jax_compatible(bare_evals)
+        #     bare_evecs = convert_to_jax_compatible(bare_evecs)
+        #     circuit_esys = convert_to_jax_compatible(circuit_esys)
 
         for subsys_index, subsystem in enumerate(self.hilbertspace):
             bare_esys = self._subsys_bare_spectrum_sweep(subsystem)
@@ -1203,8 +1203,8 @@ class ParameterSweep(  # type:ignore
             return subsystem.generate_bare_eigensys()
         evals, evecs = subsystem.eigensys(evals_count=subsystem.truncated_dim)
         esys_array = np.empty(shape=(2,), dtype=object)
-        if bc.backend.__name__ == "jax":
-            esys_array = convert_to_jax_compatible(esys_array)
+        # if bc.backend.__name__ == "jax":
+        #     esys_array = convert_to_jax_compatible(esys_array)
         esys_array[0] = evals
         esys_array[1] = evecs
         return esys_array
@@ -1260,8 +1260,8 @@ class ParameterSweep(  # type:ignore
             )
 
         bare_eigendata = np.asarray(list(bare_eigendata), dtype=object)
-        if bc.backend.__name__ == "jax":
-            bare_eigendata = convert_to_jax_compatible(bare_eigendata)
+        # if bc.backend.__name__ == "jax":
+        #     bare_eigendata = convert_to_jax_compatible(bare_eigendata)
         bare_eigendata = bare_eigendata.reshape((*reduced_parameters.counts, 2))
 
         # Bare spectral data was only computed once for each parameter that has no
@@ -1309,8 +1309,8 @@ class ParameterSweep(  # type:ignore
             evals_count=evals_count, bare_esys=bare_esys  # type:ignore
         )
         esys_array = np.empty(shape=(2,), dtype=object)
-        if bc.backend.__name__ == "jax":
-            esys_array = convert_to_jax_compatible(esys_array)
+        # if bc.backend.__name__ == "jax":
+        #     esys_array = convert_to_jax_compatible(esys_array)
         esys_array[0] = evals
         esys_array[1] = evecs
         return esys_array
@@ -1351,8 +1351,8 @@ class ParameterSweep(  # type:ignore
             )
 
         spectrum_data_ndarray = np.asarray(spectrum_data, dtype=object)
-        if bc.backend.__name__ == "jax":
-            spectrum_data_ndarray = convert_to_jax_compatible(spectrum_data_ndarray)
+        # if bc.backend.__name__ == "jax":
+        #     spectrum_data_ndarray = convert_to_jax_compatible(spectrum_data_ndarray)
         spectrum_data_ndarray = spectrum_data_ndarray.reshape(
             (*self._parameters.counts, 2)
         )
