@@ -388,7 +388,7 @@ class FullZeroPi(base.QubitBaseClass, serializers.Serializable, NoisyFullZeroPi)
         hamiltonian_mat += bc.backend.spkron(
             zeropi_coupling, op.annihilation_sparse(zeta_dim)
         ) + bc.backend.spkron(zeropi_coupling.conjugate().T, op.creation_sparse(zeta_dim))
-        hmtocsc = hamiltonian_mat.tocsc()
+        hmtocsc = bc.backend.to_csc_matrix(hamiltonian_mat)
         if return_parts:
             return (
                 self.process_hamiltonian(

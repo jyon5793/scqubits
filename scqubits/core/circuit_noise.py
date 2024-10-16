@@ -186,7 +186,7 @@ class NoisyCircuit(NoisySystem, ABC):
             )
 
     def _transform_expr_to_new_variables(
-        self, expr_node_vars: sm.Expr, substitute_symbol: Optional[str] = None
+        self, expr_node_vars: backend_change.backend.sympy.Expr, substitute_symbol: Optional[str] = None
     ):
         """
         Transformation of Symbolic Expressions
@@ -206,12 +206,12 @@ class NoisyCircuit(NoisySystem, ABC):
 
         Parameters:
         ----------
-        expr_node_vars (sm.Expr): The symbolic expression to transform. This should be a sympy expression that represents a physical quantity in the circuit (e.g., the Hamiltonian, a current, a voltage, etc.) in terms of the old variables.
+        expr_node_vars (backend_change.backend.sympy.Expr): The symbolic expression to transform. This should be a sympy expression that represents a physical quantity in the circuit (e.g., the Hamiltonian, a current, a voltage, etc.) in terms of the old variables.
         substitute_symbol (str, optional): The symbol to use for the new variables. If this is provided, each free symbol in the input expression is replaced with a new symbol that has this substitute symbol followed by the trailing number of the old symbol. Defaults to None.
 
         Returns:
         -------
-        sm.Expr: The transformed expression. This is a sympy expression that represents the same physical quantity as the input expression, but in terms of the new variables.
+        backend_change.backend.sympy.Expr: The transformed expression. This is a sympy expression that represents the same physical quantity as the input expression, but in terms of the new variables.
 
         Raises:
         ------
@@ -220,8 +220,8 @@ class NoisyCircuit(NoisySystem, ABC):
         transformation_mat = self.transformation_matrix
         expr_node_vars = expr_node_vars.expand()
         num_vars = len(self.symbolic_circuit.nodes) - (1 if self.is_grounded else 0)
-        new_vars = [sm.symbols(f"θ{index}") for index in range(1, 1 + num_vars)]
-        old_vars = [sm.symbols(f"φ{index}") for index in range(1, 1 + num_vars)]
+        new_vars = [backend_change.backend.sympy.symbols(f"θ{index}") for index in range(1, 1 + num_vars)]
+        old_vars = [backend_change.backend.sympy.symbols(f"φ{index}") for index in range(1, 1 + num_vars)]
         transformed_expr = transformation_mat.dot(new_vars)
         for idx, var in enumerate(old_vars):
             expr_node_vars = expr_node_vars.subs(var, transformed_expr[idx])
@@ -230,7 +230,7 @@ class NoisyCircuit(NoisySystem, ABC):
             for var in expr_node_vars.free_symbols:
                 expr_node_vars = expr_node_vars.subs(
                     var,
-                    sm.symbols(f"{substitute_symbol}{get_trailing_number(var.name)}"),
+                    backend_change.backend.sympy.symbols(f"{substitute_symbol}{get_trailing_number(var.name)}"),
                 )
         return expr_node_vars
 
@@ -283,9 +283,9 @@ class NoisyCircuit(NoisySystem, ABC):
         ):
             hamiltonian = hamiltonian.subs(sym, getattr(parent_instance, sym.name))
         hamiltonian = hamiltonian.subs("I", 1)
-        branch_cos_node_expr = sm.cos(
-            sm.symbols(f"φ{branch_junction.nodes[0].index}")
-            - sm.symbols(f"φ{branch_junction.nodes[1].index}")
+        branch_cos_node_expr = backend_change.backend.sympy.cos(
+            backend_change.backend.sympy.symbols(f"φ{branch_junction.nodes[0].index}")
+            - backend_change.backend.sympy.symbols(f"φ{branch_junction.nodes[1].index}")
         )
         branch_cos_node_expr = branch_cos_node_expr.subs(
             "φ0", 0
@@ -304,7 +304,7 @@ class NoisyCircuit(NoisySystem, ABC):
         for flux in parent_instance.external_fluxes:
             term = term.subs(flux, getattr(parent_instance, flux.name))
         if calc == "sin_phi_qp":
-            term = term.subs(sm.cos, sm.sin)
+            term = term.subs(backend_change.backend.sympy.cos, backend_change.backend.sympy.sin)
             term = term.subs(term.args[0], term.args[0] / 2)
 
         # evaluate the expression
@@ -364,7 +364,7 @@ class NoisyCircuit(NoisySystem, ABC):
             if param_sym in junction_branches:
                 diff_func_name = "d_hamiltonian_d_EJ"
                 noise_type = "cc"
-            if isinstance(param_sym, sm.Expr):
+            if isinstance(param_sym, backend_change.backend.sympy.Expr):
                 trailing_number = get_trailing_number(param_sym.name)
                 noise_op_func = getattr(self, f"{diff_func_name}{trailing_number}")
             elif param_sym in junction_branches:
@@ -927,7 +927,7 @@ class NoisyCircuit(NoisySystem, ABC):
                 )
             else:
                 branch_param = branch.parameters["EL"]
-            if isinstance(branch_param, sm.Expr):
+            if isinstance(branch_param, backend_change.backend.sympy.Expr):
                 branch_param = getattr(parent_circuit, branch_param.name)
 
             return NoisySystem.t1_charge_impedance(
@@ -1072,7 +1072,7 @@ class NoisyCircuit(NoisySystem, ABC):
                     if branch.type == "C"
                     else branch.parameters["ECJ"]
                 )
-                if isinstance(branch_param, sm.Expr):
+                if isinstance(branch_param, backend_change.backend.sympy.Expr):
                     branch_param = getattr(parent_circuit, branch_param.name)
 
                 return NoisySystem.t1_capacitive(
@@ -1179,7 +1179,7 @@ class NoisyCircuit(NoisySystem, ABC):
 
                 branch_param = branch.parameters["EL"]
 
-                if isinstance(branch_param, sm.Expr):
+                if isinstance(branch_param, backend_change.backend.sympy.Expr):
                     branch_param = getattr(parent_circuit, branch_param.name)
 
                 return NoisySystem.t1_inductive(

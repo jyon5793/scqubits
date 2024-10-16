@@ -125,19 +125,19 @@ def make_branch(
 
     if "JJ" in branch_type:
         for idx, param in enumerate(params[:-1]):
-            params_dict[sm.symbols(f"EJ{idx + 1}" if idx > 0 else "EJ")] = (
+            params_dict[bc.backend.sympy.symbols(f"EJ{idx + 1}" if idx > 0 else "EJ")] = (
                 param[0] if param[0] is not None else param[1]
             )
 
-        params_dict[sm.symbols("EC")] = (
+        params_dict[bc.backend.sympy.symbols("EC")] = (
             params[-1][0] if params[-1][0] is not None else params[-1][1]
         )
     if branch_type == "C":
-        params_dict[sm.symbols("EC")] = (
+        params_dict[bc.backend.sympy.symbols("EC")] = (
             params[-1][0] if params[-1][0] is not None else params[-1][1]
         )
     elif branch_type == "L":
-        params_dict[sm.symbols("EL")] = (
+        params_dict[bc.backend.sympy.symbols("EL")] = (
             params[-1][0] if params[-1][0] is not None else params[-1][1]
         )
 
@@ -319,15 +319,15 @@ class SymbolicCircuit(serializers.Serializable):
 
         self.symbolic_params: Dict[Symbol, bc.backend.float_] = branch_var_dict
 
-        self.hamiltonian_symbolic: Optional[sympy.Expr] = None
+        self.hamiltonian_symbolic: Optional[bc.backend.sympy.Expr] = None
         # to store the internally used lagrangian
-        self._lagrangian_symbolic: Optional[sympy.Expr] = None
-        self.lagrangian_symbolic: Optional[sympy.Expr] = None
+        self._lagrangian_symbolic: Optional[bc.backend.sympy.Expr] = None
+        self.lagrangian_symbolic: Optional[bc.backend.sympy.Expr] = None
         # symbolic lagrangian in terms of untransformed generalized flux variables
-        self.lagrangian_node_vars: Optional[sympy.Expr] = None
+        self.lagrangian_node_vars: Optional[bc.backend.sympy.Expr] = None
         # symbolic expression for potential energy
-        self.potential_symbolic: Optional[sympy.Expr] = None
-        self.potential_node_vars: Optional[sympy.Expr] = None
+        self.potential_symbolic: Optional[bc.backend.sympy.Expr] = None
+        self.potential_node_vars: Optional[bc.backend.sympy.Expr] = None
 
         # parameters for grounding the circuit
         self.is_grounded = False
@@ -1202,22 +1202,22 @@ class SymbolicCircuit(serializers.Serializable):
             for order in range(1, junction_branch_order[branch_idx] + 1):
                 junction_param = "EJ" if order == 1 else f"EJ{order}"
                 if jj_branch.nodes[1].index == 0:
-                    terms += -jj_branch.parameters[junction_param] * sympy.cos(
+                    terms += -jj_branch.parameters[junction_param] * bc.backend.sympy.cos(
                         (order)
-                        * (-sympy.symbols(f"φ{jj_branch.nodes[0].index}") + phi_ext)
+                        * (-bc.backend.sympy.symbols(f"φ{jj_branch.nodes[0].index}") + phi_ext)
                     )
                 elif jj_branch.nodes[0].index == 0:
-                    terms += -jj_branch.parameters[junction_param] * sympy.cos(
+                    terms += -jj_branch.parameters[junction_param] * bc.backend.sympy.cos(
                         (order)
-                        * (sympy.symbols(f"φ{jj_branch.nodes[1].index}") + phi_ext)
+                        * (bc.backend.sympy.symbols(f"φ{jj_branch.nodes[1].index}") + phi_ext)
                     )
                 else:
-                    terms += -jj_branch.parameters[junction_param] * sympy.cos(
+                    terms += -jj_branch.parameters[junction_param] * bc.backend.sympy.cos(
                         (order)
                         * (
                             (
-                                sympy.symbols(f"φ{jj_branch.nodes[1].index}")
-                                - sympy.symbols(f"φ{jj_branch.nodes[0].index}")
+                                bc.backend.sympy.symbols(f"φ{jj_branch.nodes[1].index}")
+                                - bc.backend.sympy.symbols(f"φ{jj_branch.nodes[0].index}")
                             )
                             + phi_ext
                         )
@@ -1231,7 +1231,7 @@ class SymbolicCircuit(serializers.Serializable):
         junction_branches = [branch for branch in self.branches if "JJs" in branch.type]
 
         # defining a function for sawtooth
-        saw = sympy.Function("saw", real=True)
+        saw = bc.backend.sympy.Function("saw", real=True)
 
         for branch_idx, jj_branch in enumerate(junction_branches):
             # adding external flux
@@ -1248,18 +1248,18 @@ class SymbolicCircuit(serializers.Serializable):
             junction_param = "EJ"
             if jj_branch.nodes[1].index == 0:
                 terms += jj_branch.parameters[junction_param] * saw(
-                    (-sympy.symbols(f"φ{jj_branch.nodes[0].index}") + phi_ext)
+                    (-bc.backend.sympy.symbols(f"φ{jj_branch.nodes[0].index}") + phi_ext)
                 )
             elif jj_branch.nodes[0].index == 0:
                 terms += jj_branch.parameters[junction_param] * saw(
-                    (sympy.symbols(f"φ{jj_branch.nodes[1].index}") + phi_ext)
+                    (bc.backend.sympy.symbols(f"φ{jj_branch.nodes[1].index}") + phi_ext)
                 )
             else:
                 terms += jj_branch.parameters[junction_param] * saw(
                     (
                         (
-                            sympy.symbols(f"φ{jj_branch.nodes[1].index}")
-                            - sympy.symbols(f"φ{jj_branch.nodes[0].index}")
+                            bc.backend.sympy.symbols(f"φ{jj_branch.nodes[1].index}")
+                            - bc.backend.sympy.symbols(f"φ{jj_branch.nodes[0].index}")
                         )
                         + phi_ext
                     )
@@ -1295,7 +1295,7 @@ class SymbolicCircuit(serializers.Serializable):
         if not self.is_any_branch_parameter_symbolic() or substitute_params:
             L_mat = bc.backend.zeros([num_nodes, num_nodes])
         else:
-            L_mat = sympy.zeros(num_nodes)
+            L_mat = bc.backend.sympy.zeros(num_nodes)
 
         for branch in branches_with_inductance:
             if len(set(branch.nodes)) > 1:  # branch if shorted is not considered
@@ -1312,7 +1312,7 @@ class SymbolicCircuit(serializers.Serializable):
         if not self.is_any_branch_parameter_symbolic() or substitute_params:
             L_mat = L_mat + L_mat.T - bc.backend.diag(L_mat.diagonal())
         else:
-            L_mat = L_mat + L_mat.T - sympy.diag(*L_mat.diagonal())
+            L_mat = L_mat + L_mat.T - bc.backend.sympy.diag(*L_mat.diagonal())
 
         for i in range(L_mat.shape[0]):  # filling the diagonal entries
             L_mat[i, i] = -bc.backend.sum(L_mat[i, :])
@@ -1352,7 +1352,7 @@ class SymbolicCircuit(serializers.Serializable):
         if not self.is_any_branch_parameter_symbolic() or substitute_params:
             C_mat = bc.backend.zeros([num_nodes, num_nodes])
         else:
-            C_mat = sympy.zeros(num_nodes)
+            C_mat = bc.backend.sympy.zeros(num_nodes)
 
         for branch in branches_with_capacitance:
             if len(set(branch.nodes)) > 1:  # branch if shorted is not considered
@@ -1373,7 +1373,7 @@ class SymbolicCircuit(serializers.Serializable):
         if not self.is_any_branch_parameter_symbolic() or substitute_params:
             C_mat = C_mat + C_mat.T - bc.backend.diag(C_mat.diagonal())
         else:
-            C_mat = C_mat + C_mat.T - sympy.diag(*C_mat.diagonal())
+            C_mat = C_mat + C_mat.T - bc.backend.sympy.diag(*C_mat.diagonal())
 
         for i in range(C_mat.shape[0]):  # filling the diagonal entries
             C_mat[i, i] = -bc.backend.sum(C_mat[i, :])
@@ -1745,7 +1745,7 @@ class SymbolicCircuit(serializers.Serializable):
                     if branch.type == "C"
                     else branch.parameters["ECJ"]
                 )
-                if isinstance(EC, sympy.Expr):
+                if isinstance(EC, bc.backend.sympy.Expr):
                     EC = self.symbolic_params[EC]
                 C_diag[idx, idx] = 1 / (EC * 8)
             for node_idx, node in enumerate(branch.nodes):
@@ -1965,7 +1965,7 @@ class SymbolicCircuit(serializers.Serializable):
             node_id1, node_id2 = [
                 node.index - (1 if not self.is_grounded else 0) for node in branch.nodes
             ]
-            voltages = list(EC_mat_θ * sympy.Matrix(p_θ_vars))
+            voltages = list(EC_mat_θ * bc.backend.sympy.Matrix(p_θ_vars))
 
             # insert the voltages for frozen modes
             for index in self.var_categories["sigma"]:
@@ -1981,7 +1981,7 @@ class SymbolicCircuit(serializers.Serializable):
                 )
                 voltages.insert(index, round_symbolic_expr(frozen_var_expr, 10))
 
-            node_voltages = list(transformation_matrix * sympy.Matrix(voltages))
+            node_voltages = list(transformation_matrix * bc.backend.sympy.Matrix(voltages))
 
             if self.is_grounded:
                 node_voltages = [0] + node_voltages
@@ -2031,7 +2031,7 @@ class SymbolicCircuit(serializers.Serializable):
 
     def generate_symbolic_lagrangian(
         self, substitute_params: bool = False
-    ) -> Tuple[sympy.Expr, sympy.Expr, sympy.Expr, sympy.Expr]:
+    ) -> Tuple[bc.backend.sympy.Expr, bc.backend.sympy.Expr, bc.backend.sympy.Expr, bc.backend.sympy.Expr]:
         r"""
         Returns four symbolic expressions: lagrangian_θ, potential_θ, lagrangian_φ,
         potential_φ, where θ represents the set of new variables and φ represents
@@ -2065,11 +2065,11 @@ class SymbolicCircuit(serializers.Serializable):
             # in terms of new variables
             C_terms_θ = C_mat.dot(φ_dot_vars_θ).dot(φ_dot_vars_θ) * 0.5
         else:
-            C_terms_φ = (sympy.Matrix(φ_dot_vars).T * C_mat * sympy.Matrix(φ_dot_vars))[
+            C_terms_φ = (bc.backend.sympy.Matrix(φ_dot_vars).T * C_mat * bc.backend.sympy.Matrix(φ_dot_vars))[
                 0
             ] * 0.5  # in terms of node variables
             C_terms_θ = (
-                sympy.Matrix(φ_dot_vars_θ).T * C_mat * sympy.Matrix(φ_dot_vars_θ)
+                bc.backend.sympy.Matrix(φ_dot_vars_θ).T * C_mat * bc.backend.sympy.Matrix(φ_dot_vars_θ)
             )[
                 0
             ] * 0.5  # in terms of new variables
@@ -2092,7 +2092,7 @@ class SymbolicCircuit(serializers.Serializable):
 
         # eliminating the frozen variables
         for frozen_var_index in self.var_categories["frozen"]:
-            frozen_expr = sympy.solve(
+            frozen_expr = bc.backend.sympy.solve(
                 potential_θ.diff(symbols(f"θ{frozen_var_index}")),
                 symbols(f"θ{frozen_var_index}"),
             )[0]
@@ -2107,7 +2107,7 @@ class SymbolicCircuit(serializers.Serializable):
 
     def generate_symbolic_hamiltonian(
         self, substitute_params=False, reevaluate_lagrangian: bool = False
-    ) -> sympy.Expr:
+    ) -> bc.backend.sympy.Expr:
         r"""
         Returns the Hamiltonian of the circuit in terms of the new variables
         :math:`\theta_i`.
@@ -2175,7 +2175,7 @@ class SymbolicCircuit(serializers.Serializable):
                 C_mat_θ.dot(p_φ_vars).dot(p_φ_vars) * 0.5
             )  # in terms of new variables
         else:
-            C_terms_new = (sympy.Matrix(p_φ_vars).T * C_mat_θ * sympy.Matrix(p_φ_vars))[
+            C_terms_new = (bc.backend.sympy.Matrix(p_φ_vars).T * C_mat_θ * bc.backend.sympy.Matrix(p_φ_vars))[
                 0
             ] * 0.5  # in terms of new variables
 

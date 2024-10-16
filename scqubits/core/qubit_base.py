@@ -77,8 +77,8 @@ if TYPE_CHECKING:
     from scqubits.core.storage import WaveFunction
 
 
-LevelsTuple = Tuple[int, ...]
-Transition = Tuple[int, int]
+LevelsTuple = Tuple[bc.backend.int_, ...]
+Transition = Tuple[bc.backend.int_, bc.backend.int_]
 TransitionsTuple = Tuple[Transition, ...]
 
 # annotate the types will inherit from Serializable
@@ -90,17 +90,17 @@ QuantumSystemType = TypeVar("QuantumSystemType", bound="QuantumSystem")
 class QuantumSystem(DispatchClient, ABC):
     """Generic quantum system class"""
 
-    truncated_dim = descriptors.WatchedProperty(int, "QUANTUMSYSTEM_UPDATE")
+    truncated_dim = descriptors.WatchedProperty(bc.backend.int_, "QUANTUMSYSTEM_UPDATE")
     _init_params: List[str]
     _image_filename: str
     _sys_type: str
 
     # To facilitate warnings in set_units, introduce a counter keeping track of the
     # number of QuantumSystem instances
-    _quantumsystem_counter: int = 0
+    _quantumsystem_counter: bc.backend.int_ = 0
     # To enable autogeneration of id_str, keep a record of all subclass types and
     # corresponding counts of instances
-    _instance_counter: Dict[str, int] = {}
+    _instance_counter: Dict[str, bc.backend.int_] = {}
 
     _subclasses: List[ABCMeta] = []
 
@@ -309,7 +309,7 @@ class QubitBaseClass(QuantumSystem, ABC):
 
     def _evals_calc(self, evals_count: bc.backend.int_) -> bc.backend.ndarray:
         hamiltonian_mat = self.hamiltonian()
-        evals = sp.linalg.eigh(
+        evals = bc.backend.eigh(
             hamiltonian_mat,
             eigvals_only=True,
             subset_by_index=(0, evals_count - 1),
@@ -319,7 +319,7 @@ class QubitBaseClass(QuantumSystem, ABC):
 
     def _esys_calc(self, evals_count: bc.backend.int_) -> Tuple[bc.backend.ndarray, bc.backend.ndarray]:
         hamiltonian_mat = self.hamiltonian()
-        evals, evecs = sp.linalg.eigh(
+        evals, evecs = bc.backend.eigh(
             hamiltonian_mat,
             eigvals_only=False,
             subset_by_index=(0, evals_count - 1),
@@ -349,7 +349,7 @@ class QubitBaseClass(QuantumSystem, ABC):
         evals_count: bc.backend.int_ = 6,
         filename: Optional[str] = None,
         return_spectrumdata: bool = False,
-    ) -> Union[SpectrumData, ndarray]:
+    ) -> Union[SpectrumData, bc.backend.ndarray]:
         """Calculates eigenvalues using `scipy.linalg.eigh`, returns numpy array of
         eigenvalues.
 

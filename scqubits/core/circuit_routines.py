@@ -161,7 +161,7 @@ class CircuitRoutines(ABC):
                 set.union(
                     *[
                         (hamiltonian).atoms(operator)
-                        for operator in [sm.cos, sm.sin, sm.Function("saw", real=True)]
+                        for operator in [bc.backend.sympy.cos, bc.backend.sympy.sin, bc.backend.sympy.Function("saw", real=True)]
                     ]
                 )
             )
@@ -273,7 +273,7 @@ class CircuitRoutines(ABC):
     @backend_dependent_vjp
     def _transform_hamiltonian(
         self,
-        hamiltonian: sm.Expr,
+        hamiltonian: bc.backend.sympy.Expr,
         transformation_matrix: ndarray,
         return_transformed_exprs: bool = False,
     ):
@@ -282,11 +282,11 @@ class CircuitRoutines(ABC):
         """
         ext_var_indices = self.var_categories["extended"]
         num_vars = len(ext_var_indices)
-        Q_vars = [sm.symbols(f"Q{var_idx}") for var_idx in ext_var_indices]
-        θ_vars = [sm.symbols(f"θ{var_idx}") for var_idx in ext_var_indices]
+        Q_vars = [bc.backend.sympy.symbols(f"Q{var_idx}") for var_idx in ext_var_indices]
+        θ_vars = [bc.backend.sympy.symbols(f"θ{var_idx}") for var_idx in ext_var_indices]
 
-        Qn_vars = [sm.symbols(f"Qn{var_idx}") for var_idx in ext_var_indices]
-        θn_vars = [sm.symbols(f"θn{var_idx}") for var_idx in ext_var_indices]
+        Qn_vars = [bc.backend.sympy.symbols(f"Qn{var_idx}") for var_idx in ext_var_indices]
+        θn_vars = [bc.backend.sympy.symbols(f"θn{var_idx}") for var_idx in ext_var_indices]
 
         Q_exprs = bc.backend.linalg.inv(transformation_matrix.T).dot(Qn_vars)
         θ_exprs = transformation_matrix.dot(θn_vars)
@@ -311,8 +311,8 @@ class CircuitRoutines(ABC):
         result = self._transform_hamiltonian(hamiltonian, transformation_matrix, return_transformed_exprs)
 
         # 使用 sympy.lambdify 将符号表达式转换为可计算的数值形式
-        Q1, Q2, θ1, θ2 = sm.symbols('Q1 Q2 θ1 θ2')
-        hamiltonian_lambdified = sm.lambdify([Q1, Q2, θ1, θ2], hamiltonian, modules="numpy")
+        Q1, Q2, θ1, θ2 = bc.backend.sympy.symbols('Q1 Q2 θ1 θ2')
+        hamiltonian_lambdified = bc.backend.sympy.lambdify([Q1, Q2, θ1, θ2], hamiltonian, modules="numpy")
 
         return result, (hamiltonian_lambdified, transformation_matrix)
 
@@ -336,20 +336,20 @@ class CircuitRoutines(ABC):
             )
         trans_mat = bc.backend.linalg.inv(self.transformation_matrix.T)
         node_offset_charge_vars = [
-            sm.symbols(f"q_n{index}")
+            bc.backend.sympy.symbols(f"q_n{index}")
             for index in range(
                 1, len(self.symbolic_circuit.nodes) - self.is_grounded + 1
             )
         ]
         periodic_offset_charge_vars = [
-            sm.symbols(f"ng{index}")
+            bc.backend.sympy.symbols(f"ng{index}")
             for index in self.symbolic_circuit.var_categories["periodic"]
         ]
         periodic_offset_charge_eqns = []
         for idx, node_var in enumerate(periodic_offset_charge_vars):
             periodic_offset_charge_eqns.append(
                 self._make_expr_human_readable(
-                    sm.Eq(
+                    bc.backend.sympy.Eq(
                         periodic_offset_charge_vars[idx],
                         bc.backend.sum(trans_mat[idx, :] * node_offset_charge_vars),
                     )
@@ -462,7 +462,7 @@ class CircuitRoutines(ABC):
                 for branch in capacitance_branches
             ]
             capacitance_sym_params = [
-                param for param in capacitance_params if isinstance(param, sm.Expr)
+                param for param in capacitance_params if isinstance(param, bc.backend.sympy.Expr)
             ]
 
             self.symbolic_circuit.update_param_init_val(param_name, value)
@@ -868,7 +868,7 @@ class CircuitRoutines(ABC):
             )
         return grids
 
-    def _constants_in_subsys(self, H_sys: sm.Expr, constants_expr: sm.Expr) -> sm.Expr:
+    def _constants_in_subsys(self, H_sys: bc.backend.sympy.Expr, constants_expr: bc.backend.sympy.Expr) -> bc.backend.sympy.Expr:
         """
         Returns an expression of constants that belong to the subsystem with the
         Hamiltonian H_sys
@@ -894,8 +894,8 @@ class CircuitRoutines(ABC):
         result = self._constants_in_subsys(H_sys, constants_expr)
         
         # 将 SymPy 表达式转换为数值形式，用于反向传播
-        H_sys_lambdified = sm.lambdify(list(H_sys.free_symbols), H_sys, modules="numpy")
-        constants_expr_lambdified = sm.lambdify(list(constants_expr.free_symbols), constants_expr, modules="numpy")
+        H_sys_lambdified = bc.backend.sympy.lambdify(list(H_sys.free_symbols), H_sys, modules="numpy")
+        constants_expr_lambdified = bc.backend.sympy.lambdify(list(constants_expr.free_symbols), constants_expr, modules="numpy")
         
         # 保存 lambdified 表达式用于反向传播
         return result, (H_sys_lambdified, constants_expr_lambdified)
@@ -913,7 +913,7 @@ class CircuitRoutines(ABC):
     bc.backend.bind_custom_vjp(_constants_in_subsys_fwd, _constants_in_subsys_bwd, _constants_in_subsys)
 
     @backend_dependent_vjp
-    def _list_of_constants_from_expr(self, expr: sm.Expr) -> List[sm.Expr]:
+    def _list_of_constants_from_expr(self, expr: bc.backend.sympy.Expr) -> List[bc.backend.sympy.Expr]:
         ordered_terms = expr.as_ordered_terms()
         constants = [
             term
@@ -924,7 +924,7 @@ class CircuitRoutines(ABC):
                     + self.offset_charges
                     + self.free_charges
                     + list(self.symbolic_params.keys())
-                    + [sm.symbols("I")]
+                    + [bc.backend.sympy.symbols("I")]
                 )
                 & set(term.free_symbols)
             )
@@ -932,11 +932,11 @@ class CircuitRoutines(ABC):
         ]
         return constants
     
-    def _list_of_constants_from_expr_fwd(self, expr: sm.Expr):
+    def _list_of_constants_from_expr_fwd(self, expr: bc.backend.sympy.Expr):
         result = self._list_of_constants_from_expr(expr)
         
         # 使用 lambdify 将 SymPy 表达式转换为数值计算函数
-        lambdified_expr = sm.lambdify(list(expr.free_symbols), expr, modules="numpy")
+        lambdified_expr = bc.backend.sympy.lambdify(list(expr.free_symbols), expr, modules="numpy")
         
         return result, lambdified_expr
 
@@ -984,17 +984,17 @@ class CircuitRoutines(ABC):
 
     @backend_dependent_vjp
     def _sym_hamiltonian_for_var_indices(
-        self, hamiltonian_expr: sm.Expr, subsys_index_list: List[bc.backend.int]
-    ) -> sm.Expr:
+        self, hamiltonian_expr: bc.backend.sympy.Expr, subsys_index_list: List[bc.backend.int]
+    ) -> bc.backend.sympy.Expr:
         """
         Returns the symbolic Hamiltonian and interaction terms of the subsystem corresponding to the set of variable indices in subsys_index_list
 
         Args:
-            hamiltonian_expr (sm.Expr): The full Hamiltonian expression
+            hamiltonian_expr (bc.backend.sympy.Expr): The full Hamiltonian expression
             subsys_index_list (List[int]): A list or nested list of variable indices
 
         Returns:
-            sm.Expr: Subsystem Hamiltonian for the given variable indices
+            bc.backend.sympy.Expr: Subsystem Hamiltonian for the given variable indices
         """
         # collecting constants to remove them for processing the Hamiltonian
         constants = self._list_of_constants_from_expr(hamiltonian_expr)
@@ -1006,15 +1006,15 @@ class CircuitRoutines(ABC):
             + self.free_charges
             + self.external_fluxes
             + list(self.symbolic_params.keys())
-            + [sm.symbols("I")]
+            + [bc.backend.sympy.symbols("I")]
         )
 
         subsys_index_list = flatten_list_recursive(subsys_index_list)
 
         hamiltonian_terms = hamiltonian_expr.as_ordered_terms()
 
-        H_sys = 0 * sm.symbols("x")  # making an empty symbolic expression
-        H_int = 0 * sm.symbols("x")
+        H_sys = 0 * bc.backend.sympy.symbols("x")  # making an empty symbolic expression
+        H_int = 0 * bc.backend.sympy.symbols("x")
         for term in hamiltonian_terms:
             term_operator_indices = [
                 get_trailing_number(var_sym.name)
@@ -1036,12 +1036,12 @@ class CircuitRoutines(ABC):
 
         return H_sys + self._constants_in_subsys(H_sys, constants), H_int
     
-    def _sym_hamiltonian_for_var_indices_fwd(self, hamiltonian_expr: sm.Expr, subsys_index_list: List[int]):
+    def _sym_hamiltonian_for_var_indices_fwd(self, hamiltonian_expr: bc.backend.sympy.Expr, subsys_index_list: List[int]):
         H_sys, H_int = self._sym_hamiltonian_for_var_indices(hamiltonian_expr, subsys_index_list)
 
         # 使用 lambdify 将符号表达式转换为数值形式
-        H_sys_lambdified = sm.lambdify(list(hamiltonian_expr.free_symbols), H_sys, modules="numpy")
-        H_int_lambdified = sm.lambdify(list(hamiltonian_expr.free_symbols), H_int, modules="numpy")
+        H_sys_lambdified = bc.backend.sympy.lambdify(list(hamiltonian_expr.free_symbols), H_sys, modules="numpy")
+        H_int_lambdified = bc.backend.sympy.lambdify(list(hamiltonian_expr.free_symbols), H_int, modules="numpy")
 
         return (H_sys, H_int), (H_sys_lambdified, H_int_lambdified, hamiltonian_expr)
 
@@ -1079,7 +1079,7 @@ class CircuitRoutines(ABC):
             + self.free_charges
             + self.external_fluxes
             + list(self.symbolic_params.keys())
-            + [sm.symbols("I")]
+            + [bc.backend.sympy.symbols("I")]
         )
 
         for subsys_index_list in self.system_hierarchy:
@@ -1087,8 +1087,8 @@ class CircuitRoutines(ABC):
 
             hamiltonian_terms = hamiltonian.as_ordered_terms()
 
-            H_sys = 0 * sm.symbols("x")  # making an empty symbolic expression
-            H_int = 0 * sm.symbols("x")
+            H_sys = 0 * bc.backend.sympy.symbols("x")  # making an empty symbolic expression
+            H_int = 0 * bc.backend.sympy.symbols("x")
             for term in hamiltonian_terms:
                 term_operator_indices = [
                     get_trailing_number(var_sym.name)
@@ -1131,14 +1131,14 @@ class CircuitRoutines(ABC):
                 ]
         else:
             # storing data in class attributes
-            self.subsystem_hamiltonians: Dict[bc.backend.int, sm.Expr] = dict(
+            self.subsystem_hamiltonians: Dict[bc.backend.int, bc.backend.sympy.Expr] = dict(
                 zip(
                     range(len(self.system_hierarchy)),
                     [systems_sym[index] for index in range(len(self.system_hierarchy))],
                 )
             )
 
-            self.subsystem_interactions: Dict[bc.backend.int, sm.Expr] = dict(
+            self.subsystem_interactions: Dict[bc.backend.int, bc.backend.sympy.Expr] = dict(
                 zip(
                     range(len(self.system_hierarchy)),
                     [
@@ -1206,7 +1206,7 @@ class CircuitRoutines(ABC):
 
         # 根据符号计算的结果，推导输入哈密顿量的梯度
         for system in systems_sym:
-            grad_hamiltonian_symbolic += sm.diff(self.hamiltonian_symbolic, system) * g
+            grad_hamiltonian_symbolic += bc.backend.sympy.diff(self.hamiltonian_symbolic, system) * g
 
         return (None, grad_hamiltonian_symbolic)
 
@@ -1282,7 +1282,7 @@ class CircuitRoutines(ABC):
                 param_expr = coefficient_sympy * param_expr
                 for param in list(self.symbolic_params.keys()):
                     param_expr = param_expr.subs(
-                        param, sm.symbols("self." + param.name)
+                        param, bc.backend.sympy.symbols("self." + param.name)
                     )
                 param_expr_str = str(param_expr)
                 self.hilbert_space.add_interaction(
@@ -1329,14 +1329,14 @@ class CircuitRoutines(ABC):
 
             for factor in factors:
                 if any(
-                    [arg.has(sm.cos) or arg.has(sm.sin) for arg in (1.0 * factor).args]
+                    [arg.has(bc.backend.sympy.cos) or arg.has(bc.backend.sympy.sin) for arg in (1.0 * factor).args]
                 ):
                     factor_op_list.append(
                         self._evaluate_matrix_cosine_terms(factor, bare_esys=bare_esys)
                     )
                 elif any(
                     [
-                        arg.has(sm.Function("saw", real=True))
+                        arg.has(bc.backend.sympy.Function("saw", real=True))
                         for arg in (1.0 * factor).args
                     ]
                 ):
@@ -1400,7 +1400,7 @@ class CircuitRoutines(ABC):
 
     def _generate_symbols_list(
         self, var_str: str, iterable_list: Union[List[int], ndarray]
-    ) -> List[sm.Symbol]:
+    ) -> List[bc.backend.sympy.Symbol]:
         """
         Returns the list of symbols generated using the var_str + iterable as the name
         of the symbol.
@@ -1412,7 +1412,7 @@ class CircuitRoutines(ABC):
         iterable_list:
             The list of indices which generates the symbols
         """
-        return [sm.symbols(var_str + str(iterable)) for iterable in iterable_list]
+        return [bc.backend.sympy.symbols(var_str + str(iterable)) for iterable in iterable_list]
 
     def _set_vars(self):
         """
@@ -1421,7 +1421,7 @@ class CircuitRoutines(ABC):
         """
         if not self.hierarchical_diagonalization:
             return self._set_vars_no_hd()
-        vars = {"periodic": {}, "extended": {}, "identity": [sm.symbols("I")]}
+        vars = {"periodic": {}, "extended": {}, "identity": [bc.backend.sympy.symbols("I")]}
         for subsys in self.subsystems:
             subsys._set_vars()
             for var_type in ["periodic", "extended"]:
@@ -1459,28 +1459,28 @@ class CircuitRoutines(ABC):
 
         if self.ext_basis == "discretized":
             ps_symbols = [
-                sm.symbols("Qs" + str(i)) for i in self.var_categories["extended"]
+                bc.backend.sympy.symbols("Qs" + str(i)) for i in self.var_categories["extended"]
             ]
             sin_symbols = [
-                sm.symbols(f"sinθ{i}") for i in self.var_categories["extended"]
+                bc.backend.sympy.symbols(f"sinθ{i}") for i in self.var_categories["extended"]
             ]
             cos_symbols = [
-                sm.symbols(f"cosθ{i}") for i in self.var_categories["extended"]
+                bc.backend.sympy.symbols(f"cosθ{i}") for i in self.var_categories["extended"]
             ]
 
         elif self.ext_basis == "harmonic":
-            a_symbols = [sm.symbols(f"a{i}") for i in self.var_categories["extended"]]
-            ad_symbols = [sm.symbols(f"ad{i}") for i in self.var_categories["extended"]]
-            Nh_symbols = [sm.symbols(f"Nh{i}") for i in self.var_categories["extended"]]
-            pos_symbols = [sm.symbols(f"θ{i}") for i in self.var_categories["extended"]]
+            a_symbols = [bc.backend.sympy.symbols(f"a{i}") for i in self.var_categories["extended"]]
+            ad_symbols = [bc.backend.sympy.symbols(f"ad{i}") for i in self.var_categories["extended"]]
+            Nh_symbols = [bc.backend.sympy.symbols(f"Nh{i}") for i in self.var_categories["extended"]]
+            pos_symbols = [bc.backend.sympy.symbols(f"θ{i}") for i in self.var_categories["extended"]]
             sin_symbols = [
-                sm.symbols(f"sinθ{i}") for i in self.var_categories["extended"]
+                bc.backend.sympy.symbols(f"sinθ{i}") for i in self.var_categories["extended"]
             ]
             cos_symbols = [
-                sm.symbols(f"cosθ{i}") for i in self.var_categories["extended"]
+                bc.backend.sympy.symbols(f"cosθ{i}") for i in self.var_categories["extended"]
             ]
             momentum_symbols = [
-                sm.symbols(f"Q{i}") for i in self.var_categories["extended"]
+                bc.backend.sympy.symbols(f"Q{i}") for i in self.var_categories["extended"]
             ]
 
         # setting the attribute self.vars
@@ -1490,7 +1490,7 @@ class CircuitRoutines(ABC):
                 "cos": periodic_symbols_cos,
                 "number": periodic_symbols_n,
             },
-            "identity": [sm.symbols("I")],
+            "identity": [bc.backend.sympy.symbols("I")],
         }
 
         if self.ext_basis == "discretized":
@@ -1512,14 +1512,14 @@ class CircuitRoutines(ABC):
                 "cos": cos_symbols,
             }
 
-    def _shift_harmonic_oscillator_potential(self, hamiltonian: sm.Expr) -> sm.Expr:
+    def _shift_harmonic_oscillator_potential(self, hamiltonian: bc.backend.sympy.Expr) -> bc.backend.sympy.Expr:
         # shifting the harmonic oscillator potential to the point of external fluxes
         flux_shift_vars = {}
         for var_index in self.var_categories["extended"]:
-            flux_shift_vars[var_index] = sm.symbols("Δθ" + str(var_index))
+            flux_shift_vars[var_index] = bc.backend.sympy.symbols("Δθ" + str(var_index))
             hamiltonian = hamiltonian.replace(
-                sm.symbols(f"θ{var_index}"),
-                sm.symbols(f"θ{var_index}") + flux_shift_vars[var_index],
+                bc.backend.sympy.symbols(f"θ{var_index}"),
+                bc.backend.sympy.symbols(f"θ{var_index}") + flux_shift_vars[var_index],
             )  # substituting the flux offset variable offsets to collect the
             # coefficients later
         hamiltonian = hamiltonian.expand()
@@ -1531,10 +1531,10 @@ class CircuitRoutines(ABC):
             for var_index in flux_shift_vars.keys()
         ]  # finding the coefficients of the linear terms
 
-        A, b = sm.linear_eq_to_matrix(
+        A, b = bc.backend.sympy.linear_eq_to_matrix(
             flux_shift_equations, tuple(flux_shift_vars.values())
         )
-        flux_shifts = sm.linsolve(
+        flux_shifts = bc.backend.sympy.linsolve(
             (A, b), tuple(flux_shift_vars.values())
         )  # solving for the flux offsets
 
@@ -1559,17 +1559,17 @@ class CircuitRoutines(ABC):
     @backend_dependent_vjp
     def generate_sym_potential(self):
         # and bringing the potential into the same form as for the class Circuit
-        potential_symbolic = 0 * sm.symbols("x")
+        potential_symbolic = 0 * bc.backend.sympy.symbols("x")
         for term in self.hamiltonian_symbolic.as_ordered_terms():
             if is_potential_term(term):
                 potential_symbolic += term
         for i in self.dynamic_var_indices:
             potential_symbolic = (
                 potential_symbolic.replace(
-                    sm.symbols(f"cosθ{i}"), sm.cos(1.0 * sm.symbols(f"θ{i}"))
+                    bc.backend.sympy.symbols(f"cosθ{i}"), bc.backend.sympy.cos(1.0 * bc.backend.sympy.symbols(f"θ{i}"))
                 )
-                .replace(sm.symbols(f"sinθ{i}"), sm.sin(1.0 * sm.symbols(f"θ{i}")))
-                .subs(sm.symbols("I"), 1 / (2 * bc.backend.pi))
+                .replace(bc.backend.sympy.symbols(f"sinθ{i}"), bc.backend.sympy.sin(1.0 * bc.backend.sympy.symbols(f"θ{i}")))
+                .subs(bc.backend.sympy.symbols("I"), 1 / (2 * bc.backend.pi))
             )
         return potential_symbolic
     
@@ -1587,8 +1587,8 @@ class CircuitRoutines(ABC):
 
         # 对于每个动态变量 θ{i}，计算其相对于势能的梯度
         for i in self.dynamic_var_indices:
-            theta_i = sm.symbols(f"θ{i}")
-            grad_theta[f"θ{i}"] = jnp.sum(jnp.conjugate(g) * sm.diff(potential_symbolic, theta_i))
+            theta_i = bc.backend.sympy.symbols(f"θ{i}")
+            grad_theta[f"θ{i}"] = jnp.sum(jnp.conjugate(g) * bc.backend.sympy.diff(potential_symbolic, theta_i))
 
         # 返回 θ{i} 的梯度
         return (None, grad_theta)
@@ -1598,7 +1598,7 @@ class CircuitRoutines(ABC):
     @backend_dependent_vjp
     def generate_hamiltonian_sym_for_numerics(
         self,
-        hamiltonian: Optional[sm.Expr] = None,
+        hamiltonian: Optional[bc.backend.sympy.Expr] = None,
         return_exprs=False,
     ):
         """
@@ -1616,18 +1616,18 @@ class CircuitRoutines(ABC):
             # marking the squared momentum operators with a separate symbol
             for i in self.var_categories["extended"]:
                 hamiltonian = hamiltonian.replace(
-                    sm.symbols(f"Q{i}") ** 2, sm.symbols("Qs" + str(i))
+                    bc.backend.sympy.symbols(f"Q{i}") ** 2, bc.backend.sympy.symbols("Qs" + str(i))
                 )
 
         # associate an identity matrix with the external flux vars
         for ext_flux in self.external_fluxes:
             hamiltonian = hamiltonian.subs(
-                ext_flux, ext_flux * sm.symbols("I") * 2 * bc.backend.pi
+                ext_flux, ext_flux * bc.backend.sympy.symbols("I") * 2 * bc.backend.pi
             )
 
         # associate an identity matrix with offset and free charge vars
         for charge_var in self.offset_charges + self.free_charges:
-            hamiltonian = hamiltonian.subs(charge_var, charge_var * sm.symbols("I"))
+            hamiltonian = hamiltonian.subs(charge_var, charge_var * bc.backend.sympy.symbols("I"))
 
         # finding the cosine terms
         cos_terms = sum(
@@ -1638,7 +1638,7 @@ class CircuitRoutines(ABC):
         setattr(self, "_hamiltonian_sym_for_numerics", hamiltonian)
         setattr(self, "junction_potential", cos_terms)
 
-    def generate_hamiltonian_sym_for_numerics_fwd(self, hamiltonian: Optional[sm.Expr] = None, return_exprs=False):
+    def generate_hamiltonian_sym_for_numerics_fwd(self, hamiltonian: Optional[bc.backend.sympy.Expr] = None, return_exprs=False):
         result = self.generate_hamiltonian_sym_for_numerics(self, hamiltonian, return_exprs)
         return result, (self, hamiltonian, result)
 
@@ -1653,11 +1653,11 @@ class CircuitRoutines(ABC):
 
         # 计算 external_fluxes 的梯度
         for idx, ext_flux in enumerate(self.external_fluxes):
-            grad_external_fluxes[idx] = jnp.sum(jnp.conjugate(g) * sm.diff(result, ext_flux))
+            grad_external_fluxes[idx] = jnp.sum(jnp.conjugate(g) * bc.backend.sympy.diff(result, ext_flux))
 
         # 计算 offset_charges 和 free_charges 的梯度
         for idx, charge_var in enumerate(self.offset_charges + self.free_charges):
-            grad_offset_charges[idx] = jnp.sum(jnp.conjugate(g) * sm.diff(result, charge_var))
+            grad_offset_charges[idx] = jnp.sum(jnp.conjugate(g) * bc.backend.sympy.diff(result, charge_var))
 
         return None, None, grad_external_fluxes, grad_offset_charges, grad_free_charges
     bc.backend.bind_custom_vjp(generate_hamiltonian_sym_for_numerics_fwd,generate_hamiltonian_sym_for_numerics_bwd,generate_hamiltonian_sym_for_numerics)
@@ -1844,7 +1844,7 @@ class CircuitRoutines(ABC):
 
     @backend_dependent_vjp
     def exp_i_operator(
-        self, var_sym: sm.Symbol, prefactor: bc.backend.float_
+        self, var_sym: bc.backend.sympy.Symbol, prefactor: bc.backend.float_
     ) -> Union[bc.backend.csc_matrix, ndarray]:
         """
         Returns the bare operator exp(i*\theta*prefactor), without the kron product.
@@ -1869,9 +1869,9 @@ class CircuitRoutines(ABC):
             )
             if "θ" in var_sym.name:
                 diagonal = np.exp(phi_grid.make_linspace() * prefactor * 1j)
-                exp_i_theta = bc.backend.dia_matrix(
+                exp_i_theta = bc.backend.to_csc_matrix(bc.backend.dia_matrix(
                     (diagonal, [0]), shape=(phi_grid.pt_count, phi_grid.pt_count)
-                ).tocsc()
+                ))
             elif "Q" in var_sym.name:
                 exp_i_theta = bc.backend.expm(
                     _i_d_dphi_operator(phi_grid).toarray() * prefactor * 1j
@@ -1893,7 +1893,7 @@ class CircuitRoutines(ABC):
         return convert_sp_matrix_to_jax(self._sparsity_adaptive(exp_i_theta))
     
     # 前向传播
-    def exp_i_operator_fwd(self, var_sym: sm.Symbol, prefactor: float):
+    def exp_i_operator_fwd(self, var_sym: bc.backend.sympy.Symbol, prefactor: float):
         result = self.exp_i_operator(self, var_sym, prefactor)
         return result, (self, var_sym, prefactor, result)
 
@@ -1913,7 +1913,7 @@ class CircuitRoutines(ABC):
     bc.backend.bind_custom_vjp(exp_i_operator_fwd, exp_i_operator_bwd,exp_i_operator)
 
     def _evaluate_matrix_sawtooth_terms(
-        self, saw_expr: sm.Expr, bare_esys=None
+        self, saw_expr: bc.backend.sympy.Expr, bare_esys=None
     ) -> qt.Qobj:
         if self.hierarchical_diagonalization:
             subsystem_list = self.subsystems
@@ -1925,7 +1925,7 @@ class CircuitRoutines(ABC):
 
         saw_potential_matrix = identity * 0
 
-        saw = sm.Function("saw", real=True)
+        saw = bc.backend.sympy.Function("saw", real=True)
         for saw_term in saw_expr.as_ordered_terms():
             coefficient = float(list(saw_expr.as_coefficients_dict().values())[0])
             saw_argument_expr = [
@@ -1946,7 +1946,7 @@ class CircuitRoutines(ABC):
         return saw_potential_matrix
 
     def _evaluate_matrix_cosine_terms(
-        self, junction_potential: sm.Expr, bare_esys=None
+        self, junction_potential: bc.backend.sympy.Expr, bare_esys=None
     ) -> qt.Qobj:
         if self.hierarchical_diagonalization:
             subsystem_list = self.subsystems
@@ -1969,7 +1969,7 @@ class CircuitRoutines(ABC):
             cos_argument_expr = [
                 arg.args[0]
                 for arg in (1.0 * cos_term).args
-                if (arg.has(sm.cos) or arg.has(sm.sin))
+                if (arg.has(bc.backend.sympy.cos) or arg.has(bc.backend.sympy.sin))
             ][0]
 
             var_indices = [
@@ -2001,17 +2001,17 @@ class CircuitRoutines(ABC):
                 builtin_op.mul,
                 operator_list,
             )
-            if any([arg.has(sm.cos) for arg in (1.0 * cos_term).args]):
+            if any([arg.has(bc.backend.sympy.cos) for arg in (1.0 * cos_term).args]):
                 junction_potential_matrix += (
                     cos_term_operator + cos_term_operator.dag()
                 ) * 0.5
-            elif any([arg.has(sm.sin) for arg in (1.0 * cos_term).args]):
+            elif any([arg.has(bc.backend.sympy.sin) for arg in (1.0 * cos_term).args]):
                 junction_potential_matrix += (
                     (cos_term_operator - cos_term_operator.dag()) * 0.5 * (-1j)
                 )
         return junction_potential_matrix
 
-    def _set_harmonic_basis_osc_params(self, hamiltonian: Optional[sm.Expr] = None):
+    def _set_harmonic_basis_osc_params(self, hamiltonian: Optional[bc.backend.sympy.Expr] = None):
         osc_lengths = {}
         osc_freqs = {}
         hamiltonian_sym = hamiltonian or self._hamiltonian_sym_for_numerics
@@ -2403,7 +2403,7 @@ class CircuitRoutines(ABC):
             & set([get_trailing_number(str(i)) for i in term.free_symbols])
         ) and "*" in str(term)
 
-    def _replace_mat_mul_operator(self, term: sm.Expr):
+    def _replace_mat_mul_operator(self, term: bc.backend.sympy.Expr):
         if not self._is_mat_mul_replacement_necessary(term):
             return str(term)
 
@@ -2446,7 +2446,7 @@ class CircuitRoutines(ABC):
                 )
         return term_string
 
-    def _get_eval_hamiltonian_string(self, H: sm.Expr) -> str:
+    def _get_eval_hamiltonian_string(self, H: bc.backend.sympy.Expr) -> str:
         """
         Returns the string which defines the expression for Hamiltonian in harmonic
         oscillator basis
@@ -2506,7 +2506,7 @@ class CircuitRoutines(ABC):
         # add an identity operator for the constant in the symbolic expression
         constant = float(hamiltonian.as_coefficients_dict()[1])
         hamiltonian -= hamiltonian.as_coefficients_dict()[1]
-        hamiltonian = hamiltonian.expand() + constant * sm.symbols("I")
+        hamiltonian = hamiltonian.expand() + constant * bc.backend.sympy.symbols("I")
 
         # replace the extended degrees of freedom with harmonic oscillators
         for var_index in self.var_categories["extended"]:
@@ -2516,10 +2516,10 @@ class CircuitRoutines(ABC):
             hamiltonian = (
                 (
                     hamiltonian
-                    - ECi * 4 * sm.symbols(f"Q{var_index}") ** 2
-                    - ELi / 2 * sm.symbols(f"θ{var_index}") ** 2
+                    - ECi * 4 * bc.backend.sympy.symbols(f"Q{var_index}") ** 2
+                    - ELi / 2 * bc.backend.sympy.symbols(f"θ{var_index}") ** 2
                     + osc_freq
-                    * (sm.symbols("Nh" + str(var_index)) + 0.5 * sm.symbols("I"))
+                    * (bc.backend.sympy.symbols("Nh" + str(var_index)) + 0.5 * bc.backend.sympy.symbols("I"))
                 )
                 .cancel()
                 .expand()
@@ -2765,7 +2765,7 @@ class CircuitRoutines(ABC):
         free_var_func_dict: Dict[str, Callable],
         prefactor: float = 1.0,
         extra_terms: Optional[str] = None,
-    ) -> Tuple[List[Union[qt.Qobj, Tuple[qt.Qobj, Callable]]], sm.Expr, List[sm.Expr]]:
+    ) -> Tuple[List[Union[qt.Qobj, Tuple[qt.Qobj, Callable]]], bc.backend.sympy.Expr, List[bc.backend.sympy.Expr]]:
         """
         Returns the Hamiltonian in a format amenable to be forwarded to mesolve in
         Qutip. Also returns the symbolic expressions of time independent and time
@@ -2795,9 +2795,9 @@ class CircuitRoutines(ABC):
             str, a string which will be converted into sympy expression, containing terms which are not present in the Circuit Hamiltonian. Is useful to define custom drive operators.
         """
         free_var_names = list(free_var_func_dict.keys())
-        free_var_symbols = [sm.symbols(sym_name) for sym_name in free_var_names]
+        free_var_symbols = [bc.backend.sympy.symbols(sym_name) for sym_name in free_var_names]
 
-        fixed_hamiltonian = 0 * sm.symbols("x")
+        fixed_hamiltonian = 0 * bc.backend.sympy.symbols("x")
         time_varying_hamiltonian = []
 
         all_circuit_params = (
@@ -2808,7 +2808,7 @@ class CircuitRoutines(ABC):
         )
         # adding extra terms to the Hamiltonian
         if extra_terms:
-            extra_terms = sm.parse_expr(extra_terms)
+            extra_terms = bc.backend.sympy.parse_expr(extra_terms)
             for extra_sym in extra_terms.free_symbols:
                 if (
                     extra_sym not in self._hamiltonian_sym_for_numerics.free_symbols
@@ -2868,7 +2868,7 @@ class CircuitRoutines(ABC):
                 if sym not in free_var_symbols:
                     parameter_expr = parameter_expr.subs(sym, getattr(self, sym.name))
 
-            lambdify_func = sm.lambdify(
+            lambdify_func = bc.backend.sympy.lambdify(
                 list(parameter_expr.free_symbols), parameter_expr, "numpy"
             )
 
@@ -2989,7 +2989,7 @@ class CircuitRoutines(ABC):
     # ***** Functions for pretty display of symbolic expressions *****
     # ****************************************************************
     @staticmethod
-    def print_expr_in_latex(expr: Union[sm.Expr, List["sm.Equality"]]) -> None:
+    def print_expr_in_latex(expr: Union[bc.backend.sympy.Expr, List["bc.backend.sympy.Equality"]]) -> None:
         """
         Print a sympy expression or a list of equalities in LaTeX
 
@@ -2998,12 +2998,12 @@ class CircuitRoutines(ABC):
         expr:
             a sympy expressions or a list of equalities
         """
-        if isinstance(expr, sm.Expr):
-            display(Latex("$ " + sm.printing.latex(expr) + " $"))
+        if isinstance(expr, bc.backend.sympy.Expr):
+            display(Latex("$ " + bc.backend.sympy.printing.latex(expr) + " $"))
         elif isinstance(expr, list):
             equalities_in_latex = "$ "
             for eqn in expr:
-                equalities_in_latex += sm.printing.latex(eqn) + " \\\ "
+                equalities_in_latex += bc.backend.sympy.printing.latex(eqn) + " \\\ "
             equalities_in_latex = equalities_in_latex[:-4] + " $"
             display(Latex(equalities_in_latex))
 
@@ -3020,7 +3020,7 @@ class CircuitRoutines(ABC):
             return self._id_str
         # Hamiltonian string
         H_latex_str = (
-            "$H=" + sm.printing.latex(self.sym_hamiltonian(return_expr=True)) + "$"
+            "$H=" + bc.backend.sympy.printing.latex(self.sym_hamiltonian(return_expr=True)) + "$"
         )
         # describe the variables
         cutoffs_dict = self.cutoffs_dict()
@@ -3085,7 +3085,7 @@ class CircuitRoutines(ABC):
             display(Latex(f"System hierarchy: {self.system_hierarchy}"))
             display(Latex(f"Truncated Dimensions: {self.subsystem_trunc_dims}"))
 
-    def _make_expr_human_readable(self, expr: sm.Expr, float_round: int = 6) -> sm.Expr:
+    def _make_expr_human_readable(self, expr: bc.backend.sympy.Expr, float_round: int = 6) -> bc.backend.sympy.Expr:
         """
         Method returns a user readable symbolic expression for the current instance
 
@@ -3105,35 +3105,35 @@ class CircuitRoutines(ABC):
         # citation:
         # https://stackoverflow.com/questions/43804701/round-floats-within-an-expression
         # accepted answer
-        for term in sm.preorder_traversal(expr):
-            if isinstance(term, sm.Float):
+        for term in bc.backend.sympy.preorder_traversal(expr):
+            if isinstance(term, bc.backend.sympy.Float):
                 expr_modified = expr_modified.subs(term, round(term, float_round))
 
         for var_index in self.dynamic_var_indices:
             # replace sinθ with sin(..) and similarly with cos
             expr_modified = (
                 expr_modified.replace(
-                    sm.symbols(f"cosθ{var_index}"),
-                    sm.cos(1.0 * sm.symbols(f"θ{var_index}")),
+                    bc.backend.sympy.symbols(f"cosθ{var_index}"),
+                    bc.backend.sympy.cos(1.0 * bc.backend.sympy.symbols(f"θ{var_index}")),
                 )
                 .replace(
-                    sm.symbols(f"sinθ{var_index}"),
-                    sm.sin(1.0 * sm.symbols(f"θ{var_index}")),
+                    bc.backend.sympy.symbols(f"sinθ{var_index}"),
+                    bc.backend.sympy.sin(1.0 * bc.backend.sympy.symbols(f"θ{var_index}")),
                 )
                 .replace(
-                    (1.0 * sm.symbols(f"θ{var_index}")),
-                    (sm.symbols(f"θ{var_index}")),
+                    (1.0 * bc.backend.sympy.symbols(f"θ{var_index}")),
+                    (bc.backend.sympy.symbols(f"θ{var_index}")),
                 )
             )
             # replace Qs with Q^2 etc
             expr_modified = expr_modified.replace(
-                sm.symbols("Qs" + str(var_index)), sm.symbols(f"Q{var_index}") ** 2
+                bc.backend.sympy.symbols("Qs" + str(var_index)), bc.backend.sympy.symbols(f"Q{var_index}") ** 2
             )
             expr_modified = expr_modified.replace(
-                sm.symbols("ng" + str(var_index)), sm.symbols("n_g" + str(var_index))
+                bc.backend.sympy.symbols("ng" + str(var_index)), bc.backend.sympy.symbols("n_g" + str(var_index))
             )
             # replace I by 1
-            expr_modified = expr_modified.replace(sm.symbols("I"), 1)
+            expr_modified = expr_modified.replace(bc.backend.sympy.symbols("I"), 1)
         for ext_flux_var in self.external_fluxes:
             # removing 1.0 decimals from flux vars
             expr_modified = expr_modified.replace(1.0 * ext_flux_var, ext_flux_var)
@@ -3141,7 +3141,7 @@ class CircuitRoutines(ABC):
 
     def sym_potential(
         self, float_round: int = 6, print_latex: bool = False, return_expr: bool = False
-    ) -> Union[sm.Expr, None]:
+    ) -> Union[bc.backend.sympy.Expr, None]:
         """
         Method prints a user readable symbolic potential for the current instance
 
@@ -3162,7 +3162,7 @@ class CircuitRoutines(ABC):
         for external_flux in self.external_fluxes:
             potential = potential.replace(
                 external_flux,
-                sm.symbols(
+                bc.backend.sympy.symbols(
                     "(2π" + "Φ_{" + str(get_trailing_number(str(external_flux))) + "})"
                 ),
             )
@@ -3180,7 +3180,7 @@ class CircuitRoutines(ABC):
         float_round: int = 6,
         print_latex: bool = False,
         return_expr: bool = False,
-    ) -> Union[sm.Expr, None]:
+    ) -> Union[bc.backend.sympy.Expr, None]:
         """
         Prints a user readable symbolic Hamiltonian for the current instance
 
@@ -3218,25 +3218,25 @@ class CircuitRoutines(ABC):
             pot_symbols = (
                 self.external_fluxes
                 + [
-                    sm.symbols("θ" + str(idx))
+                    bc.backend.sympy.symbols("θ" + str(idx))
                     for idx in self.var_categories["extended"]
                 ]
                 + [
-                    sm.symbols("θ" + str(idx))
+                    bc.backend.sympy.symbols("θ" + str(idx))
                     for idx in self.var_categories["periodic"]
                 ]
             )
-            sym_hamiltonian_KE = 0 * sm.Symbol("x")
+            sym_hamiltonian_KE = 0 * bc.backend.sympy.Symbol("x")
             for term in sym_hamiltonian.args:
                 if term.free_symbols.isdisjoint(pot_symbols):
-                    sym_hamiltonian_KE = sm.Add(sym_hamiltonian_KE, term)
+                    sym_hamiltonian_KE = bc.backend.sympy.Add(sym_hamiltonian_KE, term)
 
             # add a symbolic 2pi
             for external_flux in self.external_fluxes:
                 sym_hamiltonian_PE = self._make_expr_human_readable(
                     sym_hamiltonian_PE.replace(
                         external_flux,
-                        sm.symbols(
+                        bc.backend.sympy.symbols(
                             "(2π"
                             + "Φ_{"
                             + str(get_trailing_number(str(external_flux)))
@@ -3251,7 +3251,7 @@ class CircuitRoutines(ABC):
                     free_charge, getattr(self, free_charge.name)
                 )
             # obtain system symbolic hamiltonian by glueing KE and PE
-            sym_hamiltonian = sm.Add(
+            sym_hamiltonian = bc.backend.sympy.Add(
                 sym_hamiltonian_KE, sym_hamiltonian_PE, evaluate=False
             )
         else:
@@ -3268,18 +3268,18 @@ class CircuitRoutines(ABC):
             pot_symbols = (
                 self.external_fluxes
                 + [
-                    sm.symbols("θ" + str(idx))
+                    bc.backend.sympy.symbols("θ" + str(idx))
                     for idx in self.var_categories["extended"]
                 ]
                 + [
-                    sm.symbols("θ" + str(idx))
+                    bc.backend.sympy.symbols("θ" + str(idx))
                     for idx in self.var_categories["periodic"]
                 ]
             )
-            sym_hamiltonian_KE = 0 * sm.Symbol("x")
+            sym_hamiltonian_KE = 0 * bc.backend.sympy.Symbol("x")
             for term in sym_hamiltonian.args:
                 if term.free_symbols.isdisjoint(pot_symbols):
-                    sym_hamiltonian_KE = sm.Add(sym_hamiltonian_KE, term)
+                    sym_hamiltonian_KE = bc.backend.sympy.Add(sym_hamiltonian_KE, term)
             sym_hamiltonian_PE = self._make_expr_human_readable(
                 self.potential_symbolic.expand(), float_round=float_round
             )
@@ -3288,7 +3288,7 @@ class CircuitRoutines(ABC):
             for external_flux in self.external_fluxes:
                 sym_hamiltonian_PE = sym_hamiltonian_PE.replace(
                     external_flux,
-                    sm.symbols(
+                    bc.backend.sympy.symbols(
                         "(2π"
                         + "Φ_{"
                         + str(get_trailing_number(str(external_flux)))
@@ -3296,7 +3296,7 @@ class CircuitRoutines(ABC):
                     ),
                 )
             # add the KE and PE and suppress the evaluation
-            sym_hamiltonian = sm.Add(
+            sym_hamiltonian = bc.backend.sympy.Add(
                 sym_hamiltonian_KE, sym_hamiltonian_PE, evaluate=False
             )
         if return_expr:
@@ -3314,7 +3314,7 @@ class CircuitRoutines(ABC):
         float_round: int = 6,
         print_latex: bool = False,
         return_expr: bool = False,
-    ) -> Union[sm.Expr, None]:
+    ) -> Union[bc.backend.sympy.Expr, None]:
         """
         Print the interaction between any set of subsystems for the current instance.
         It would print the interaction terms having operators from all the subsystems
@@ -3332,7 +3332,7 @@ class CircuitRoutines(ABC):
             if set to True, all printing is suppressed and the function will silently
             return the sympy expression
         """
-        interaction = sm.symbols("x") * 0
+        interaction = bc.backend.sympy.symbols("x") * 0
         for subsys_index_pair in itertools.combinations(subsystem_indices, 2):
             for term in self.subsystem_interactions[
                 min(subsys_index_pair)
@@ -3344,7 +3344,7 @@ class CircuitRoutines(ABC):
                         + self.offset_charges
                         + self.free_charges
                         + list(self.symbolic_params.keys())
-                        + [sm.symbols("I")]
+                        + [bc.backend.sympy.symbols("I")]
                     ]
                 )
                 interaction_var_indices = [
@@ -3362,7 +3362,7 @@ class CircuitRoutines(ABC):
             )
             interaction = interaction.replace(
                 external_flux,
-                sm.symbols(
+                bc.backend.sympy.symbols(
                     "(2π" + "Φ_{" + str(get_trailing_number(str(external_flux))) + "})"
                 ),
             )
@@ -3439,7 +3439,7 @@ class CircuitRoutines(ABC):
             for var_name in sweep_vars:
                 parameters[var_name] = sweep_vars[var_name]
 
-        potential_func = sm.lambdify(
+        potential_func = bc.backend.sympy.lambdify(
             parameters.keys(), potential_sym, [{"saw": sawtooth_potential}, "numpy"]
         )
 

@@ -508,7 +508,7 @@ class JaxBackend(Backend):
             return jsp.CSC((data, coo_indices), shape=shape)
             
         elif isinstance(matrix, jsp.CSC) or isinstance(matrix, jsp.BCOO):
-            # If it's already a BCOO matrix, return it as-is
+            # If it's already a jsp.CSC matrix, return it as-is
             return jsp.CSC(matrix.data, shape=matrix.shape)
         else:
             # If input is not a recognized sparse type, raise an error

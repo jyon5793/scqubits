@@ -74,11 +74,11 @@ def sawtooth_operator(x: Union[bc.backend.ndarray, bc.backend.csc_matrix]):
     if isinstance(x, bc.backend.ndarray):
         diagonal_elements = sawtooth_potential(bc.backend.diag(x))
         operator = bc.backend.dia_matrix((diagonal_elements, 0), shape=(len(diagonal_elements), len(diagonal_elements)))
-        return bc.backend.csc_matrix(operator.tocsc().toarray())
+        return bc.backend.csc_matrix(bc.backend.to_csc_matrix(operator).toarray())
     elif isinstance(x, bc.backend.csc_matrix):
         diagonal_elements = sawtooth_potential(x.diagonal())
         operator = bc.backend.dia_matrix((diagonal_elements, 0), shape=(len(diagonal_elements), len(diagonal_elements)))
-        return bc.backend.csc_matrix(operator.tocsc().toarray())
+        return bc.backend.csc_matrix(bc.backend.to_csc_matrix(operator).toarray())
     else:
         raise TypeError("Input must be either a jnp.ndarray or a csc_matrix.")
 
@@ -93,11 +93,11 @@ def sawtooth_operator_bwd(residuals, grad_output):
     if isinstance(x, bc.backend.ndarray):
         grad_diag = jax.grad(sawtooth_potential)(bc.backend.ndarray.diag(x)) * diag_grad
         grad_matrix = bc.backend.dia_matrix((grad_diag, 0), shape=x.shape)
-        return bc.backend.csc_matrix(grad_matrix.tocsc().toarray()).toarray()
+        return bc.backend.csc_matrix(bc.backend.to_csc_matrix(grad_matrix).toarray()).toarray()
     elif isinstance(x, bc.backend.csc_matrix):
         grad_diag = jax.grad(sawtooth_potential)(x.diagonal()) * diag_grad
         grad_matrix = bc.backend.dia_matrix((grad_diag, 0), shape=x.shape)
-        return bc.backend.csc_matrix(grad_matrix.tocsc().toarray())
+        return bc.backend.csc_matrix(bc.backend.to_csc_matrix(grad_matrix).toarray())
     else:
         raise TypeError("Input must be either a jnp.ndarray or a csc_matrix.")
     
@@ -384,8 +384,8 @@ def _sin_theta(ncut: bc.backend.int) -> bc.backend.csc_matrix:
 
 
 def _generate_symbols_list(
-    var_str: str, iterable_list: List[int] or ndarray
-) -> List[sm.Symbol]:
+    var_str: str, iterable_list: List[int] or bc.backend.ndarray
+) -> List[bc.backend.sympy.Symbol]:
     """
     Returns the list of symbols generated using the var_str + iterable as the name
     of the symbol.
@@ -397,16 +397,16 @@ def _generate_symbols_list(
     iterable_list:
         The list of indices which generates the symbols
     """
-    return [sm.symbols(var_str + str(iterable)) for iterable in iterable_list]
+    return [bc.backend.sympy.symbols(var_str + str(iterable)) for iterable in iterable_list]
 
 
-def is_potential_term(term: sm.Expr) -> bool:
+def is_potential_term(term: bc.backend.sympy.Expr) -> bool:
     """
     Determines if a given sympy expression term is part of the potential
 
     Parameters
     ----------
-    term: sm.Expr
+    term: bc.backend.sympy.Expr
         a single terms in the form of Sympy expression.
 
     Returns
@@ -516,7 +516,7 @@ def _cos_dia(x: bc.backend.csc_matrix) -> bc.backend.csc_matrix:
     return bc.backend.to_csc_matrix(bc.backend.diags(bc.backend.cos(x.diagonal())))
 
 
-def _sin_dia(x: csc_matrix) -> bc.backend.csc_matrix:
+def _sin_dia(x: bc.backend.csc_matrix) -> bc.backend.csc_matrix:
     """
     Take the diagonal of the array x, compute its sine, and fill the result into
     the diagonal of a sparse matrix.
@@ -543,10 +543,10 @@ def matrix_power_sparse(dense_mat:  bc.backend.ndarray, n:  bc.backend.int) ->  
     return sparse_mat**n
 
 
-def round_symbolic_expr(expr: sm.Expr, number_of_digits: int) -> sm.Expr:
+def round_symbolic_expr(expr: bc.backend.sympy.Expr, number_of_digits: int) -> bc.backend.sympy.Expr:
     rounded_expr = expr.expand()
-    for term in sm.preorder_traversal(expr.expand()):
-        if isinstance(term, sm.Float):
+    for term in bc.backend.sympy.preorder_traversal(expr.expand()):
+        if isinstance(term, bc.backend.sympy.Float):
             rounded_expr = rounded_expr.subs(term, round(term, number_of_digits))
     return rounded_expr
 

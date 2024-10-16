@@ -85,7 +85,7 @@ class Subsystem(
     def __init__(
         self,
         parent: "Subsystem",
-        hamiltonian_symbolic: sm.Expr,
+        hamiltonian_symbolic: bc.backend.sympy.Expr,
         ext_basis: Union[str, List],
         system_hierarchy: Optional[List] = None,
         subsystem_trunc_dims: Optional[List] = None,
@@ -329,7 +329,7 @@ class Circuit(
         initiate_sym_calc: bool = True,
         truncated_dim: bc.backend.int_ = 10,
         symbolic_param_dict: Dict[str, bc.backend.float_] = None,
-        symbolic_hamiltonian: sm.Expr = None,
+        symbolic_hamiltonian: bc.backend.sympy.Expr = None,
         evals_method: Union[Callable, str, None] = None,
         evals_method_options: Union[dict, None] = None,
         esys_method: Union[Callable, str, None] = None,
@@ -376,7 +376,7 @@ class Circuit(
 
     def from_symbolic_hamiltonian(
         self,
-        symbolic_hamiltonian: sm.Expr,
+        symbolic_hamiltonian: bc.backend.sympy.Expr,
         symbolic_param_dict: Dict[str, bc.backend.float_],
         initiate_sym_calc: bool,
         truncated_dim: bc.backend.int_,
@@ -388,9 +388,9 @@ class Circuit(
         for param_str in symbolic_param_dict:
             if "ng" in param_str or "Φ" in param_str:
                 continue
-            self.symbolic_params[sm.symbols(param_str)] = symbolic_param_dict[param_str]
+            self.symbolic_params[bc.backend.sympy.symbols(param_str)] = symbolic_param_dict[param_str]
 
-        sm.init_printing(pretty_print=False, order="none")
+        bc.backend.sympy.init_printing(pretty_print=False, order="none")
         self.is_child = False
 
         self.ext_basis = ext_basis
@@ -481,7 +481,7 @@ class Circuit(
             initiate_sym_calc=True,
             use_dynamic_flux_grouping=use_dynamic_flux_grouping,
         )
-        sm.init_printing(pretty_print=False, order="none")
+        bc.backend.sympy.init_printing(pretty_print=False, order="none")
         self.is_child = False
         self.symbolic_circuit: SymbolicCircuit = symbolic_circuit
 
@@ -550,7 +550,7 @@ class Circuit(
             branch_node_ids = [node.index for node in branch.nodes]
             branch_params_circ = branch.parameters.copy()
             for param in branch_params_circ:
-                if isinstance(branch_params_circ[param], sm.Symbol):
+                if isinstance(branch_params_circ[param], bc.backend.sympy.Symbol):
                     branch_params_circ[param] = branch_params_circ[param].name
             if node_id_1 not in branch_node_ids or node_id_2 not in branch_node_ids:
                 continue
@@ -700,8 +700,8 @@ class Circuit(
             raise Exception("Configure failed due to incorrect parameters.")
 
     def _read_symbolic_hamiltonian(
-        self, symbolic_hamiltonian: sm.Expr
-    ) -> Tuple[List[sm.Expr], List[sm.Expr], List[sm.Expr], Dict[str, List[int]]]:
+        self, symbolic_hamiltonian: bc.backend.sympy.Expr
+    ) -> Tuple[List[bc.backend.sympy.Expr], List[bc.backend.sympy.Expr], List[bc.backend.sympy.Expr], Dict[str, List[int]]]:
         free_symbols = symbolic_hamiltonian.free_symbols
         external_fluxes = []
         offset_charges = []
@@ -1114,13 +1114,13 @@ class Circuit(
         if new_vars_to_node_vars:
             trans_mat = bc.backend.linalg.inv(trans_mat)
         theta_vars = [
-            sm.symbols(f"θ{index}")
+            bc.backend.sympy.symbols(f"θ{index}")
             for index in range(
                 1, len(self.symbolic_circuit.nodes) - self.is_grounded + 1
             )
         ]
         node_vars = [
-            sm.symbols(f"φ{index}")
+            bc.backend.sympy.symbols(f"φ{index}")
             for index in range(
                 1, len(self.symbolic_circuit.nodes) - self.is_grounded + 1
             )
@@ -1129,11 +1129,11 @@ class Circuit(
         for idx, node_var in enumerate(node_vars):
             if not new_vars_to_node_vars:
                 var_eqns.append(
-                    sm.Eq(node_vars[idx], bc.backend.sum(trans_mat[idx, :] * theta_vars))
+                    bc.backend.sympy.Eq(node_vars[idx], bc.backend.sum(trans_mat[idx, :] * theta_vars))
                 )
             else:
                 var_eqns.append(
-                    sm.Eq(theta_vars[idx], bc.backend.sum(trans_mat[idx, :] * node_vars))
+                    bc.backend.sympy.Eq(theta_vars[idx], bc.backend.sum(trans_mat[idx, :] * node_vars))
                 )
         if _HAS_IPYTHON:
             self.print_expr_in_latex(var_eqns)
@@ -1145,7 +1145,7 @@ class Circuit(
         vars_type: str = "node",
         print_latex: bool = False,
         return_expr: bool = False,
-    ) -> Union[sm.Expr, None]:
+    ) -> Union[bc.backend.sympy.Expr, None]:
         """
         Method that gives a user readable symbolic Lagrangian for the current instance
 
@@ -1166,8 +1166,8 @@ class Circuit(
                 1, 1 + len(self.symbolic_circuit.nodes) - self.is_grounded
             ):
                 lagrangian = lagrangian.replace(
-                    sm.symbols(f"vφ{var_index}"),
-                    sm.symbols("\\dot{φ_" + str(var_index) + "}"),
+                    bc.backend.sympy.symbols(f"vφ{var_index}"),
+                    bc.backend.sympy.symbols("\\dot{φ_" + str(var_index) + "}"),
                 )
             # break down the lagrangian into kinetic and potential part, and rejoin
             # with evaluate=False to force the kinetic terms together and appear first
@@ -1175,14 +1175,14 @@ class Circuit(
             for external_flux in self.external_fluxes:
                 sym_lagrangian_PE_node_vars = sym_lagrangian_PE_node_vars.replace(
                     external_flux,
-                    sm.symbols(
+                    bc.backend.sympy.symbols(
                         "(2π"
                         + "Φ_{"
                         + str(get_trailing_number(str(external_flux)))
                         + "})"
                     ),
                 )
-            lagrangian = sm.Add(
+            lagrangian = bc.backend.sympy.Add(
                 (self._make_expr_human_readable(lagrangian + self.potential_node_vars)),
                 (self._make_expr_human_readable(-sym_lagrangian_PE_node_vars)),
                 evaluate=False,
@@ -1193,8 +1193,8 @@ class Circuit(
             # replace v\theta with \theta_dot
             for var_index in self.dynamic_var_indices:
                 lagrangian = lagrangian.replace(
-                    sm.symbols(f"vθ{var_index}"),
-                    sm.symbols("\\dot{θ_" + str(var_index) + "}"),
+                    bc.backend.sympy.symbols(f"vθ{var_index}"),
+                    bc.backend.sympy.symbols("\\dot{θ_" + str(var_index) + "}"),
                 )
             # break down the lagrangian into kinetic and potential part, and rejoin
             # with evaluate=False to force the kinetic terms together and appear first
@@ -1202,14 +1202,14 @@ class Circuit(
             for external_flux in self.external_fluxes:
                 sym_lagrangian_PE_new = sym_lagrangian_PE_new.replace(
                     external_flux,
-                    sm.symbols(
+                    bc.backend.sympy.symbols(
                         "(2π"
                         + "Φ_{"
                         + str(get_trailing_number(str(external_flux)))
                         + "})"
                     ),
                 )
-            lagrangian = sm.Add(
+            lagrangian = bc.backend.sympy.Add(
                 (
                     self._make_expr_human_readable(
                         lagrangian + self.potential_symbolic.expand()
@@ -1227,7 +1227,7 @@ class Circuit(
         else:
             print(lagrangian)
 
-    def sym_external_fluxes(self) -> Dict[sm.Expr, Tuple["Branch", List["Branch"]]]:
+    def sym_external_fluxes(self) -> Dict[bc.backend.sympy.Expr, Tuple["Branch", List["Branch"]]]:
         """
         Method returns a dictionary of Human readable external fluxes with associated
         branches and loops (represented as lists of branches) for the current instance
