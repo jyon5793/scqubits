@@ -752,7 +752,126 @@ def krylov_eigsh_jax(A, k=6, max_iter=100):
 
     return evals[:k], evecs_full[:, :k]
 
+class dok_matrix(jsp.BCOO):
+    def __init__(self, data, indices, shape):
+        super().__init__((data, indices), shape=shape)
+        self.dok_dict = {}
+        for i in range(indices.shape[0]):
+            row, col = indices[i]
+            self.dok_dict[(row, col)] = data[i]
 
+    def __getitem__(self, key):
+        return self.dok_dict.get(key, 0)  # 如果没有对应元素，返回 0
+
+    def __setitem__(self, key, value):
+        if value != 0:
+            self.dok_dict[key] = value
+        elif key in self.dok_dict:
+            del self.dok_dict[key]
+
+        self._update_bcoo_data()
+
+    def _update_bcoo_data(self):
+        """将 DOK 字典的数据转换为 BCOO 格式以更新矩阵。"""
+        rows, cols = zip(*self.dok_dict.keys())
+        data = jax.numpy.array(list(self.dok_dict.values()))
+        indices = jax.numpy.array([rows, cols]).T
+
+        self._data = data
+        self._indices = indices
+        self._shape = self.shape
+
+    def to_dok(self):
+        """返回 dok 格式的字典。"""
+        return self.dok_dict
+
+    def to_dense(self):
+        """将矩阵转换为稠密矩阵。"""
+        dense_matrix = jax.numpy.zeros(self.shape)
+        for (row, col), value in self.dok_dict.items():
+            dense_matrix = dense_matrix.at[row, col].set(value)
+        return dense_matrix
+
+
+class DiaMatrix(jsp.BCOO):
+    def __init__(self, diagonal_values, offsets, shape):
+        """
+        初始化一个类似于 SciPy dia_matrix 的矩阵，用于存储对角线非零元素。
+
+        Parameters
+        ----------
+        diagonal_values : array-like
+            存储对角线上非零元素的值，可以是二维数组，表示多条对角线。
+        offsets : array-like
+            每个对角线的相对偏移值。
+        shape : tuple
+            矩阵的形状。
+        """
+        self.offsets = jax.numpy.array(offsets)
+        self.shape = shape
+
+        # 将对角线的值转换为 COO 格式的 data 和 indices
+        data, indices = self._convert_to_coo(diagonal_values, self.offsets, self.shape)
+
+        # 使用 BCOO 进行初始化
+        super().__init__((data, indices), shape=shape)
+
+    def _convert_to_coo(self, diagonal_values, offsets, shape):
+        """
+        将对角线的值和偏移量转换为 COO 格式，用于初始化 BCOO。
+
+        Parameters
+        ----------
+        diagonal_values : array-like
+            存储对角线上非零元素的值，可以是二维数组，表示多条对角线。
+        offsets : array-like
+            每个对角线的相对偏移值。
+        shape : tuple
+            矩阵的形状。
+
+        Returns
+        -------
+        data : jax.numpy.ndarray
+            非零元素的数据。
+        indices : jax.numpy.ndarray
+            每个非零元素的 (row, col) 索引。
+        """
+        rows = []
+        cols = []
+        data = []
+
+        for diag_values, offset in zip(diagonal_values, offsets):
+            offset = int(offset)  # 偏移量
+
+            if offset >= 0:
+                row_start, col_start = 0, offset
+                length = min(shape[0], shape[1] - offset)
+            else:
+                row_start, col_start = -offset, 0
+                length = min(shape[0] + offset, shape[1])
+
+            row_indices = jax.numpy.arange(row_start, row_start + length)
+            col_indices = jax.numpy.arange(col_start, col_start + length)
+
+            rows.append(row_indices)
+            cols.append(col_indices)
+            data.append(jax.numpy.array(diag_values[:length]))
+
+        # 合并所有对角线的元素
+        rows = jax.numpy.concatenate(rows)
+        cols = jax.numpy.concatenate(cols)
+        data = jax.numpy.concatenate(data)
+
+        indices = jax.numpy.stack([rows, cols], axis=1)
+        return data, indices
+
+    def to_dense(self):
+        """将稀疏矩阵转换为稠密矩阵表示。"""
+        dense_matrix = jax.numpy.zeros(self.shape)
+        for (row, col), value in zip(self.indices, self.data):
+            dense_matrix = dense_matrix.at[row, col].set(value)
+        return dense_matrix
+    
 
 
 backend = NumpyBackend()
