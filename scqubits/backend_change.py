@@ -409,14 +409,14 @@ class JaxBackend(Backend):
     
     @staticmethod
     def is_sparse(matrix):
-        if isinstance(matrix, jsp.BCOO) or isinstance(matrixt, jsp.COO) or isinstance(matrix, jsp.CSC):
+        if isinstance(matrix, jsp.BCOO) or isinstance(matrix, jsp.COO) or isinstance(matrix, jsp.CSC):
             return True
         else:
             return False
 
     @staticmethod
     def to_dense(matrix):
-        if isinstance(matrix, jsp.BCOO) or isinstance(matrixt, jsp.COO) or isinstance(matrix, jsp.CSC):
+        if isinstance(matrix, jsp.BCOO) or isinstance(matrix, jsp.COO) or isinstance(matrix, jsp.CSC):
             return matrix.todense()
         return matrix
         
