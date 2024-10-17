@@ -143,6 +143,7 @@ class NumpyBackend(Backend):
     delete = staticmethod(np.delete)
     eigvalsh_tridiagonal = staticmethod(scipy.linalg.eigvalsh_tridiagonal)
     eigh_tridiagonal = staticmethod(sp.linalg.eigh_tridiagonal)
+    matrix_power = staticmethod(np.linalg.matrix_power)
 
     @staticmethod
     def toarray(matrix):
@@ -304,6 +305,7 @@ class JaxBackend(Backend):
     pinv = staticmethod(jax.numpy.linalg.pinv)
     delete = staticmethod(jax.numpy.delete)
     eigh_tridiagonal = staticmethod(jax.scipy.linalg.eigh_tridiagonal)
+    matrix_power = staticmethod(jax.numpy.linalg.matrix_power)
     
     @staticmethod
     def eigvalsh_tridiagonal(A):
@@ -329,7 +331,7 @@ class JaxBackend(Backend):
 
     @staticmethod
     def toarray(matrix):
-        if isinstance(matrix, jsp.BCOO):
+        if isinstance(matrix, jsp.BCOO) or isinstance(matrix, jsp.CSC):
             return matrix.todense()
         return matrix
     

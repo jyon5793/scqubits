@@ -132,7 +132,7 @@ class CircuitRoutines(ABC):
         obj_in_bytes = bytes.fromhex(io_data.as_kwargs()["subsystem_in_hex"])
         return dill.loads(obj_in_bytes)
 
-    def return_root_child(self, var_index: int):
+    def return_root_child(self, var_index: bc.backend.int):
         if (
             not self.hierarchical_diagonalization
             and var_index in self.dynamic_var_indices
@@ -244,8 +244,8 @@ class CircuitRoutines(ABC):
         osc_lengths = (
             bc.backend.diagonal(
                 8
-                * bc.backend.linalg.inv(eig_vecs.T @ bc.backend.linalg.inv(EC) @ eig_vecs)
-                @ bc.backend.linalg.inv(eig_vecs.T @ EL @ eig_vecs)
+                * bc.backend.inv(eig_vecs.T @ bc.backend.inv(EC) @ eig_vecs)
+                @ bc.backend.inv(eig_vecs.T @ EL @ eig_vecs)
             )
             ** 0.25
         )
@@ -274,7 +274,7 @@ class CircuitRoutines(ABC):
     def _transform_hamiltonian(
         self,
         hamiltonian: bc.backend.sympy.Expr,
-        transformation_matrix: ndarray,
+        transformation_matrix: bc.backend.ndarray,
         return_transformed_exprs: bool = False,
     ):
         """
@@ -288,10 +288,10 @@ class CircuitRoutines(ABC):
         Qn_vars = [bc.backend.sympy.symbols(f"Qn{var_idx}") for var_idx in ext_var_indices]
         θn_vars = [bc.backend.sympy.symbols(f"θn{var_idx}") for var_idx in ext_var_indices]
 
-        Q_exprs = bc.backend.linalg.inv(transformation_matrix.T).dot(Qn_vars)
+        Q_exprs = bc.backend.inv(transformation_matrix.T).dot(Qn_vars)
         θ_exprs = transformation_matrix.dot(θn_vars)
         if return_transformed_exprs:
-            return bc.backend.linalg.inv(transformation_matrix.T).dot(
+            return bc.backend.inv(transformation_matrix.T).dot(
                 Q_vars
             ), transformation_matrix.dot(θ_vars)
 
@@ -334,7 +334,7 @@ class CircuitRoutines(ABC):
             raise Exception(
                 f"{self._id_str} instance is not generated from a SymbolicCircuit instance, and hence does not have any associated branches."
             )
-        trans_mat = bc.backend.linalg.inv(self.transformation_matrix.T)
+        trans_mat = bc.backend.inv(self.transformation_matrix.T)
         node_offset_charge_vars = [
             bc.backend.sympy.symbols(f"q_n{index}")
             for index in range(
@@ -399,7 +399,7 @@ class CircuitRoutines(ABC):
         # return {"EJ": 15.0, "EC": 0.3, "ng": 0.0, "ncut": 30, "truncated_dim": 10}
         return {}
 
-    def cutoffs_dict(self) -> Dict[int, int]:
+    def cutoffs_dict(self) -> Dict[bc.backend.int, bc.backend.int]:
         """
         Returns a dictionary, where each variable is associated with its respective
         cutoff.
@@ -624,7 +624,7 @@ class CircuitRoutines(ABC):
                 self.__class__,
                 attrib_name,
                 descriptors.WatchedProperty(
-                    float,
+                    bc.backend.float_,
                     "CIRCUIT_UPDATE",
                     fget=getter,
                     fset=setter,
@@ -749,7 +749,7 @@ class CircuitRoutines(ABC):
             self._out_of_sync = True
             self.hilbert_space._out_of_sync = True
 
-    def _store_updated_subsystem_index(self, index: int) -> None:
+    def _store_updated_subsystem_index(self, index: bc.backend.int) -> None:
         """
         Stores the index of the subsystem which is modified in affected_subsystem_indices
         """
@@ -1213,7 +1213,7 @@ class CircuitRoutines(ABC):
     # 绑定前向和反向传播
     bc.backend.bind_custom_vjp(generate_subsystems_fwd, generate_subsystems_bwd,generate_subsystems)
 
-    def get_eigenstates(self) -> ndarray:
+    def get_eigenstates(self) -> bc.backend.ndarray:
         """
         Returns the eigenstates for the SubSystem instance
         """
@@ -1319,7 +1319,7 @@ class CircuitRoutines(ABC):
 
         eval_matrix_list = []
         for idx, term in enumerate(terms):
-            coefficient_sympy = float(expr_dict[term])
+            coefficient_sympy = bc.backend.float_(expr_dict[term])
             if term == 1:
                 eval_matrix_list.append(self._identity_qobj() * (coefficient_sympy))
                 continue
@@ -1399,7 +1399,7 @@ class CircuitRoutines(ABC):
         return wrapper_func
 
     def _generate_symbols_list(
-        self, var_str: str, iterable_list: Union[List[int], ndarray]
+        self, var_str: str, iterable_list: Union[List[bc.backend.int_], bc.backend.ndarray]
     ) -> List[bc.backend.sympy.Symbol]:
         """
         Returns the list of symbols generated using the var_str + iterable as the name
@@ -1703,14 +1703,14 @@ class CircuitRoutines(ABC):
         """
         Returns the Hilbert dimension of the Circuit instance
         """
-        cutoff_values = bc.backend.fromiter(self._collect_cutoff_values(), dtype=int)
+        cutoff_values = bc.backend.fromiter(self._collect_cutoff_values(), dtype=bc.backend.int)
         return bc.backend.prod(cutoff_values)
 
     # helper functions
     @backend_dependent_vjp
     def _kron_operator(
-        self, operator: Union[bc.backend.csc_matrix, ndarray], var_index: int
-    ) -> Union[bc.backend.csc_matrix, ndarray]:
+        self, operator: Union[bc.backend.csc_matrix, bc.backend.ndarray], var_index: bc.backend.int
+    ) -> Union[bc.backend.csc_matrix, bc.backend.ndarray]:
         """
         Identity wraps the operator with identities generated for all the other variable
         indices present in the current Subsystem.
@@ -1788,8 +1788,8 @@ class CircuitRoutines(ABC):
     bc.backend.bind_custom_vjp(kron_operator_fwd, kron_operator_bwd, _kron_operator)
 
     def _sparsity_adaptive(
-        self, matrix: Union[bc.backend.csc_matrix, ndarray]
-    ) -> Union[bc.backend.csc_matrix, ndarray]: 
+        self, matrix: Union[bc.backend.csc_matrix, bc.backend.ndarray]
+    ) -> Union[bc.backend.csc_matrix, bc.backend.ndarray]: 
         """
         Changes the type of matrix depending on the attribute
         type_of_matrices
@@ -1845,7 +1845,7 @@ class CircuitRoutines(ABC):
     @backend_dependent_vjp
     def exp_i_operator(
         self, var_sym: bc.backend.sympy.Symbol, prefactor: bc.backend.float_
-    ) -> Union[bc.backend.csc_matrix, ndarray]:
+    ) -> Union[bc.backend.csc_matrix, bc.backend.ndarray]:
         """
         Returns the bare operator exp(i*\theta*prefactor), without the kron product.
         Needs the oscillator lengths to be set in the attribute, `osc_lengths`,
@@ -1927,7 +1927,7 @@ class CircuitRoutines(ABC):
 
         saw = bc.backend.sympy.Function("saw", real=True)
         for saw_term in saw_expr.as_ordered_terms():
-            coefficient = float(list(saw_expr.as_coefficients_dict().values())[0])
+            coefficient = bc.backend.float_(list(saw_expr.as_coefficients_dict().values())[0])
             saw_argument_expr = [
                 arg.args[0] for arg in (1.0 * saw_term).args if (arg.has(saw))
             ][0]
@@ -1965,7 +1965,7 @@ class CircuitRoutines(ABC):
             return junction_potential_matrix
 
         for cos_term in junction_potential.as_ordered_terms():
-            coefficient = float(list(cos_term.as_coefficients_dict().values())[0])
+            coefficient = bc.backend.float_(list(cos_term.as_coefficients_dict().values())[0])
             cos_argument_expr = [
                 arg.args[0]
                 for arg in (1.0 * cos_term).args
@@ -1981,11 +1981,11 @@ class CircuitRoutines(ABC):
             for term in cos_argument_expr.as_ordered_terms():
                 if len(term.free_symbols) == 0:
                     cos_argument_expr -= term
-                    coefficient *= bc.backend.exp(float(term) * 1j)
+                    coefficient *= bc.backend.exp(bc.backend.float_(term) * 1j)
 
             operator_list = []
             for idx, var_symbol in enumerate(cos_argument_expr.free_symbols):
-                prefactor = float(cos_argument_expr.coeff(var_symbol))
+                prefactor = bc.backend.float_(cos_argument_expr.coeff(var_symbol))
                 child_circuit = self.return_root_child(var_indices[idx])
                 operator_bare = child_circuit._kron_operator(
                     self.exp_i_operator(var_symbol, prefactor), var_indices[idx]
@@ -2026,8 +2026,8 @@ class CircuitRoutines(ABC):
             ]
         )
         for list_idx, var_index in enumerate(self.var_categories["extended"]):
-            ECi = float(hamiltonian_sym.coeff(f"Q{var_index}**2").cancel()) / 4
-            ELi = float(hamiltonian_sym.coeff(f"θ{var_index}**2").cancel()) * 2
+            ECi = bc.backend.float_(hamiltonian_sym.coeff(f"Q{var_index}**2").cancel()) / 4
+            ELi = bc.backend.float_(hamiltonian_sym.coeff(f"θ{var_index}**2").cancel()) * 2
             osc_freqs[var_index] = (8 * ELi * ECi) ** 0.5
             osc_lengths[var_index] = (8.0 * ECi / ELi) ** 0.25
         if hamiltonian is not None:
@@ -2067,12 +2067,12 @@ class CircuitRoutines(ABC):
                         term_op = op.iadag_minus_ia_sparse(
                             getattr(self, f"cutoff_ext_{sym_var_index}"),
                             prefactor=1 / (self.osc_lengths[sym_var_index] * 2**0.5),
-                        ) * float(term.as_coeff_Mul()[0])
+                        ) * bc.backend.float_(term.as_coeff_Mul()[0])
                     if optype == "θ":
                         term_op = op.a_plus_adag(
                             getattr(self, f"cutoff_ext_{sym_var_index}"),
                             prefactor=self.osc_lengths[sym_var_index] / 2**0.5,
-                        ) * float(term.as_coeff_Mul()[0])
+                        ) * bc.backend.float_(term.as_coeff_Mul()[0])
                     operator += self._kron_operator(term_op, sym_var_index)
                 if optype == main_op_type:
                     return operator
@@ -2122,7 +2122,7 @@ class CircuitRoutines(ABC):
             }
             for short_op_name in nonwrapped_ops.keys():
                 for sym_variable in extended_vars[short_op_name]:
-                    index = int(get_trailing_number(sym_variable.name))
+                    index = bc.backend.int(get_trailing_number(sym_variable.name))
                     op_func = nonwrapped_ops[short_op_name]
                     op_name = sym_variable.name + "_operator"
                     extended_operators[op_name] = grid_operator_func_factory(
@@ -2244,9 +2244,9 @@ class CircuitRoutines(ABC):
     @backend_dependent_vjp
     def identity_wrap_for_hd(
         self,
-        operator: Optional[Union[bc.backend.csc_matrix, ndarray]],
+        operator: Optional[Union[bc.backend.csc_matrix, bc.backend.ndarray]],
         child_instance,
-        bare_esys: Optional[Dict[int, Tuple]] = None,
+        bare_esys: Optional[Dict[bc.backend.int, Tuple]] = None,
     ) -> qt.Qobj:
         """
         Returns an identity wrapped operator whose size is equal to the
@@ -2301,9 +2301,9 @@ class CircuitRoutines(ABC):
     
     def identity_wrap_for_hd_fwd(
         self,
-        operator: Optional[Union[bc.backend.csc_matrix, jnp.ndarray]],
+        operator: Optional[Union[bc.backend.csc_matrix, bc.backend.ndarray]],
         child_instance,
-        bare_esys: Optional[Dict[int, Tuple]] = None,
+        bare_esys: Optional[Dict[bc.backend.int, Tuple]] = None,
         type_of_matrices: str = "dense"
     ):
         result = self.identity_wrap_for_hd(operator, child_instance, bare_esys, type_of_matrices)
@@ -2460,7 +2460,7 @@ class CircuitRoutines(ABC):
         H_string = ""
         for idx, term in enumerate(terms_list):
             term_string = f"{coeff_list[idx]}*{self._replace_mat_mul_operator(term)}"
-            if float(coeff_list[idx]) > 0:
+            if bc.backend.float_(coeff_list[idx]) > 0:
                 term_string = "+" + term_string
             H_string += term_string
 
@@ -2487,7 +2487,7 @@ class CircuitRoutines(ABC):
         return H_string
 
     @backend_dependent_vjp
-    def _hamiltonian_for_harmonic_extended_vars(self) -> Union[bc.backend.csc_matrix, ndarray]:
+    def _hamiltonian_for_harmonic_extended_vars(self) -> Union[bc.backend.csc_matrix, bc.backend.ndarray]:
         hamiltonian = self._hamiltonian_sym_for_numerics
         # substitute all parameter values
         all_sym_parameters = (
@@ -2504,14 +2504,14 @@ class CircuitRoutines(ABC):
         )
         hamiltonian = hamiltonian.subs("I", 1)
         # add an identity operator for the constant in the symbolic expression
-        constant = float(hamiltonian.as_coefficients_dict()[1])
+        constant = bc.backend.float_(hamiltonian.as_coefficients_dict()[1])
         hamiltonian -= hamiltonian.as_coefficients_dict()[1]
         hamiltonian = hamiltonian.expand() + constant * bc.backend.sympy.symbols("I")
 
         # replace the extended degrees of freedom with harmonic oscillators
         for var_index in self.var_categories["extended"]:
-            ECi = float(hamiltonian.coeff(f"Q{var_index}" + "**2").cancel()) / 4
-            ELi = float(hamiltonian.coeff(f"θ{var_index}" + "**2").cancel()) * 2
+            ECi = bc.backend.float_(hamiltonian.coeff(f"Q{var_index}" + "**2").cancel()) / 4
+            ELi = bc.backend.float_(hamiltonian.coeff(f"θ{var_index}" + "**2").cancel()) * 2
             osc_freq = (8 * ELi * ECi) ** 0.5
             hamiltonian = (
                 (
@@ -2559,7 +2559,7 @@ class CircuitRoutines(ABC):
 
         # adding matrix power to the dict
         if self.type_of_matrices == "dense":
-            replacement_dict["matrix_power"] = bc.backend.linalg.matrix_power
+            replacement_dict["matrix_power"] = bc.backend.matrix_power
             replacement_dict["cos"] = _cos_dia_dense
             replacement_dict["sin"] = _sin_dia_dense
         else:
@@ -2621,7 +2621,7 @@ class CircuitRoutines(ABC):
     @check_sync_status_circuit
     def _hamiltonian_for_purely_harmonic(
         self, return_unsorted: bool = False
-    ) -> csc_matrix:
+    ) -> bc.backend.csc_matrix:
         """Hamiltonian for purely harmonic systems when ext_basis is set to harmonic
 
         Returns:
@@ -2706,7 +2706,7 @@ class CircuitRoutines(ABC):
 
     @check_sync_status_circuit
     @backend_dependent_vjp
-    def hamiltonian(self) -> Union[bc.backend.csc_matrix, ndarray]:
+    def hamiltonian(self) -> Union[bc.backend.csc_matrix, bc.backend.ndarray]:
         """
         Returns the Hamiltonian of the Circuit.
         """
@@ -2763,7 +2763,7 @@ class CircuitRoutines(ABC):
     def hamiltonian_for_qutip_dynamics(
         self,
         free_var_func_dict: Dict[str, Callable],
-        prefactor: float = 1.0,
+        prefactor: bc.backend.float_ = 1.0,
         extra_terms: Optional[str] = None,
     ) -> Tuple[List[Union[qt.Qobj, Tuple[qt.Qobj, Callable]]], bc.backend.sympy.Expr, List[bc.backend.sympy.Expr]]:
         """
@@ -2902,7 +2902,7 @@ class CircuitRoutines(ABC):
             dict((val, key) for key, val in time_dep_terms.items()),
         )
 
-    def _evals_calc(self, evals_count: int) -> bc.backend.ndarray:
+    def _evals_calc(self, evals_count: bc.backend.int) -> bc.backend.ndarray:
         # dimension of the hamiltonian
         hilbertdim = self.hilbertdim()
 
@@ -2923,7 +2923,7 @@ class CircuitRoutines(ABC):
             )
         return bc.backend.sort(evals)
 
-    def _esys_calc(self, evals_count: bc.backend.int) -> Tuple[ndarray, ndarray]:
+    def _esys_calc(self, evals_count: bc.backend.int) -> Tuple[bc.backend.ndarray, bc.backend.ndarray]:
         # dimension of the hamiltonian
 
         hamiltonian_mat = self.hamiltonian()
@@ -3085,7 +3085,7 @@ class CircuitRoutines(ABC):
             display(Latex(f"System hierarchy: {self.system_hierarchy}"))
             display(Latex(f"Truncated Dimensions: {self.subsystem_trunc_dims}"))
 
-    def _make_expr_human_readable(self, expr: bc.backend.sympy.Expr, float_round: int = 6) -> bc.backend.sympy.Expr:
+    def _make_expr_human_readable(self, expr: bc.backend.sympy.Expr, float_round: bc.backend.int = 6) -> bc.backend.sympy.Expr:
         """
         Method returns a user readable symbolic expression for the current instance
 
@@ -3140,7 +3140,7 @@ class CircuitRoutines(ABC):
         return expr_modified
 
     def sym_potential(
-        self, float_round: int = 6, print_latex: bool = False, return_expr: bool = False
+        self, float_round: bc.backend.int = 6, print_latex: bool = False, return_expr: bool = False
     ) -> Union[bc.backend.sympy.Expr, None]:
         """
         Method prints a user readable symbolic potential for the current instance
@@ -3176,8 +3176,8 @@ class CircuitRoutines(ABC):
 
     def sym_hamiltonian(
         self,
-        subsystem_index: Optional[int] = None,
-        float_round: int = 6,
+        subsystem_index: Optional[bc.backend.int] = None,
+        float_round: bc.backend.int = 6,
         print_latex: bool = False,
         return_expr: bool = False,
     ) -> Union[bc.backend.sympy.Expr, None]:
@@ -3310,8 +3310,8 @@ class CircuitRoutines(ABC):
 
     def sym_interaction(
         self,
-        subsystem_indices: Tuple[int],
-        float_round: int = 6,
+        subsystem_indices: Tuple[bc.backend.int],
+        float_round: bc.backend.int = 6,
         print_latex: bool = False,
         return_expr: bool = False,
     ) -> Union[bc.backend.sympy.Expr, None]:
@@ -3378,7 +3378,7 @@ class CircuitRoutines(ABC):
     # ****************************************************************
     # ************* Functions for plotting potential *****************
     # ****************************************************************
-    def potential_energy(self, **kwargs) -> ndarray:
+    def potential_energy(self, **kwargs) -> bc.backend.ndarray:
         """
         Returns the full potential of the circuit evaluated in a grid of points as
         chosen by the user or using default variable ranges.
@@ -3407,7 +3407,7 @@ class CircuitRoutines(ABC):
         for var_name in kwargs:
             if isinstance(kwargs[var_name], bc.backend.ndarray):
                 parameters[var_name] = kwargs[var_name]
-            elif isinstance(kwargs[var_name], (int, float)):
+            elif isinstance(kwargs[var_name], (bc.backend.int, float)):
                 parameters[var_name] = kwargs[var_name]
             else:
                 raise AttributeError(
@@ -3525,7 +3525,7 @@ class CircuitRoutines(ABC):
     # ****************************************************************
     # ************* Functions for plotting wave function *************
     # ****************************************************************
-    def get_osc_param(self, var_index: int, which_param: str = "length") -> float:
+    def get_osc_param(self, var_index: bc.backend.int, which_param: str = "length") -> float:
         """
         Returns the oscillator parameters based on the oscillator used to diagonalize
         the Hamiltonian in the harmonic oscillator basis.
@@ -3701,7 +3701,7 @@ class CircuitRoutines(ABC):
                 wf_dim += 1
         return wf_dim
 
-    def _dims_to_be_summed(self, var_indices: Tuple[int], num_wf_dims) -> List[int]:
+    def _dims_to_be_summed(self, var_indices: Tuple[bc.backend.int], num_wf_dims) -> List[bc.backend.int]:
         all_var_indices = self.dynamic_var_indices
         non_summed_dims = []
         for var_index in all_var_indices:
@@ -3712,8 +3712,8 @@ class CircuitRoutines(ABC):
         return [dim for dim in range(num_wf_dims) if dim not in non_summed_dims]
 
     def _reshape_and_change_to_variable_basis(
-        self, wf: ndarray, var_indices: Tuple[int]
-    ) -> ndarray:
+        self, wf: bc.backend.ndarray, var_indices: Tuple[bc.backend.int]
+    ) -> bc.backend.ndarray:
         """
         This method changes the basis of the wavefunction when hierarchical diagonalization is used.
         Then reshapes the wavefunction to represent each of the variable indices as a separate dimension.
@@ -3756,7 +3756,7 @@ class CircuitRoutines(ABC):
             )
         return wf_original_basis
 
-    def _basis_for_var_index(self, var_index: int) -> str:
+    def _basis_for_var_index(self, var_index: bc.backend.int) -> str:
         """
         Returns the ext_basis of the subsystem with no further subsystems to which the
         var_index belongs.
@@ -3772,9 +3772,9 @@ class CircuitRoutines(ABC):
 
     def _change_to_phi_basis(
         self,
-        wf_original_basis: ndarray,
-        var_indices: Tuple[int],
-        grids_dict: Dict[int, Union[discretization.Grid1d, ndarray]],
+        wf_original_basis: bc.backend.ndarray,
+        var_indices: Tuple[bc.backend.int],
+        grids_dict: Dict[bc.backend.int, Union[discretization.Grid1d, bc.backend.ndarray]],
         change_discrete_charge_to_phi: bool,
     ):
         """
@@ -3802,12 +3802,12 @@ class CircuitRoutines(ABC):
 
     def generate_wf_plot_data(
         self,
-        which: int = 0,
+        which: bc.backend.int = 0,
         mode: str = "abs-sqr",
-        var_indices: Tuple[int] = (1,),
-        eigensys: ndarray = None,
+        var_indices: Tuple[bc.backend.int] = (1,),
+        eigensys: bc.backend.ndarray = None,
         change_discrete_charge_to_phi: bool = True,
-        grids_dict: Dict[int, discretization.Grid1d] = None,
+        grids_dict: Dict[bc.backend.int, discretization.Grid1d] = None,
     ):
         """
         Returns treated wave function of the current Circuit instance for the
@@ -3895,11 +3895,11 @@ class CircuitRoutines(ABC):
         self,
         which=0,
         mode: str = "abs-sqr",
-        var_indices: Tuple[int] = (1,),
-        esys: Tuple[ndarray, ndarray] = None,
+        var_indices: Tuple[bc.backend.int] = (1,),
+        esys: Tuple[bc.backend.ndarray, bc.backend.ndarray] = None,
         change_discrete_charge_to_phi: bool = True,
         zero_calibrate: bool = True,
-        grids_dict: Dict[int, discretization.Grid1d] = {},
+        grids_dict: Dict[bc.backend.int, discretization.Grid1d] = {},
         **kwargs,
     ) -> Tuple[Figure, Axes]:
         """
@@ -4004,7 +4004,7 @@ class CircuitRoutines(ABC):
 
     def _plot_wf_pdf_2D(
         self,
-        wf_plot: ndarray,
+        wf_plot: bc.backend.ndarray,
         var_indices,
         grids_per_varindex_dict,
         change_discrete_charge_to_phi: bool,
@@ -4075,7 +4075,7 @@ class CircuitRoutines(ABC):
 
     def _plot_wf_pdf_1D(
         self,
-        wf_plot: ndarray,
+        wf_plot: bc.backend.ndarray,
         mode: str,
         var_indices,
         grids_per_varindex_dict,
@@ -4134,7 +4134,7 @@ class CircuitRoutines(ABC):
             )
         return fig, axes
 
-    def _get_cutoff_value(self, var_index: int) -> int:
+    def _get_cutoff_value(self, var_index: bc.backend.int) -> bc.backend.int:
         """Return the cutoff value associated with the variable with integer index
         `var_index`."""
         for cutoff_name in self.parent.cutoff_names:
@@ -4157,7 +4157,7 @@ class CircuitRoutines(ABC):
 @backend_dependent_vjp
 def diagonalize_matrix(A):
     """Calculate eigenvalues and eigenvectors."""
-    evals, evecs = bc.backend.linalg.eig(A)
+    evals, evecs = bc.backend.eig(A)
     return evals, evecs
 
 def diagonalize_matrix_fwd(A):

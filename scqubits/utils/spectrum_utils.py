@@ -81,7 +81,7 @@ def eigsh_safe_bwd(residuals, g):
 eigsh_safe = bc.backend.bind_custom_vjp(eigsh_safe_fwd, eigsh_safe_bwd,eigsh_safe)
 
 
-def has_degeneracy(evals: bc.backendndarray) -> bool:
+def has_degeneracy(evals: bc.backend.ndarray) -> bool:
     evals_rightpad = bc.backend.pad(evals, (0, 1))
     evals_leftpad = bc.backend.pad(evals, (1, 0))
     evals_neighbor_diffs = evals_leftpad - evals_rightpad
@@ -89,7 +89,7 @@ def has_degeneracy(evals: bc.backendndarray) -> bool:
 
 
 def order_eigensystem(
-    evals: bc.backend.bc.backendndarray, evecs: bc.backend.ndarray
+    evals: bc.backend.ndarray, evecs: bc.backend.ndarray
 ) -> Tuple[bc.backend.ndarray, bc.backend.ndarray]:
     """Takes eigenvalues and corresponding eigenvectors and orders them (in place)
     according to the eigenvalues (from smallest to largest; real valued eigenvalues
