@@ -18,6 +18,7 @@ from collections import OrderedDict
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
+import jax.numpy as jnp
 
 from matplotlib import rc_context
 from matplotlib.axes import Axes
@@ -430,7 +431,7 @@ class Parameters:
         for index, name in enumerate(self.paramnames_list):
             paramvals = new_paramvals_list[index]
             # Keep all parameters intact that still have more than one element.
-            if len(paramvals) > 1:
+            if hasattr(paramvals, 'shape') and len(paramvals.shape) > 0 and len(paramvals) > 1:
                 reduced_paramvals_by_name[name] = paramvals
             # If only one element is left, check whether this reduction was caused
             # by explicit reduction through slicing. If not, then the single-element
@@ -501,23 +502,9 @@ class NamedSlotsNdarray(backend_change.backend.ndarray, Serializable):
 
     parameters: Parameters
 
-    # def __new__(
-    #     cls, input_array: backend_change.backend.ndarray, values_by_name: Dict[str, ndarray]
-    # ) -> "NamedSlotsNdarray":
-    #     implied_shape = tuple(len(values) for values in values_by_name.values())
-    #     if input_array.shape[0 : len(values_by_name)] != implied_shape:
-    #         raise ValueError(
-    #             "Given input array {} with shape {} not compatible with "
-    #             "provided dict calling for shape {}. values_by_name: {}".format(
-    #                 input_array, input_array.shape, implied_shape, values_by_name
-    #             )
-    #         )
-    #     obj = backend_change.backend.asarray(input_array).view(cls)
-    #     obj._parameters = Parameters(values_by_name)
-    #     return obj
     def __new__(
         cls, input_array: backend_change.backend.ndarray, values_by_name: Dict[str, ndarray]
-    ) -> "NamedSlotsNdarray":
+        ) -> "NamedSlotsNdarray":
         implied_shape = tuple(len(values) for values in values_by_name.values())
         if input_array.shape[0 : len(values_by_name)] != implied_shape:
             raise ValueError(
@@ -526,13 +513,13 @@ class NamedSlotsNdarray(backend_change.backend.ndarray, Serializable):
                     input_array, input_array.shape, implied_shape, values_by_name
                 )
             )
-        # 手动创建一个新的 NamedSlotsNdarray 对象
-        obj = super(NamedSlotsNdarray, cls).__new__(cls, input_array.shape, dtype=input_array.dtype)
+        
+        if backend_change.backend.__name__ == "numpy":
+            obj = backend_change.backend.asarray(input_array).view(cls)
+        elif backend_change.backend.__name__ == "jax":
+            obj = super(NamedSlotsNdarray, cls).__new__(cls, shape=input_array.shape, dtype=input_array.dtype)
+            obj._array = backend_change.backend.array(input_array)
 
-        # 复制数据到新的对象
-        np.copyto(obj, input_array)
-
-        # 设置自定义属性
         obj._parameters = Parameters(values_by_name)
         return obj
 

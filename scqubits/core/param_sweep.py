@@ -1596,7 +1596,7 @@ def generator(sweep: "ParameterSweepBase", func: Callable, **kwargs) -> bc.backe
         )
     )
     element_shape: Tuple[int, ...] = tuple()
-    if isinstance(data_array[0], bc.backend.darray):
+    if isinstance(data_array[0], bc.backend.ndarray):
         element_shape = data_array[0].shape
 
     data_ndarray = bc.backend.asarray(data_array)

@@ -155,13 +155,13 @@ class NumpyBackend(Backend):
     
     @staticmethod
     def to_csc_matrix(matrix):
-        # 如果输入是稠密矩阵或其他类型，转换为 CSC 格式
+        # If the input is a dense matrix or other type, convert it to CSC format
         if isinstance(matrix, np.ndarray):
             return sparse.csc_matrix(matrix)
-        # 如果输入是稀疏矩阵，调用 .tocsc() 方法转换为 CSC 格式
+        # If the input is a sparse matrix, call the .tocsc() method to convert it to CSC format
         elif sparse.issparse(matrix):
             return matrix.tocsc()
-        # 处理其他情况，如果输入既不是稠密矩阵，也不是稀疏矩阵
+        # Handle other cases, if the input is neither dense matrix nor sparse matrix
         else:
             raise TypeError(f"Unsupported matrix type: {type(matrix)}. Expected a dense matrix or a sparse matrix.")
 
@@ -313,7 +313,7 @@ class JaxBackend(Backend):
     
     @staticmethod
     def eigvalsh(A):
-        return jax.scipy.linalg.eigh(A)[0]  # 只返回特征值部分
+        return jax.scipy.linalg.eigh(A)[0]  #Return only the eigenvalue part
     
     @staticmethod
     def spsinm(A):
@@ -337,33 +337,33 @@ class JaxBackend(Backend):
     
     @staticmethod
     def spidentity(n,format):
-         # 构造单位矩阵的非零元素（对角线上的元素全为1）
+         # Construct the non-zero elements of the identity matrix (all elements on the diagonal are 1)
         data = jax.numpy.ones(n)
-        indices = jax.numpy.arange(n)[:, None]  # 行和列的索引是相同的
-        indices = jax.numpy.hstack([indices, indices])  # 构造 (row, col) 索引对
+        indices = jax.numpy.arange(n)[:, None]  # The row and column indices are the same
+        indices = jax.numpy.hstack([indices, indices])  # Construct (row, col) index pairs
         if format == "csc":
-            # 如果 format 是 "csc"，创建 CSC 稀疏矩阵
+           # If format is "csc", create a CSC sparse matrix
             return jsp.CSC((data, indices), shape=(n, n))
         elif format == "array":
             return jsp.BCOO((data, indices), shape=(n, n)).todense
 
-        # 创建 BCOO 稀疏单位矩阵
+        # Create BCOO sparse identity matrix
         return jsp.BCOO((data, indices), shape=(n, n))
 
     @staticmethod
     def spkron(a: jsp.BCOO, b: jsp.BCOO, format=None):
-        # 获取 a 和 b 的数据及索引
+        # Retrieve data and indices of a and b
         a_data, a_indices = a.data, a.indices
         b_data, b_indices = b.data, b.indices
 
-        # 获取形状
+        # Get shapes of a and b
         a_shape = a.shape
         b_shape = b.shape
 
-        # Kronecker 积的形状
+        # Shape of the Kronecker product
         result_shape = (a_shape[0] * b_shape[0], a_shape[1] * b_shape[1])
 
-        # 构建 Kronecker 积的数据和索引
+        # Construct data and indices for the Kronecker product
         result_data = jax.numpy.kron(a_data, b_data)
 
         row_indices_a = a_indices[:, 0][:, None]
@@ -375,7 +375,7 @@ class JaxBackend(Backend):
         result_indices_col = col_indices_a * b_shape[1] + col_indices_b
         result_indices = jax.numpy.hstack([result_indices_row, result_indices_col])
 
-        # 根据 `format` 参数，返回不同的矩阵类型
+        # Return different matrix types based on the `format` parameter
         if format == "csc":
             return jsp.CSC((result_data, result_indices), shape=result_shape)
         elif format == "array":
@@ -385,7 +385,7 @@ class JaxBackend(Backend):
 
     @staticmethod
     def convert_to_array(obj_list):
-        return obj_list  # 对于JAX，不转换为数组
+        return obj_list
     
     @staticmethod
     def eye(N, dtype=None):
@@ -428,21 +428,21 @@ class JaxBackend(Backend):
     @staticmethod
     def solve_pure_callback(method, matrix_shape, dtype=jax.numpy.float_):
         """
-        通用的纯回调函数，用于处理 JAX 的 pure_callback 或直接返回 NumPy 后端结果。
+        Generic pure callback function, used to handle JAX pure_callback or directly return NumPy backend results.
 
         Parameters
         ----------
         method: callable
-            一个方法或函数，执行需要包装的逻辑（例如 SciPy 转换操作）。
+            A method or function that performs the logic that needs to be wrapped (such as SciPy conversion operations).
         matrix_shape: tuple
-            矩阵的形状。
+            The shape of the matrix.
         dtype: jnp.dtype, optional
-            返回矩阵的类型，默认是 jnp.float_。
+            The type of the returned matrix, default is jnp.float_.
 
         Returns
         -------
-        result: jax.BCOO 或 ndarray
-            处理后的矩阵，稀疏矩阵或稠密矩阵，取决于后端。
+        result: jax.BCOO or ndarray
+            The processed matrix, sparse or dense, depending on the backend.
         """
         return jax.pure_callback(
                 method, 
@@ -452,30 +452,31 @@ class JaxBackend(Backend):
     @staticmethod
     def dia_matrix(diagonal, shape, dtype=None): 
         """
-        在 JAX 中构建对角稀疏矩阵，类似于 SciPy 的 sparse.dia_matrix。
+        Constructs a diagonal sparse matrix in JAX, similar to SciPy's sparse.dia_matrix.
 
         Parameters
         ----------
         diagonal : array
-            对角线上非零元素的值。
+            Values of the non-zero elements on the diagonal.
         shape : tuple
-            稀疏矩阵的形状。
+            Shape of the sparse matrix.
         dtype : data-type, optional
-            数据类型。如果未指定，将使用默认的 JAX 数据类型。
+            Data type. If not specified, the default JAX data type will be used.
 
         Returns
         -------
-        BCOO 稀疏矩阵
+        BCOO sparse matrix
         """
-        # 非零元素为对角线上的元素，应用 dtype
+        # Non-zero elements are the diagonal elements, applying dtype
         data = jax.numpy.array(diagonal, dtype=dtype)
 
-        # 对角线元素的位置 (row, col)
-        indices = jax.numpy.arange(len(diagonal), dtype=jax.numpy.int32)
-        indices = jax.numpy.stack([indices, indices], axis=1)  # 构造 (row, col) 索引对
+        # Positions of the diagonal elements (row, col)
+        indices = jax.numpy.arange(len(diagonal), dtype=jax.numpy.int_)
+        indices = jax.numpy.stack([indices, indices], axis=1)  # Construct (row, col) index pairs
 
-        # 构建稀疏 BCOO 矩阵
+        # Construct the sparse BCOO matrix
         return jsp.BCOO((data, indices), shape=shape)
+
     
     @staticmethod
     def dok_matrix(shape, dtype=None):
@@ -520,7 +521,7 @@ class JaxBackend(Backend):
 
     @staticmethod
     def spexpm(A):
-        v = jax.numpy.ones(A.shape[0])  # 这里使用一个全1的单位向量作为 Krylov 子空间的初始向量
+        v = jax.numpy.ones(A.shape[0])  # Here we use a unit vector of all 1s as the initial vector of the Krylov subspace
         m = 10 
         return krylov_expm_jax(A,v,m)
     
@@ -538,7 +539,7 @@ class JaxBackend(Backend):
                 col = jax.numpy.arange(n)
                 row = col - offset
             
-            # 过滤超出矩阵大小的元素
+            # Filter out elements that exceed the size of the matrix
             valid = (row < shape[0]) & (col < shape[1])
             data.append(jax.numpy.array(diag)[valid])
             indices.append(jax.numpy.stack([row[valid], col[valid]], axis=1))
@@ -589,28 +590,28 @@ class JaxBackend(Backend):
     @staticmethod
     def speye(n, m=None, k=0, dtype=jax.numpy.float32):
         """
-        在 JAX 中创建一个稀疏单位矩阵，类似于 SciPy 的 sparse.eye。
+        Create a sparse identity matrix in JAX, similar to SciPy's sparse.eye.
 
         Parameters
         ----------
         n : int
-            矩阵的行数。
+        The number of rows in the matrix.
         m : int, optional
-            矩阵的列数，如果未指定，默认为 n (生成方阵)。
+        The number of columns in the matrix, if not specified, defaults to n (makes a square matrix).
         k : int, optional
-            主对角线的偏移量，默认为 0。
+        The offset of the main diagonal, defaults to 0.
         dtype : data-type, optional
-            数据类型，默认为 jax.numpy.float32。
+        The data type, defaults to jax.numpy.float32.
 
         Returns
         -------
-        BCOO 稀疏矩阵
-            返回一个 n x m 的稀疏单位矩阵。
+        BCOO Sparse Matrix
+        Returns an n x m sparse identity matrix.
         """
         if m is None:
             m = n
 
-        # 确定对角线元素的数量
+        # Determine the number of diagonal elements
         if k >= 0:
             diag_size = min(n, m - k)
             row_indices = jax.numpy.arange(diag_size)
@@ -620,13 +621,13 @@ class JaxBackend(Backend):
             row_indices = jax.numpy.arange(diag_size) - k
             col_indices = jax.numpy.arange(diag_size)
 
-        # 构造对角线上非零元素
+        # Construct non-zero elements on the diagonal
         data = jax.numpy.ones(diag_size, dtype=dtype)
 
-        # 构造 COO 格式的索引
+        # Constructing an index in COO format
         indices = jax.numpy.stack([row_indices, col_indices], axis=1)
 
-        # 创建稀疏矩阵
+        # Creating a sparse matrix
         shape = (n, m)
         eye_sparse = jsp.BCOO((data, indices), shape=shape)
 
@@ -665,21 +666,21 @@ def backend_dependent_vjp(fn):
 @jit
 def krylov_expm_jax(A, v, m):
     """
-    使用 Krylov 子空间方法在 JAX 中计算矩阵的指数函数的近似值。
+    Approximates the matrix exponential action on a vector using the Krylov subspace method in JAX.
     
     Parameters:
     -----------
     A : array
-        要计算指数函数的矩阵，必须是 JAX ndarray。
+        The matrix to exponentiate, must be a JAX ndarray.
     v : array
-        Krylov 子空间生成的初始向量，必须是 JAX ndarray。
+        The initial vector for generating the Krylov subspace, must be a JAX ndarray.
     m : int
-        Krylov 子空间的维数。
+        Dimension of the Krylov subspace.
         
     Returns:
     --------
     expm_A_v : array
-        近似计算出的矩阵指数作用在向量 v 上的结果。
+        The result of the approximate matrix exponential applied to vector v.
     """
     n = A.shape[0]
     V = jax.numpy.zeros((n, m))
@@ -696,32 +697,32 @@ def krylov_expm_jax(A, v, m):
         if H[j + 1, j] > 1e-10:
             V = V.at[:, j + 1].set(w / H[j + 1, j])
 
-    # 计算 H 的指数矩阵 (这里使用 jax.scipy.linalg.expm)
+    # Compute the exponential of H (using jax.scipy.linalg.expm here)
     expH = jax.scipy.linalg.expm(H)
 
-    # 返回矩阵指数与向量 v 的乘积
+    # Return the product of the matrix exponential and the vector v
     return beta * (V @ expH[:, 0])
 
 @jax.jit
 def krylov_eigsh_jax(A, k=6, max_iter=100):
     """
-    使用 Krylov 子空间方法在 JAX 中计算前 k 个特征值和特征向量。
+    Compute the first k eigenvalues and eigenvectors in JAX using the Krylov subspace method.
 
     Parameters:
     -----------
     A : array
-        要计算特征值和特征向量的对称矩阵，必须是 JAX ndarray。
+        Symmetric matrix to compute eigenvalues and eigenvectors, must be a JAX ndarray.
     k : int
-        计算前 k 个特征值和特征向量。
+        Compute the first k eigenvalues and eigenvectors.
     max_iter : int
-        Krylov 子空间迭代的最大次数。
+        Maximum number of Krylov subspace iterations.
 
     Returns:
     --------
     evals : array
-        前 k 个特征值。
+    First k eigenvalues.
     evecs : array
-        前 k 个特征向量。
+    First k eigenvectors.
     """
     n = A.shape[0]
     V = jax.numpy.zeros((n, k))
@@ -746,7 +747,7 @@ def krylov_eigsh_jax(A, k=6, max_iter=100):
             H = H.at[j + 1, j].set(beta)
             H = H.at[j, j + 1].set(beta)
 
-    # 计算 H 的特征值和特征向量
+    # Compute the eigenvalues ​​and eigenvectors of H
     evals, evecs = jax.numpy.linalg.eigh(H)
     evecs_full = V @ evecs
 
@@ -761,7 +762,7 @@ class dok_matrix(jsp.BCOO):
             self.dok_dict[(row, col)] = data[i]
 
     def __getitem__(self, key):
-        return self.dok_dict.get(key, 0)  # 如果没有对应元素，返回 0
+        return self.dok_dict.get(key, 0)  # If there is no corresponding element, return 0
 
     def __setitem__(self, key, value):
         if value != 0:
@@ -772,7 +773,7 @@ class dok_matrix(jsp.BCOO):
         self._update_bcoo_data()
 
     def _update_bcoo_data(self):
-        """将 DOK 字典的数据转换为 BCOO 格式以更新矩阵。"""
+        """Convert the data of the DOK dictionary to BCOO format to update the matrix."""
         rows, cols = zip(*self.dok_dict.keys())
         data = jax.numpy.array(list(self.dok_dict.values()))
         indices = jax.numpy.array([rows, cols]).T
@@ -782,66 +783,66 @@ class dok_matrix(jsp.BCOO):
         self._shape = self.shape
 
     def to_dok(self):
-        """返回 dok 格式的字典。"""
+        """Returns a dictionary in dok format."""
         return self.dok_dict
 
     def to_dense(self):
-        """将矩阵转换为稠密矩阵。"""
+        """Convert the matrix to a dense matrix."""
         dense_matrix = jax.numpy.zeros(self.shape)
         for (row, col), value in self.dok_dict.items():
             dense_matrix = dense_matrix.at[row, col].set(value)
         return dense_matrix
 
 
-class DiaMatrix(jsp.BCOO):
+class dia_matrix(jsp.BCOO):
     def __init__(self, diagonal_values, offsets, shape):
         """
-        初始化一个类似于 SciPy dia_matrix 的矩阵，用于存储对角线非零元素。
+        Initialize a matrix similar to SciPy dia_matrix to store diagonal non-zero elements.
 
         Parameters
         ----------
         diagonal_values : array-like
-            存储对角线上非零元素的值，可以是二维数组，表示多条对角线。
+            Stores the values of non-zero elements on the diagonal. It can be a two-dimensional array, representing multiple diagonals.
         offsets : array-like
-            每个对角线的相对偏移值。
+            The relative offset value of each diagonal.
         shape : tuple
-            矩阵的形状。
+            The shape of the matrix.
         """
         self.offsets = jax.numpy.array(offsets)
         self.shape = shape
 
-        # 将对角线的值转换为 COO 格式的 data 和 indices
+        # Convert the diagonal values ​​to COO format data and indices
         data, indices = self._convert_to_coo(diagonal_values, self.offsets, self.shape)
 
-        # 使用 BCOO 进行初始化
+        # Initialization using BCOO
         super().__init__((data, indices), shape=shape)
 
     def _convert_to_coo(self, diagonal_values, offsets, shape):
         """
-        将对角线的值和偏移量转换为 COO 格式，用于初始化 BCOO。
+        Convert the diagonal values and offsets to COO format for initializing BCOO.
 
         Parameters
         ----------
         diagonal_values : array-like
-            存储对角线上非零元素的值，可以是二维数组，表示多条对角线。
+            Stores the values of non-zero elements on the diagonal, which can be a two-dimensional array, representing multiple diagonals.
         offsets : array-like
-            每个对角线的相对偏移值。
+            The relative offset value of each diagonal.
         shape : tuple
-            矩阵的形状。
+            The shape of the matrix.
 
         Returns
         -------
         data : jax.numpy.ndarray
-            非零元素的数据。
+            The data of non-zero elements.
         indices : jax.numpy.ndarray
-            每个非零元素的 (row, col) 索引。
+            The (row, col) index of each non-zero element.
         """
         rows = []
         cols = []
         data = []
 
         for diag_values, offset in zip(diagonal_values, offsets):
-            offset = int(offset)  # 偏移量
+            offset = int(offset)
 
             if offset >= 0:
                 row_start, col_start = 0, offset
@@ -857,7 +858,6 @@ class DiaMatrix(jsp.BCOO):
             cols.append(col_indices)
             data.append(jax.numpy.array(diag_values[:length]))
 
-        # 合并所有对角线的元素
         rows = jax.numpy.concatenate(rows)
         cols = jax.numpy.concatenate(cols)
         data = jax.numpy.concatenate(data)
@@ -866,7 +866,6 @@ class DiaMatrix(jsp.BCOO):
         return data, indices
 
     def to_dense(self):
-        """将稀疏矩阵转换为稠密矩阵表示。"""
         dense_matrix = jax.numpy.zeros(self.shape)
         for (row, col), value in zip(self.indices, self.data):
             dense_matrix = dense_matrix.at[row, col].set(value)

@@ -522,7 +522,7 @@ class CircuitRoutines(ABC):
                     self._store_updated_subsystem_index(subsys_idx)
                     setattr(subsys, param_name, value)
 
-    def _set_property_and_update_cutoffs(self, param_name: str, value: bc.backend.int) -> None:
+    def _set_property_and_update_cutoffs(self, param_name: str, value: bc.backend.int_) -> None:
         """
         Setter method to set cutoffs which are instance properties.
 
@@ -534,6 +534,7 @@ class CircuitRoutines(ABC):
             The value to which the instance property is updated.
         """
         if not (isinstance(value, int) and value > 0):
+            # print(str(value) + " is " + str(type(value)))
             raise AttributeError(
                 f"{value} is invalid. Basis cutoffs can only be positive integers."
             )
